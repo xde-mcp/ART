@@ -93,7 +93,6 @@ async def start_vllm(
     if process.stderr:
         asyncio.create_task(log_output(process.stderr, sys.stderr))
     client = AsyncOpenAI(
-        model=model_name,
         api_key="default",
         base_url=f"http://{named_arguments.get('host', '0.0.0.0')}:{named_arguments['port']}/v1",
         max_retries=6,
