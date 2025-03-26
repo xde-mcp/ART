@@ -11,11 +11,13 @@ dependencies = [
     "seaborn>=0.13.2",
     "torch>=2.5.1",
     "torchao>=0.9.0",
-    "torchtune>=0.5.0",
-    "unsloth>=2025.3.15 ; sys_platform == 'linux'",
+    "unsloth ; sys_platform == 'linux'",
     "unsloth-zoo ; sys_platform == 'linux'",
     "vllm>=0.7.0",
     "wandb>=0.19.8",
+    "peft>=0.14.0",
+    "openpipe>=4.49.0",
+    "torchtune==0.5.0",
 ]
 
 [build-system]
@@ -37,4 +39,5 @@ override-dependencies = [
 ]
 
 [tool.uv.sources]
+unsloth = { git = "https://github.com/bradhilton/unsloth" }
 unsloth-zoo = { git = "https://github.com/bradhilton/unsloth-zoo" }

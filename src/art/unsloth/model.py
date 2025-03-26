@@ -1,6 +1,6 @@
 from peft.peft_model import PeftModel
 from transformers import PreTrainedTokenizerBase
-from unsloth.models import FastLanguageModel
+from unsloth.models import FastLanguageModel  # type: ignore
 
 
 def get_model_and_tokenizer(
@@ -16,10 +16,12 @@ def get_model_and_tokenizer(
         # vLLM args
         disable_log_requests=True,
         disable_log_stats=False,
-        gpu_memory_utilization=0.6,  # Reduce if out of memory
+        enable_prefix_caching=True,
+        gpu_memory_utilization=0.62,  # Reduce if out of memory
         max_lora_rank=lora_rank,
+        # max_num_seqs=1024,
+        # enforce_eager=True,
         num_scheduler_steps=16,
-        multi_step_stream_outputs=False,
         use_async=True,
     )
 

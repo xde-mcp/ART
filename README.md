@@ -1,4 +1,6 @@
-# OpenPipe Agent Reinforcement Training (ART)
+![image](https://github.com/user-attachments/assets/42b2d869-949e-4faa-a363-5310c0b66491)
+
+# The OpenPipe Agent Reinforcement Trainer (ART)
 
 An open-source reinforcement training library for LLMs and agentic workflows
 
@@ -47,6 +49,12 @@ SSH into the `art` cluster with VSCode or from the command line:
 ssh art
 ```
 
+When you're done, you can tear down the cluster with:
+
+```bash
+uv run sky down art
+```
+
 ### Local Training
 
 Make sure you are on a machine with at least one H100 or A100-80GB GPU.
@@ -64,7 +72,7 @@ Now you can run the "Temporal Clue" example in `/examples/temporal-clue.ipynb`.
 
 It has been tested with the `NousResearch/Hermes-2-Theta-Llama-3-8B` model on a 1xH100 instance.
 
-You can monitor training progress with Weights & Biases at https://wandb.ai/your-wandb-username/agent-reinforcement-training.
+You can monitor training progress with Weights & Biases at https://wandb.ai/your-wandb-organization/agent-reinforcement-training.
 
 You should see immediate improvement in `val/reward` after one iteration.
 

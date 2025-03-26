@@ -1,26 +1,15 @@
 import asyncio
-from collections import Counter
 from datasets import Dataset
-import glob
 import nest_asyncio
-from omegaconf import OmegaConf
 import os
 from peft.peft_model import PeftModel
-import re
 import shutil
-import sys
 import torch
-from torchtune.modules import TransformerDecoder
-from torchtune.training import cleanup_before_training, FullModelHFCheckpointer
-from torchtune.training.metric_logging import DiskLogger
 from transformers import PreTrainedTokenizerBase
-from typing import Any, Callable, cast, IO
+from typing import cast
 
 from .grpo import GRPO
-from .pack import PackedDataset, PackedTensors, packed_tensors_to_dir
-from .recipe import ComponentConfig, recipe_main, TuneRecipeConfig
-from ..tqdm import tqdm
-from ..types import Verbosity
+from .pack import PackedTensors
 from .UnslothGRPOTrainer import UnslothGRPOConfig, UnslothGRPOTrainer
 
 nest_asyncio.apply()
@@ -39,9 +28,7 @@ def get_trainer(
         model=model,
         reward_funcs=reward_func,
         args=args,
-        train_dataset=Dataset.from_list(
-            [{"prompt": "hello, world!"} for _ in range(100)]
-        ),
+        train_dataset=Dataset.from_list([{"prompt": ""} for _ in range(100_000)]),
         processing_class=tokenizer,
     )
 
@@ -51,44 +38,15 @@ def get_trainer(
 
         packed_tensors = asyncio.run(get_packed_tensors())
 
-        # # Concatenate prompt_ids with completion_ids
-        # prompt_completion_ids = torch.cat(
-        #     [inputs["prompt_ids"], inputs["completion_ids"]], dim=1
-        # )
-
-        # # Concatenate prompt_mask with completion_mask for logit computation
-        # attention_mask = torch.cat(
-        #     [inputs["prompt_mask"], inputs["completion_mask"]], dim=1
-        # )  # (B*G, P+C)
-
-        # logits_to_keep = inputs["completion_ids"].size(
-        #     1
-        # )  # we only need to compute the logits for the completion tokens
-
-        # with torch.inference_mode():
-        #     if trainer.ref_model is not None:
-        #         ref_per_token_logps = trainer._get_per_token_logps(
-        #             trainer.ref_model,
-        #             prompt_completion_ids,
-        #             attention_mask,
-        #             logits_to_keep,
-        #         )
-        #     else:
-        #         with trainer.accelerator.unwrap_model(trainer.model).disable_adapter():
-        #             ref_per_token_logps = trainer._get_per_token_logps(
-        #                 trainer.model,
-        #                 prompt_completion_ids,
-        #                 attention_mask,
-        #                 logits_to_keep,
-        #             )
-
         return cast(dict[str, torch.Tensor], packed_tensors)
 
     trainer._prepare_inputs = _async_prepare_inputs
     return trainer
 
 
-async def train(trainer: UnslothGRPOTrainer) -> None:
+async def train(
+    trainer: UnslothGRPOTrainer, packed_tensors_queue: asyncio.Queue[PackedTensors]
+) -> None:
     loss_fn = GRPO()
     loss_fn._forward_chunk = torch.compile(
         loss_fn._forward_chunk,
@@ -104,9 +62,6 @@ async def train(trainer: UnslothGRPOTrainer) -> None:
         try:
             # Move tensors to the correct device
             inputs = {key: tensor.to(trainer.accelerator.device) for key, tensor in inputs.items()}  # type: ignore
-
-            # Assume the first token in the batch is the bos token
-            bos_id = int(inputs["tokens"].view(-1)[0].item())
 
             # Create grouped causal mask
             batch_size, seq_len = inputs["tokens"].size()
@@ -145,22 +100,38 @@ async def train(trainer: UnslothGRPOTrainer) -> None:
                 device_type="cuda", dtype=trainer._autocast_dtype
             ):
                 logits = model(input_ids=inputs["tokens"], causal_mask=attn_bias).logits
+                logits = logits[:, :-1, :]
 
-            result = loss_fn.forward(
-                logits=logits,
-                tokens=inputs["tokens"],
-                advantages=inputs["advantages"],
-                logprobs=inputs["logprobs"],
-                reference_logprobs=None,
-                mask=inputs["assistant_mask"],
-                weights=inputs["weights"],
-                bos_id=bos_id,
+            mask = inputs["assistant_mask"][:, 1:]
+            logits = logits[mask]
+
+            selected_logits = (
+                torch.gather(
+                    logits, dim=-1, index=inputs["tokens"][:, 1:][mask].unsqueeze(-1)
+                )
+                .squeeze(-1)
+                .to(torch.float32)
             )
-            return result.per_token().total_loss
+            new_logprobs = selected_logits - torch.logsumexp(logits, dim=-1)
+            del logits
+            old_logprobs = inputs["logprobs"][:, 1:][mask]
+            old_logprobs = torch.where(
+                torch.isnan(old_logprobs), new_logprobs, old_logprobs
+            )
+            advantages = inputs["advantages"][:, 1:][mask]
+            diff = new_logprobs - old_logprobs
+            prob_ratio = torch.exp(diff)
+            policy_loss = -torch.min(
+                prob_ratio * advantages,
+                torch.clip(prob_ratio, 1 - 0.2, 1 + 0.2) * advantages,
+            )
+            del new_logprobs, old_logprobs, diff, prob_ratio, advantages
+            return policy_loss.mean()
         finally:
             for tensor in inputs.values():
                 tensor.to("cpu")  # type: ignore
             torch.cuda.empty_cache()
+            packed_tensors_queue.task_done()
 
     _compute_loss = trainer.compute_loss
     trainer.compute_loss = compute_loss
@@ -197,221 +168,3 @@ def get_iteration(output_dir: str) -> int:
 def get_last_iteration_dir(output_dir: str) -> str | None:
     last_iteration_dir = os.path.join(output_dir, f"{get_iteration(output_dir):04d}")
     return last_iteration_dir if os.path.exists(last_iteration_dir) else None
-
-
-def get_last_tune_metrics(output_dir: str) -> dict[str, float]:
-    sorted_logs = sorted(glob.glob(f"{output_dir}/logs/*"))
-    contents = open(sorted_logs[-1]).read()
-    lines = contents.strip().splitlines()
-    metrics = Counter()
-    metric_occurrences = Counter()
-    for line in lines:
-        _, metrics_part = line.split(" | ")
-        for metric in metrics_part.split():
-            key, value = metric.split(":")
-            metrics[key] += float(value)  # type: ignore
-            metric_occurrences[key] += 1
-    return {metric: metrics[metric] / metric_occurrences[metric] for metric in metrics}
-
-
-async def tune(
-    base_model: str,
-    output_dir: str,
-    packed_tensors: PackedTensors,
-    model: Callable[[], TransformerDecoder],
-    model_type: str,
-    config: TuneRecipeConfig = TuneRecipeConfig(),
-    in_process: bool = False,
-    verbosity: Verbosity = 2,
-) -> str:
-    if os.path.isdir(base_model):
-        base_checkpoint_dir = base_model
-    else:
-        process = await asyncio.create_subprocess_shell(
-            f"HF_HUB_ENABLE_HF_TRANSFER=1 huggingface-cli download {base_model}",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-
-        base_stdout = []
-
-        async def read_stream(stream, is_stderr=False):
-            while True:
-                line = await stream.readline()
-                if not line:
-                    break
-                text = line.decode().rstrip()
-                if is_stderr:
-                    if verbosity > 1:
-                        print(text)
-                else:
-                    base_stdout.append(text)
-
-        await asyncio.gather(
-            read_stream(process.stdout, is_stderr=False),
-            read_stream(process.stderr, is_stderr=True),
-        )
-        await process.wait()
-        base_checkpoint_dir = "\n".join(base_stdout).strip()
-
-    config.checkpointer = _get_checkpointer_config(
-        checkpoint_dir=max(
-            (d for d in glob.glob(f"{output_dir}/*") if d.split("/")[-1].isdigit()),
-            key=lambda x: int(x.split("/")[-1]),
-            default=base_checkpoint_dir,
-        ),
-        output_dir=output_dir,
-        tune_model_type=model_type,
-    )
-    if config.loss.kl_coef > 0:
-        if verbosity > 1:
-            print("Using reference checkpointer")
-        config.reference_checkpointer = _get_checkpointer_config(
-            checkpoint_dir=base_checkpoint_dir,
-            output_dir=output_dir,
-            tune_model_type=model_type,
-        )
-    if config.metric_logger is None:
-        config.metric_logger = ComponentConfig(DiskLogger, log_dir=f"{output_dir}/logs")
-    config.model = ComponentConfig(model)
-    disk_packed_tensors = packed_tensors_to_dir(packed_tensors, f"{output_dir}/tensors")
-    config.dataset = ComponentConfig(
-        PackedDataset,
-        **disk_packed_tensors,
-    )
-    config.seed = 42
-    dict_config = config.dict_config()
-    OmegaConf.save(dict_config, f"{output_dir}/config.yaml")
-    if in_process:
-        cleanup_before_training()
-        recipe_main(config)
-    else:
-        await _tune_run(
-            config_path=f"{output_dir}/config.yaml",
-            total=disk_packed_tensors["num_sequences"],
-            verbosity=verbosity,
-            torchrun_kwargs=(
-                {"nproc_per_node": torch.cuda.device_count()}
-                if torch.cuda.device_count() > 1
-                else {}
-            ),
-            # tune_run_env={"CUDA_LAUNCH_BLOCKING": "1"},
-        )
-    epoch_dirs = lambda: glob.glob(f"{output_dir}/epoch_*")
-    epoch_dir = max(
-        epoch_dirs(),
-        key=lambda x: int(x.split("_")[-1]),
-        default=None,
-    )
-    assert (
-        epoch_dir is not None
-    ), f"No epoch directory found in output directory {output_dir}"
-    iteration_dir = f"{output_dir}/{get_iteration(output_dir) + 1:04d}"
-    os.rename(epoch_dir, iteration_dir)
-    for epoch_dir in epoch_dirs():
-        os.rmdir(epoch_dir)
-    return iteration_dir
-
-
-def _get_checkpointer_config(
-    checkpoint_dir: str,
-    output_dir: str,
-    tune_model_type: str,
-    checkpoint_files: list[str] | None = None,
-    output_subdir: str = "",
-) -> ComponentConfig[FullModelHFCheckpointer]:
-    return ComponentConfig(
-        FullModelHFCheckpointer,
-        checkpoint_dir=checkpoint_dir,
-        checkpoint_files=checkpoint_files
-        or [
-            os.path.basename(file)
-            for ext in ["safetensors", "pt", "ckpt", "bin", "pth"]
-            for file in glob.glob(f"{checkpoint_dir}/*.{ext}")
-        ],
-        recipe_checkpoint=None,
-        output_dir=output_dir + output_subdir,
-        model_type=tune_model_type,
-    )
-
-
-async def _tune_run(
-    config_path: str,
-    total: int,
-    verbosity: Verbosity = 2,
-    torchrun_kwargs: dict[str, Any] | None = None,
-    tune_run_env: dict[str, str] | None = None,
-) -> None:
-    args = [
-        "tune",
-        "run",
-        *[
-            f"--{key.replace('_', '-')}{f'={value}' if value is not True else ''}"
-            for key, value in (torchrun_kwargs or {}).items()
-        ],
-        "art.local.recipe.TuneRecipe",
-        "--config",
-        config_path,
-    ]
-    if verbosity > 0:
-        print(f"$ {' '.join(args)}")
-    process = await asyncio.create_subprocess_exec(
-        *args,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        env={**os.environ, **(tune_run_env or {})},
-    )
-    if verbosity == 1:
-        pbar = tqdm.tqdm(total=total)
-    else:
-        pbar = None
-
-    async def log_output(stream: asyncio.StreamReader, io: IO[str]) -> None:
-        output = ""
-        while True:
-            try:
-                chunk = await stream.read(4096)
-                if not chunk:
-                    break
-                output += chunk.decode()
-                if verbosity > 1:
-                    io.write(output)
-                    io.flush()
-                    output = ""
-                elif verbosity == 1:
-                    output = output.split("\n")[-1]
-                    if pbar:
-                        pbar_start = re.compile(r"(\d+)\|(\d+)\|Loss: ([\d.]+):")
-                        if match := pbar_start.search(output):
-                            epoch, step, loss = match.groups()
-                            pbar.update(int(step) - pbar.n)
-                            pbar.set_description(f"{epoch}|{step}|Loss: {loss}")
-                        metrics = {
-                            key: value
-                            for key, value in re.findall(r"(\w+)=([\d.-]+)", output)
-                        }
-                        if metrics:
-                            pbar.set_postfix(**metrics)
-                            output = ""
-                    else:
-                        pbar_regex = re.compile(
-                            r"\[(?:\d+:)?\d+:\d+<(?:\d+:)?\d+:\d+.*\]"
-                        )
-                        if pbar_regex.search(output):
-                            io.write(output)
-                            io.flush()
-                            output = ""
-            except Exception:
-                break
-
-    tasks = []
-    if process.stdout:
-        tasks.append(asyncio.create_task(log_output(process.stdout, sys.stdout)))
-    if process.stderr:
-        tasks.append(asyncio.create_task(log_output(process.stderr, sys.stderr)))
-    try:
-        _ = await asyncio.gather(*tasks)
-    except asyncio.CancelledError:
-        process.kill()
-    if pbar:
-        pbar.close()

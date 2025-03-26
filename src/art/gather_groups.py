@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 async def gather_groups(
     groups: Iterable[
         Iterable[Coroutine[Any, Any, "Trajectory" | Iterable["Trajectory"]]]
+        | Coroutine[Any, Any, Iterable["Trajectory"]]
     ],
     *,
     pbar_desc: str | None = None,
@@ -35,6 +36,7 @@ async def gather_groups(
 async def gather_groups(
     groups: Iterable[
         Iterable[Coroutine[Any, Any, "Trajectory" | Iterable["Trajectory"]]]
+        | Coroutine[Any, Any, Iterable["Trajectory"]]
     ],
     *,
     pbar_desc: str | None = None,
@@ -49,6 +51,7 @@ async def gather_groups(
 async def gather_groups(
     groups: Iterable[
         Iterable[Coroutine[Any, Any, "Trajectory" | Iterable["Trajectory"]]]
+        | Coroutine[Any, Any, Iterable["Trajectory"]]
     ],
     *,
     pbar_desc: str | None = None,
@@ -58,7 +61,7 @@ async def gather_groups(
     streaming_chat_completions_dir: str = "./streaming-chat-completions",
     clear_streaming_chat_completions_dir: bool = True,
 ) -> list[list["Trajectory | BaseException"]] | list[list["Trajectory"]]:
-    groups = [list(g) for g in groups]
+    groups = [list([g] if isinstance(g, Coroutine) else g) for g in groups]
     total = sum(len(g) for g in groups)
     if stream_chat_completions:
         if clear_streaming_chat_completions_dir:

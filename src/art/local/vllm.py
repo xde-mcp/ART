@@ -1,7 +1,7 @@
 import asyncio
 from dataclasses import dataclass
 import httpx
-from openai import DefaultAsyncHttpxClient
+from openai import AsyncOpenAI, DefaultAsyncHttpxClient
 import os
 import socket
 import subprocess
@@ -9,7 +9,6 @@ import sys
 import re
 from typing import Any, IO, Optional
 
-from ..openai import AsyncOpenAI
 from ..types import Verbosity
 
 

@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import Dataset
 from typing import TypedDict, Unpack
 
-from .tokenize import TokenizedResult
+from .tokenization import TokenizedResult
 from ..types import Verbosity
 
 
@@ -141,13 +141,9 @@ def packed_tensors_from_dir(**kwargs: Unpack[DiskPackedTensors]) -> PackedTensor
         key: torch.from_file(
             f"{kwargs["dir"]}/{key}.pt",
             shared=True,
-            size=kwargs["num_sequences"]
-            * kwargs["sequence_length"]
-            * (kwargs["sequence_length"] if key == "mask" else 1),
+            size=kwargs["num_sequences"] * kwargs["sequence_length"],
             dtype=dtype,
-        )
-        .view(kwargs["num_sequences"], kwargs["sequence_length"], -1)
-        .squeeze()
+        ).view(kwargs["num_sequences"], kwargs["sequence_length"])
         for key, dtype in {
             "tokens": torch.long,
             "group_ids": torch.long,
