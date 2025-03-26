@@ -154,4 +154,4 @@ def kill_vllm_workers() -> None:
         in line
     ]
     for pid in pids:
-        subprocess.run(["sudo", "kill", "-9", pid], check=True)
+        subprocess.run(["kill", "-9", pid], check=True)
