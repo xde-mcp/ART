@@ -15,7 +15,7 @@ class API:
         base_url: str | httpx.URL | None = None,
     ) -> None:
         """
-        Initializes an Agent Reinforcement Training (ART) API interface.
+        Initializes an Agent Reinforcement Trainer (ART) API interface.
 
         Args:
             api_key: The API key to use. Will check the `ART_API_KEY` and

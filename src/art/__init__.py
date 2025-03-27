@@ -27,6 +27,7 @@ except ImportError:
 
 from .api import API
 from .gather_groups import gather_groups
+from .gather_trajectories import gather_trajectories
 from .local import LocalAPI
 from .model import Model
 from .types import Messages, MessagesAndChoices, ToolCall, Tools, Trajectory, TuneConfig
@@ -35,6 +36,7 @@ from .unsloth import UnslothAPI
 __all__ = [
     "API",
     "gather_groups",
+    "gather_trajectories",
     "LocalAPI",
     "Messages",
     "MessagesAndChoices",

@@ -77,7 +77,7 @@ class Service(BaseModel):
 
     @catch_and_print_errors
     async def start_openai_server(self, request: StartOpenaiServer) -> None:
-        from art.unsloth.tune import get_last_iteration_dir
+        from art.unsloth.checkpoints import get_last_iteration_dir
         from art.unsloth.vllm_utils import openai_server_task
 
         peft_model, _ = self._get_model_and_tokenizer()
@@ -109,8 +109,9 @@ class Service(BaseModel):
         import torch
         from unsloth_zoo.training_utils import set_training, unset_training  # type: ignore
 
+        from art.unsloth.checkpoints import get_iteration
         from art.unsloth.pack import packed_tensors_from_dir
-        from art.unsloth.tune import get_iteration, train
+        from art.unsloth.train import train
 
         packed_tensors = packed_tensors_from_dir(**disk_packed_tensors)
         queue = self._get_packed_tensors_queue()
@@ -218,7 +219,7 @@ class Service(BaseModel):
         return self._packed_tensors_queue
 
     def _get_trainer(self) -> "UnslothGRPOTrainer":
-        from art.unsloth.tune import get_trainer
+        from art.unsloth.train import get_trainer
         from art.unsloth.UnslothGRPOTrainer import UnslothGRPOConfig
 
         if self._trainer:
@@ -232,7 +233,6 @@ class Service(BaseModel):
                 adam_beta1=0.9,
                 adam_beta2=0.99,
                 weight_decay=0.1,
-                warmup_ratio=0.1,
                 lr_scheduler_type="constant",
                 optim="paged_adamw_8bit",
                 beta=0.0,
@@ -240,15 +240,15 @@ class Service(BaseModel):
                 per_device_train_batch_size=4,
                 gradient_accumulation_steps=1,  # Increase to 4 for smoother training
                 num_generations=4,  # Decrease if out of memory
-                max_prompt_length=2048,
-                max_completion_length=8192 - 2048,
+                # max_prompt_length=2048,
+                # max_completion_length=8192 - 2048,
                 # num_train_epochs = 1, # Set to 1 for a full training run
-                max_steps=1_000_000,
-                save_steps=1_000_000,
-                max_grad_norm=10.0,
-                report_to="none",  # Can use Weights & Biases
+                # max_steps=1_000_000,
+                # save_steps=1_000_000,
+                # max_grad_norm=10.0,
+                # report_to="none",  # Can use Weights & Biases
                 output_dir="outputs",
-                use_vllm=False,
+                # use_vllm=False,
             ),
             packed_tensors_queue=self._get_packed_tensors_queue(),
         )

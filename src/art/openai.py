@@ -19,7 +19,7 @@ from typing import (
     Callable,
 )
 
-from .gather_groups import get_groups_context
+from .gather_trajectories import get_groups_context
 from .utils import format_message
 
 

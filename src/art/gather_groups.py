@@ -1,26 +1,16 @@
-import asyncio
-import contextvars
-import contextlib
-from collections import Counter
-from dataclasses import dataclass, field
-from itertools import cycle
-import os
-import random
-import shutil
-from typing import Any, Coroutine, Iterable, Iterator, Literal, overload, TYPE_CHECKING
+from typing import Any, Coroutine, Iterable, Literal, overload
+import warnings
+from typing_extensions import deprecated
 
-
-from .tqdm import tqdm
-
-if TYPE_CHECKING:
-    from .types import Trajectory
+from .gather_trajectories import gather_trajectories
+from .types import Trajectory
 
 
 @overload
 async def gather_groups(
     groups: Iterable[
-        Iterable[Coroutine[Any, Any, "Trajectory" | Iterable["Trajectory"]]]
-        | Coroutine[Any, Any, Iterable["Trajectory"]]
+        Iterable[Coroutine[Any, Any, Trajectory | Iterable[Trajectory]]]
+        | Coroutine[Any, Any, Iterable[Trajectory]]
     ],
     *,
     pbar_desc: str | None = None,
@@ -29,14 +19,14 @@ async def gather_groups(
     stream_chat_completions: bool | int | float = False,
     streaming_chat_completions_dir: str = "./streaming-chat-completions",
     clear_streaming_chat_completions_dir: bool = True,
-) -> list[list["Trajectory | BaseException"]]: ...
+) -> list[list[Trajectory | BaseException]]: ...
 
 
 @overload
 async def gather_groups(
     groups: Iterable[
-        Iterable[Coroutine[Any, Any, "Trajectory" | Iterable["Trajectory"]]]
-        | Coroutine[Any, Any, Iterable["Trajectory"]]
+        Iterable[Coroutine[Any, Any, Trajectory | Iterable[Trajectory]]]
+        | Coroutine[Any, Any, Iterable[Trajectory]]
     ],
     *,
     pbar_desc: str | None = None,
@@ -45,125 +35,18 @@ async def gather_groups(
     stream_chat_completions: bool | int | float = False,
     streaming_chat_completions_dir: str = "./streaming-chat-completions",
     clear_streaming_chat_completions_dir: bool = True,
-) -> list[list["Trajectory"]]: ...
+) -> list[list[Trajectory]]: ...
 
 
+@deprecated("Use gather_trajectories directly instead")
 async def gather_groups(
-    groups: Iterable[
-        Iterable[Coroutine[Any, Any, "Trajectory" | Iterable["Trajectory"]]]
-        | Coroutine[Any, Any, Iterable["Trajectory"]]
-    ],
-    *,
-    pbar_desc: str | None = None,
-    pbar_total_completion_tokens: bool = True,
-    return_exceptions: bool = True,
-    stream_chat_completions: bool | int | float = False,
-    streaming_chat_completions_dir: str = "./streaming-chat-completions",
-    clear_streaming_chat_completions_dir: bool = True,
-) -> list[list["Trajectory | BaseException"]] | list[list["Trajectory"]]:
-    groups = [list([g] if isinstance(g, Coroutine) else g) for g in groups]
-    total = sum(len(g) for g in groups)
-    if stream_chat_completions:
-        if clear_streaming_chat_completions_dir:
-            shutil.rmtree(streaming_chat_completions_dir, ignore_errors=True)
-        os.makedirs(streaming_chat_completions_dir, exist_ok=True)
-        if isinstance(stream_chat_completions, bool):
-            true_count = total
-        elif isinstance(stream_chat_completions, int):
-            true_count = min(stream_chat_completions, total)
-        elif isinstance(stream_chat_completions, float):
-            true_count = min(int(round(total * stream_chat_completions)), total)
-        should_stream = [True] * true_count + [False] * (total - true_count)
-        random.shuffle(should_stream)
-    else:
-        should_stream = [False]
-    context = GroupsContext(
-        pbar=tqdm.tqdm(desc=pbar_desc, total=total),
-        pbar_total_completion_tokens=pbar_total_completion_tokens,
-        should_stream=iter(cycle(should_stream)),
-        streaming_chat_completions_dir=streaming_chat_completions_dir,
+    *args: Any,
+    **kwargs: Any,
+) -> list[list[Trajectory | BaseException]] | list[list[Trajectory]]:
+    warnings.warn(
+        "gather_groups is deprecated and will be removed in a future version. "
+        "Use gather_trajectories directly instead.",
+        DeprecationWarning,
+        stacklevel=2,
     )
-    with set_groups_context(context):
-        result_groups = await asyncio.gather(
-            *[
-                asyncio.gather(
-                    *[wrap_coroutine(c) for c in g], return_exceptions=return_exceptions
-                )
-                for g in groups
-            ]
-        )
-    if context.pbar is not None:
-        context.pbar.close()
-    return [
-        [
-            item
-            for items in group
-            for item in (items if isinstance(items, list) else [items])
-        ]
-        for group in result_groups
-    ]
-
-
-async def wrap_coroutine(
-    coro: Coroutine[Any, Any, "Trajectory" | Iterable["Trajectory"]],
-) -> "Trajectory | list[Trajectory]":
-    context = get_groups_context()
-    try:
-        result = await coro
-    except BaseException as e:
-        context.metric_sums["exceptions"] += 1
-        context.update_pbar(n=0)
-        raise e
-    else:
-        context.update_pbar(n=1)
-        from .types import Trajectory
-
-        if isinstance(result, Iterable) and not isinstance(result, Trajectory):
-            result = list(result)
-        return result
-
-
-@dataclass
-class GroupsContext:
-    pbar: tqdm.tqdm | None = None
-    metric_sums: Counter[str] = field(default_factory=Counter)
-    metric_divisors: Counter[str] = field(default_factory=Counter)
-    pbar_total_completion_tokens: bool = False
-    should_stream: Iterator[bool] = field(default_factory=lambda: iter(cycle([False])))
-    streaming_chat_completions_dir: str = "./streaming-chat-completions"
-
-    def update_pbar(self, n: int) -> None:
-        if self.pbar is not None:
-            self.pbar.update(n)
-            postfix = {}
-            for metric in self.metric_sums:
-                sum = self.metric_sums[metric]
-                divisor = max(1, self.metric_divisors[metric])
-                if isinstance(sum, int):
-                    postfix[metric] = int(sum / divisor)
-                else:
-                    postfix[metric] = sum / divisor
-            for key in (
-                "prompt_tokens",
-                "completion_tokens",
-                "total_completion_tokens",
-            ):
-                if key in postfix:
-                    postfix[key] = postfix.pop(key)
-            self.pbar.set_postfix(postfix)
-
-
-groups_context_var = contextvars.ContextVar("groups_context", default=GroupsContext())
-
-
-@contextlib.contextmanager
-def set_groups_context(context: GroupsContext) -> Iterator[None]:
-    token = groups_context_var.set(context)
-    try:
-        yield
-    finally:
-        groups_context_var.reset(token)
-
-
-def get_groups_context() -> GroupsContext:
-    return groups_context_var.get()
+    return await gather_trajectories(*args, **kwargs)
