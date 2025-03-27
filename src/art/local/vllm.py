@@ -151,5 +151,9 @@ def kill_vllm_workers() -> None:
         if "from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd="
         in line
     ]
+    import os
     for pid in pids:
-        subprocess.run(["sudo", "kill", "-9", pid], check=True)
+        if os.geteuid() == 0:  # Check if user is root/superuser
+            subprocess.run(["kill", "-9", pid], check=True)
+        else:
+            subprocess.run(["sudo", "kill", "-9", pid], check=True)
