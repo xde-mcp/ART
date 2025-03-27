@@ -18,6 +18,7 @@ BaseModel = Literal[
     "Qwen/Qwen2.5-32B-Instruct",
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
     "unsloth/Llama-3.3-70B-Instruct",
+    "OpenPipe/mergedd-7b",
 ]
 
 Message = ChatCompletionMessageParam
