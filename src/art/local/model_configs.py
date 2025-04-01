@@ -3,6 +3,7 @@ import torch
 from torchtune.models.qwen2_5 import (
     qwen2_5_7b_base,
     qwen2_5_14b_base,
+    qwen2_5_7b_instruct,
     qwen2_5_14b_instruct,
     qwen2_5_32b_base,
     qwen2_5_32b_instruct,
@@ -77,6 +78,16 @@ def hermes_8b() -> ModelConfig:
         vllm_tool_call_parser="hermes",
     )
 
+def mergedd_7b() -> ModelConfig:
+    """OpenPipe/mergedd-7b model config."""
+    return ModelConfig(
+        base_model="OpenPipe/mergedd-7b",
+        min_gpus=1,
+        tune_model_type="QWEN2",
+        tune_model=qwen2_5_7b_instruct,
+        tune_num_output_chunks=8,
+        vllm_tool_call_parser="hermes",
+    )
 
 def qwen_14b() -> ModelConfig:
     """Qwen/Qwen2.5-14B-Instruct model config."""
@@ -172,4 +183,5 @@ model_configs = {
     "Qwen/Qwen2.5-32B-Instruct": qwen_32b,
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B": distilled_qwen_32b,
     "unsloth/Llama-3.3-70B-Instruct": llama_70b,
+    "OpenPipe/mergedd-7b": mergedd_7b,
 }

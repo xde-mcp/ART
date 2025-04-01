@@ -61,8 +61,8 @@ async def start_vllm(
     # os.system("lsof -ti :8000 | xargs kill -9 2>/dev/null || true")
     process = await asyncio.create_subprocess_exec(
         *args,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL,
         env={
             **os.environ,
             **(env or {}),
@@ -88,20 +88,20 @@ async def start_vllm(
             log.flush()
         log.close()
 
-    if process.stdout:
-        asyncio.create_task(log_output(process.stdout, sys.stdout))
-    if process.stderr:
-        asyncio.create_task(log_output(process.stderr, sys.stderr))
+    # if process.stdout:
+    #     asyncio.create_task(log_output(process.stdout, sys.stdout))
+    # if process.stderr:
+    #     asyncio.create_task(log_output(process.stderr, sys.stderr))
     client = AsyncOpenAI(
         api_key="default",
         base_url=f"http://{named_arguments.get('host', '0.0.0.0')}:{named_arguments['port']}/v1",
-        max_retries=6,
+        max_retries=1,
         http_client=DefaultAsyncHttpxClient(
             limits=httpx.Limits(
                 max_connections=max_concurrent_requests,
                 max_keepalive_connections=max_concurrent_requests,
             ),
-            timeout=httpx.Timeout(timeout=1_200, connect=10.0),
+            timeout=httpx.Timeout(timeout=None),
         ),
     )
     start = asyncio.get_event_loop().time()
@@ -129,6 +129,9 @@ async def start_vllm(
         )
         if match:
             max_concurrent_tokens = int(int(match.group(1)) * float(match.group(2)))
+        else:
+            print("No max concurrent tokens logged, using default of 32768 * 100")
+            max_concurrent_tokens = 32768 * 100
     if max_concurrent_tokens is None:
         process.terminate()
         kill_vllm_workers()

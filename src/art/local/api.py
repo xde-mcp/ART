@@ -123,21 +123,22 @@ class LocalAPI(API):
             model.name,
             max_concurrent_requests=2048,
             named_arguments=dict(
-                block_size=32,
+                # block_size=32,
                 disable_log_requests=True,
-                enable_chunked_prefill=True,
+                # enable_chunked_prefill=True,
                 enable_prefix_caching=True,
                 enforce_eager=True,
                 gpu_memory_utilization=0.95,
-                max_num_seqs=2048,
-                max_num_batched_tokens=16384,
-                num_scheduler_steps=8,
-                preemption_mode="swap",
+                # max_num_seqs=2048,
+                # max_num_batched_tokens=16384,
+                # num_scheduler_steps=8,
+                # preemption_mode="swap",
                 return_tokens_as_token_ids=True,
-                swap_space=80,
+                # swap_space=80,
                 tensor_parallel_size=torch.cuda.device_count(),
-                enable_auto_tool_choice=tool_use or None,
-                tool_call_parser=model_config.vllm_tool_call_parser,
+                # enable_auto_tool_choice=tool_use or None,
+                # tool_call_parser=model_config.vllm_tool_call_parser,
+                max_model_len=32768,
             ),
             timeout=360 + 15 * torch.cuda.device_count(),
             verbosity=verbosity,
@@ -164,7 +165,15 @@ class LocalAPI(API):
         )
 
     async def _close_openai_client(self, client: AsyncOpenAI) -> None:
-        await client.close()
+        try:
+            await client.close()
+        except RuntimeError as e:
+            if "Event loop is closed" in str(e):
+                # Log the error but don't propagate it
+                print("Warning: Attempted to close client when event loop was already closed")
+            else:
+                # Re-raise if it's a different RuntimeError
+                raise
         if self._vllm:
             self._vllm.process.terminate()
             kill_vllm_workers()
