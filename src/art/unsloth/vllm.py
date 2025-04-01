@@ -55,8 +55,11 @@ async def openai_server_task(
     async def test_client() -> None:
         while True:
             try:
+                num_models = 0
                 async for model in client.models.list():
-                    return
+                    num_models += 1
+                    if num_models >= 2:
+                        return
             except:
                 pass
 
@@ -65,7 +68,7 @@ async def openai_server_task(
 
         done, _ = await asyncio.wait(
             [openai_server_task, test_client_task],
-            timeout=10.0,
+            timeout=8000.0,
             return_when="FIRST_COMPLETED",
         )
         if not done:
