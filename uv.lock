@@ -228,9 +228,11 @@ dependencies = [
     { name = "openpipe" },
     { name = "peft" },
     { name = "seaborn" },
+    { name = "tblib" },
     { name = "torch" },
     { name = "torchao" },
     { name = "torchtune" },
+    { name = "trl" },
     { name = "typer" },
     { name = "unsloth", marker = "sys_platform == 'linux'" },
     { name = "unsloth-zoo", marker = "sys_platform == 'linux'" },
@@ -254,9 +256,11 @@ requires-dist = [
     { name = "openpipe", specifier = ">=4.49.0" },
     { name = "peft", specifier = ">=0.14.0" },
     { name = "seaborn", specifier = ">=0.13.2" },
+    { name = "tblib", specifier = ">=3.0.0" },
     { name = "torch", specifier = ">=2.5.1" },
     { name = "torchao", specifier = ">=0.9.0" },
     { name = "torchtune", specifier = "==0.5.0" },
+    { name = "trl", specifier = "==0.15.2" },
     { name = "typer", specifier = ">=0.15.2" },
     { name = "unsloth", marker = "sys_platform == 'linux'", git = "https://github.com/bradhilton/unsloth" },
     { name = "unsloth-zoo", marker = "sys_platform == 'linux'", git = "https://github.com/bradhilton/unsloth-zoo" },
@@ -4023,6 +4027,15 @@ wheels = [
 ]
 
 [[package]]
+name = "tblib"
+version = "3.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1a/df/4f2cd7eaa6d41a7994d46527349569d46e34d9cdd07590b5c5b0dcf53de3/tblib-3.0.0.tar.gz", hash = "sha256:93622790a0a29e04f0346458face1e144dc4d32f493714c6c3dff82a4adb77e6", size = 30616 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9b/87/ce70db7cae60e67851eb94e1a2127d4abb573d3866d2efd302ceb0d4d2a5/tblib-3.0.0-py3-none-any.whl", hash = "sha256:80a6c77e59b55e83911e1e607c649836a69c103963c5f28a46cbeef44acf8129", size = 12478 },
+]
+
+[[package]]
 name = "textual"
 version = "2.1.2"
 source = { registry = "https://pypi.org/simple" }
@@ -4340,10 +4353,10 @@ name = "trl"
 version = "0.15.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "accelerate", marker = "sys_platform == 'linux'" },
-    { name = "datasets", marker = "sys_platform == 'linux'" },
-    { name = "rich", marker = "sys_platform == 'linux'" },
-    { name = "transformers", marker = "sys_platform == 'linux'" },
+    { name = "accelerate" },
+    { name = "datasets" },
+    { name = "rich" },
+    { name = "transformers" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/95/fe/ae0d782c48eef56d0ec125ebd05998539ede7cbf0e307a48f9323998b9e7/trl-0.15.2.tar.gz", hash = "sha256:0f82190a058a0a194dbcfae1fe9548b68a0a05b2f4d1824f8db1ae7d949cdd47", size = 333962 }
 wheels = [

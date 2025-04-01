@@ -8,6 +8,7 @@ import pydantic
 from typing import Iterable, Literal
 
 BaseModel = Literal[
+    "Qwen/Qwen2.5-7B-Instruct",
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
     "NousResearch/Hermes-2-Theta-Llama-3-8B",
     "NousResearch/Hermes-3-Llama-3.1-8B",
@@ -39,8 +40,6 @@ class Trajectory(pydantic.BaseModel):
 class TuneConfig(pydantic.BaseModel):
     # GRPO params
     clip_epsilon: float = 0.2
-    entropy_coef: float = 0.0
-    kl_coef: float = 0.0
 
     # Optimizer params
     lr: float = 5e-6

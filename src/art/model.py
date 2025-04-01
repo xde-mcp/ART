@@ -1,13 +1,39 @@
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, _AsyncGeneratorContextManager
 from dataclasses import dataclass
 from openai import AsyncOpenAI
-from typing import AsyncGenerator, TYPE_CHECKING
+from types import TracebackType
+from typing import Any, Callable, Coroutine, Generator, Iterable, TYPE_CHECKING
 
+from .config.model import ModelConfig
+from .config.openai_server import OpenAIServerConfig
 from .openai import patch_openai
 from .types import BaseModel, Trajectory, TuneConfig, Verbosity
 
+
 if TYPE_CHECKING:
     from .api import API
+
+
+@dataclass
+class ClientWrapper:
+    get_client: Callable[[], Coroutine[None, None, AsyncOpenAI]]
+    client: AsyncOpenAI | None = None
+
+    async def __aenter__(self) -> AsyncOpenAI:
+        self.client = await self.get_client()
+        return self.client
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        if self.client is not None:
+            await self.client.close()
+
+    def __await__(self) -> Generator[Any, Any, AsyncOpenAI]:
+        return self.get_client().__await__()
 
 
 @dataclass
@@ -15,14 +41,14 @@ class Model:
     api: "API"
     name: str
     base_model: BaseModel
+    _config: ModelConfig | None = None
 
-    @asynccontextmanager
-    async def openai_client(
+    def openai_client(
         self,
         estimated_completion_tokens: int = 1024,
         tool_use: bool = False,
         verbosity: Verbosity = 1,
-    ) -> AsyncGenerator[AsyncOpenAI, None]:
+    ) -> ClientWrapper:
         """
         Context manager for an OpenAI client to a managed inference service.
 
@@ -41,13 +67,45 @@ class Model:
                     messages=[{"role": "user", "content": "Hello, world!"}],
                 )
         """
-        client, semaphore = await self.api._get_openai_client(
-            self, estimated_completion_tokens, tool_use, verbosity
+        return self._openai_client(
+            estimated_completion_tokens, tool_use, verbosity, _config=None
         )
-        try:
-            yield patch_openai(client, semaphore)
-        finally:
-            await self.api._close_openai_client(client)
+
+    def _openai_client(
+        self,
+        estimated_completion_tokens: int = 1024,
+        tool_use: bool = False,
+        verbosity: Verbosity = 1,
+        _config: OpenAIServerConfig | None = None,
+    ) -> ClientWrapper:
+        """
+        Private method for the context manager for an OpenAI client to a managed inference service.
+
+        Args:
+            estimated_completion_tokens: Estimated completion tokens per request.
+            tool_use: Whether to enable tool use.
+            verbosity: Verbosity level.
+            _config: An OpenAIServerConfig object. May be subject to breaking changes at any time.
+                Use at your own risk.
+
+        Yields:
+            AsyncOpenAI: An asynchronous OpenAI client.
+
+        Example:
+            async with model.openai_client() as client:
+                chat_completion = await client.chat.completions.create(
+                    model=model.name,
+                    messages=[{"role": "user", "content": "Hello, world!"}],
+                )
+        """
+
+        async def get_client() -> AsyncOpenAI:
+            client, semaphore = await self.api._get_openai_client(
+                self, estimated_completion_tokens, tool_use, verbosity, _config
+            )
+            return patch_openai(client, semaphore, self.api._close_openai_client)
+
+        return ClientWrapper(get_client=get_client)
 
     async def get_iteration(self) -> int:
         """
@@ -76,7 +134,7 @@ class Model:
 
     async def log(
         self,
-        trajectory_groups: list[list[Trajectory | BaseException]],
+        trajectory_groups: Iterable[Iterable[Trajectory | BaseException]],
         name: str = "val",
     ) -> None:
         """
@@ -86,11 +144,11 @@ class Model:
             trajectory_groups: A batch of trajectory groups.
             name: The evaluation's name. Defaults to "val".
         """
-        await self.api._log(self, trajectory_groups, name)
+        await self.api._log(self, [list(group) for group in trajectory_groups], name)
 
     async def tune(
         self,
-        trajectory_groups: list[list[Trajectory | BaseException]],
+        trajectory_groups: Iterable[Iterable[Trajectory | BaseException]],
         config: TuneConfig = TuneConfig(),
     ) -> None:
         """
@@ -101,4 +159,6 @@ class Model:
             config: Fine-tuning specific configuration with options for the optimizer,
                 loss, other hyperparameters, logging, etc.
         """
-        await self.api._tune_model(self, trajectory_groups, config)
+        await self.api._tune_model(
+            self, [list(group) for group in trajectory_groups], config
+        )

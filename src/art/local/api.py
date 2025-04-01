@@ -2,10 +2,11 @@ import asyncio
 from openai import AsyncOpenAI
 import os
 import torch
-from transformers import AutoTokenizer
 from typing import cast
 import wandb
 from wandb.sdk.wandb_run import Run
+
+from art.config.openai_server import OpenAIServerConfig
 
 from ..api import API
 from ..model import Model
@@ -115,6 +116,7 @@ class LocalAPI(API):
         estimated_completion_tokens: int,
         tool_use: bool,
         verbosity: Verbosity,
+        config: OpenAIServerConfig | None,
     ) -> tuple[AsyncOpenAI, asyncio.Semaphore]:
         model_config = model_configs[model.base_model]()
         self._vllm = await start_vllm(
@@ -175,7 +177,7 @@ class LocalAPI(API):
                 # Re-raise if it's a different RuntimeError
                 raise
         if self._vllm:
-            self._vllm.process.terminate()
+            self._vllm.process.kill()
             kill_vllm_workers()
 
     async def _log(
@@ -243,6 +245,8 @@ class LocalAPI(API):
         trajectory_groups: list[list[Trajectory | BaseException]],
         config: TuneConfig,
     ) -> None:
+        from transformers import AutoTokenizer
+
         await self._log(model, trajectory_groups, "train")
         tokenizer = AutoTokenizer.from_pretrained(model.base_model)
         tokenized_results = list(
@@ -290,8 +294,8 @@ class LocalAPI(API):
                 loss=ComponentConfig(
                     GRPO,
                     clip_epsilon=config.clip_epsilon,
-                    entropy_coef=config.entropy_coef,
-                    kl_coef=config.kl_coef,
+                    entropy_coef=0.0,
+                    kl_coef=0.0,
                 ),
                 shuffle=True,
                 batch_size=32768 // config.sequence_length,

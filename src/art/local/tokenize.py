@@ -2,10 +2,12 @@ from dataclasses import dataclass
 from itertools import takewhile
 import math
 import random
-from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
-from typing import cast, Generator, TypedDict
+from typing import cast, Generator, TYPE_CHECKING, TypedDict
 
 from ..types import Trajectory
+
+if TYPE_CHECKING:
+    from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 
 
 @dataclass
@@ -46,7 +48,7 @@ class TokenizedResultDict(TypedDict):
 
 
 def tokenize_trajectory_groups(
-    tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
+    tokenizer: "PreTrainedTokenizer | PreTrainedTokenizerFast",
     trajectory_groups: list[list[Trajectory]],
 ) -> Generator["TokenizedResult", None, None]:
     for group in trajectory_groups:
@@ -94,7 +96,7 @@ def tokenize_trajectory_groups(
 
 
 def _tokenize_trajectory(
-    tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
+    tokenizer: "PreTrainedTokenizer | PreTrainedTokenizerFast",
     trajectory: Trajectory,
     advantage: float,
 ) -> TokenizedResult:

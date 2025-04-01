@@ -19,11 +19,8 @@ if os.path.exists(vllm_log_path):
     open(vllm_log_path, "w").close()
 
 # Import unsloth before transformers
-try:
+if os.environ.get("IMPORT_UNSLOTH", "0") == "1":
     import unsloth  # type: ignore
-except ImportError:
-    # unsloth may not be available on all platforms
-    pass
 
 from .api import API
 from .gather_groups import gather_groups
@@ -32,6 +29,7 @@ from .local import LocalAPI
 from .model import Model
 from .types import Messages, MessagesAndChoices, ToolCall, Tools, Trajectory, TuneConfig
 from .unsloth import UnslothAPI
+from .utils import retry
 
 __all__ = [
     "API",
@@ -46,4 +44,5 @@ __all__ = [
     "Trajectory",
     "TuneConfig",
     "UnslothAPI",
+    "retry",
 ]

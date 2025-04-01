@@ -1,21 +1,22 @@
 import asyncio
 import httpx
+from mp_actors import move_to_child_process
+import numpy as np
 from openai import (
     AsyncOpenAI,
     DefaultAsyncHttpxClient,
 )
 import os
-from transformers import PreTrainedTokenizerBase
-from typing import cast
+import subprocess
+from typing import cast, TYPE_CHECKING
 import wandb
 from wandb.sdk.wandb_run import Run
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from transformers import PreTrainedTokenizerBase
 
 from ..api import API
+from ..config.model import get_model_config, ModelConfig
+from ..config.openai_server import OpenAIServerConfig
 from ..model import Model
+from .service import ModelService
 from ..types import BaseModel, Message, Trajectory, TuneConfig, Verbosity
 from ..utils import format_message
 from .pack import (
@@ -24,13 +25,14 @@ from .pack import (
     PackedTensors,
     plot_packed_tensors,
 )
-from .service import Service, StartOpenaiServer
-from .tokenization import tokenize_trajectory_groups
+from .tokenize import tokenize_trajectory_groups
 from .checkpoints import (
     clear_iteration_dirs,
     get_iteration,
 )
-from .vllm_utils import max_concurrent_tokens
+
+if TYPE_CHECKING:
+    from transformers import PreTrainedTokenizerBase
 
 
 class UnslothAPI(API):
@@ -63,36 +65,63 @@ class UnslothAPI(API):
         self._wandb_project = wandb_project
 
         # Other initialization
-        self._services: dict[str, Service] = {}
+        self._services: dict[str, ModelService] = {}
         self._tokenizers: dict[str, "PreTrainedTokenizerBase"] = {}
         self._wandb_runs: dict[str, Run] = {}
 
     async def get_or_create_model(self, name: str, base_model: BaseModel) -> Model:
         """
-        Retrieves an existing model or creates a new one.
+        Retrieve an existing model or create a new one.
 
         Args:
             name: The model's name.
             base_model: The model's base model.
-            tool_use: Whether to enable tool use.
+
+        Returns:
+            Model: A model instance.
+        """
+        return await self._get_or_create_model(name, base_model, None)
+
+    async def _get_or_create_model(
+        self, name: str, base_model: BaseModel, _config: ModelConfig | None = None
+    ) -> Model:
+        """
+        Private method to retrieve an existing model or create a new one.
+
+        Args:
+            name: The model's name.
+            base_model: The model's base model.
+            _config: A ModelConfig object. May be subject to breaking changes at any time.
+                Use at your own risk.
 
         Returns:
             Model: A model instance.
         """
         os.makedirs(self._get_output_dir(name), exist_ok=True)
-        return Model(api=self, name=name, base_model=base_model)
+        return Model(api=self, name=name, base_model=base_model, _config=_config)
 
-    async def _get_service(self, model: Model) -> Service:
+    async def _get_service(self, model: Model) -> ModelService:
         if model.name not in self._services:
-            self._services[model.name] = Service(
+            self._services[model.name] = ModelService(
                 host="localhost",
                 port=8089 + len(self._services),
                 model_name=model.name,
                 base_model=model.base_model,
+                config=get_model_config(
+                    base_model=model.base_model,
+                    output_dir=self._get_output_dir(model.name),
+                    config=model._config,
+                ),
                 output_dir=self._get_output_dir(model.name),
             )
             if not self._in_process:
-                await self._services[model.name].serve()
+                # Kill all "model-service" processes to free up GPU memory
+                subprocess.run(["pkill", "-9", "model-service"])
+                os.environ["IMPORT_UNSLOTH"] = "1"
+                self._services[model.name] = move_to_child_process(
+                    self._services[model.name],
+                    process_name=f"model-service",
+                )
         return self._services[model.name]
 
     def _get_packed_tensors(
@@ -102,7 +131,7 @@ class UnslothAPI(API):
         sequence_length: int,
         verbosity: Verbosity,
         plot_tensors: bool,
-    ) -> PackedTensors:
+    ) -> PackedTensors | None:
         from transformers import AutoTokenizer
 
         if not model.base_model in self._tokenizers:
@@ -125,6 +154,11 @@ class UnslothAPI(API):
             pad_token_id=tokenizer.eos_token_id,  # type: ignore
             verbosity=verbosity,
         )
+        # If all logprobs are NaN then there is no suitable data for tuning
+        if np.isnan(packed_tensors["logprobs"]).all():
+            if verbosity > 0:
+                print("All log probabilities are NaN.")
+            return None
         if plot_tensors:
             plot_packed_tensors(packed_tensors)
         elif verbosity > 0:
@@ -179,9 +213,10 @@ class UnslothAPI(API):
         estimated_completion_tokens: int,
         tool_use: bool,
         verbosity: Verbosity,
+        config: OpenAIServerConfig | None,
     ) -> tuple[AsyncOpenAI, asyncio.Semaphore]:
         service = await self._get_service(model)
-        await service.start_openai_server(StartOpenaiServer(tool_use=tool_use))
+        await service.start_openai_server(tool_use=tool_use, config=config)
         return (
             AsyncOpenAI(
                 base_url=f"http://localhost:{service.port - 89}/v1",
@@ -189,24 +224,14 @@ class UnslothAPI(API):
                 http_client=DefaultAsyncHttpxClient(
                     timeout=httpx.Timeout(timeout=1200, connect=5.0),
                     limits=httpx.Limits(
-                        max_connections=2048, max_keepalive_connections=2048
+                        max_connections=100_000, max_keepalive_connections=100_000
                     ),
                 ),
             ),
-            asyncio.Semaphore(
-                int(
-                    max_concurrent_tokens(
-                        "./logs/vllm.log"
-                        if self._in_process
-                        else f"{self._get_output_dir(model.name)}/logs/vllm.log"
-                    )
-                    / estimated_completion_tokens
-                )
-            ),
+            asyncio.Semaphore(226),
         )
 
-    async def _close_openai_client(self, client: AsyncOpenAI) -> None:
-        await client.close()
+    async def _close_openai_client(self, _: AsyncOpenAI) -> None: ...
 
     async def _log(
         self,
@@ -282,10 +307,14 @@ class UnslothAPI(API):
             config.verbosity,
             config.plot_tensors,
         )
+        if packed_tensors is None:
+            if config.verbosity > 0:
+                print("Skipping tuning as there is no suitable data.")
+            return
         disk_packed_tensors = packed_tensors_to_dir(
             packed_tensors, f"{self._get_output_dir(model.name)}/tensors"
         )
-        await service.tune(disk_packed_tensors)
+        await service.tune(disk_packed_tensors, config)
 
     def _log_wandb_data(
         self,

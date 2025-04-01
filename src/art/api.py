@@ -3,6 +3,7 @@ import httpx
 from openai import AsyncOpenAI
 import os
 
+from .config.openai_server import OpenAIServerConfig
 from .model import Model
 from .types import BaseModel, Trajectory, TuneConfig, Verbosity
 
@@ -91,6 +92,7 @@ class API:
         estimated_completion_tokens: int,
         tool_use: bool,
         verbosity: Verbosity,
+        config: OpenAIServerConfig | None,
     ) -> tuple[AsyncOpenAI, asyncio.Semaphore]:
         response = await self._client.post(
             f"/openai_clients",
