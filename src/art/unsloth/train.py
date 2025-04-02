@@ -17,42 +17,9 @@ if TYPE_CHECKING:
 nest_asyncio.apply()
 
 
-def get_trainer(
-    model: "PeftModel",
-    tokenizer: "PreTrainedTokenizerBase",
-    args: "GRPOConfig",
-    inputs_queue: asyncio.Queue["TuneInputs"],
-) -> "GRPOTrainer":
-    from trl import GRPOTrainer
-
-    trainer = GRPOTrainer(
-        model=model,  # type: ignore
-        reward_funcs=[],
-        args=args,
-        train_dataset=Dataset.from_list([{"prompt": ""} for _ in range(100_000)]),
-        processing_class=tokenizer,
-    )
-
-    def _async_prepare_inputs(*_, **__) -> dict[str, torch.Tensor]:
-        async def get_inputs() -> "TuneInputs":
-            return await inputs_queue.get()
-
-        inputs = asyncio.run(get_inputs())
-
-        return cast(dict[str, torch.Tensor], inputs)
-
-    trainer._prepare_inputs = _async_prepare_inputs
-    return trainer
-
-
 async def train(
     trainer: "GRPOTrainer", inputs_queue: asyncio.Queue["TuneInputs"]
 ) -> None:
-    # loss_fn = GRPO()
-    # loss_fn._forward_chunk = torch.compile(
-    #     loss_fn._forward_chunk,
-    #     backend=os.environ.get("TORCH_COMPILE_BACKEND", "inductor"),
-    # )
 
     def compute_loss(
         model: "PeftModel",
@@ -75,6 +42,17 @@ async def train(
             # Move tensors to the correct device
             inputs = {key: tensor.to(trainer.accelerator.device) for key, tensor in inputs.items()}  # type: ignore
 
+            # Unsloth code
+            if not hasattr(trainer, "_autocast_dtype"):
+                dtype = (
+                    torch.float16
+                    if os.environ.get("ACCELERATE_MIXED_PRECISION", "fp16") == "fp16"
+                    else torch.bfloat16
+                )
+                if os.environ.get("UNSLOTH_FORCE_FLOAT32", "0") == "1":
+                    dtype = torch.float16
+                setattr(trainer, "_autocast_dtype", dtype)
+
             # Create grouped causal mask
             batch_size, seq_len = inputs["tokens"].size()
             causal_mask = (
@@ -96,20 +74,23 @@ async def train(
                 "group_ids"
             ].unsqueeze(1)
             mask = causal_mask & (group_mask | parent_mask)
-            attn_bias = torch.where(mask, 0.0, float("-inf"))
+            # Use the same dtype as autocast to save memory and avoid dtype conversions
+            attn_bias = torch.where(
+                mask,
+                torch.tensor(
+                    0.0,
+                    dtype=getattr(trainer, "_autocast_dtype"),
+                    device=trainer.accelerator.device,
+                ),
+                torch.tensor(
+                    float("-inf"),
+                    dtype=getattr(trainer, "_autocast_dtype"),
+                    device=trainer.accelerator.device,
+                ),
+            )
             del mask
 
-            # Unsloth code
-            if not hasattr(trainer, "_autocast_dtype"):
-                dtype = (
-                    torch.float16
-                    if os.environ.get("ACCELERATE_MIXED_PRECISION", "fp16") == "fp16"
-                    else torch.bfloat16
-                )
-                if os.environ.get("UNSLOTH_FORCE_FLOAT32", "0") == "1":
-                    dtype = torch.float16
-                setattr(trainer, "_autocast_dtype", dtype)
-
+            # Get hidden states
             os.environ["UNSLOTH_RETURN_HIDDEN_STATES"] = "1"
             with torch.amp.autocast_mode.autocast(
                 device_type="cuda", dtype=getattr(trainer, "_autocast_dtype")
@@ -126,8 +107,10 @@ async def train(
             num_chunks = 2
             policy_loss_sum = 0.0
             policy_loss_tokens = 0
+            chunked_hidden_states = torch.chunk(hidden_states, num_chunks, dim=1)
+            del hidden_states
             for hidden_states, mask, tokens, logprobs, advantages in zip(
-                torch.chunk(hidden_states, num_chunks, dim=1),
+                chunked_hidden_states,
                 torch.chunk(inputs["assistant_mask"][:, 1:], num_chunks, dim=1),
                 torch.chunk(inputs["tokens"][:, 1:], num_chunks, dim=1),
                 torch.chunk(inputs["logprobs"][:, 1:], num_chunks, dim=1),

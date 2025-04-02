@@ -217,10 +217,11 @@ class UnslothAPI(API):
     ) -> tuple[AsyncOpenAI, asyncio.Semaphore]:
         service = await self._get_service(model)
         await service.start_openai_server(tool_use=tool_use, config=config)
+        server_args = (config or {}).get("server_args", {})
         return (
             AsyncOpenAI(
-                base_url=f"http://localhost:{service.port - 89}/v1",
-                api_key="default",
+                base_url=f"http://{server_args.get('host', '0.0.0.0')}:{server_args.get('port', 8000)}/v1",
+                api_key=server_args.get("api_key", "default"),
                 http_client=DefaultAsyncHttpxClient(
                     timeout=httpx.Timeout(timeout=1200, connect=5.0),
                     limits=httpx.Limits(
