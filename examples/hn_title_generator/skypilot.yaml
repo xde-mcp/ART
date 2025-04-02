@@ -6,6 +6,8 @@ resources:
   accelerators: ["H100-SXM:1"]
 envs:
   HF_HUB_ENABLE_HF_TRANSFER: 1
+  REWARD_MODEL_URL:
+
 setup: |
   curl -LsSf https://astral.sh/uv/install.sh | sh
 

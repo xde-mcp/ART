@@ -35,6 +35,8 @@ dev-dependencies = [
     "black>=25.1.0",
     "ipykernel>=6.29.5",
     "ipywidgets>=8.1.5",
+    "panza",
+    "polars>=1.26.0",
     "skypilot[aws,cudo,do,fluidstack,gcp,lambda,paperspace,runpod]>=0.8.0",
 ]
 override-dependencies = [
@@ -47,3 +49,4 @@ override-dependencies = [
 [tool.uv.sources]
 unsloth = { git = "https://github.com/bradhilton/unsloth", rev = "9e12c5019a77ec60349cb0a33ecdcf83e482bf01" }
 unsloth-zoo = { git = "https://github.com/bradhilton/unsloth-zoo", rev = "1a8930fe7cc41f075c4b16bcb29f637cff48a66d" }
+panza = { git = "https://github.com/corbt/panza.git" }
