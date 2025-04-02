@@ -55,11 +55,8 @@ async def openai_server_task(
     async def test_client() -> None:
         while True:
             try:
-                num_models = 0
                 async for model in client.models.list():
-                    num_models += 1
-                    if num_models >= 2:
-                        return
+                    return
             except:
                 pass
 
