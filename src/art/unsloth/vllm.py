@@ -55,14 +55,13 @@ async def openai_server_task(
     async def test_client() -> None:
         while True:
             try:
-                async for model in client.models.list():
+                async for _ in client.models.list():
                     return
             except:
                 pass
 
+    test_client_task = asyncio.create_task(test_client())
     try:
-        test_client_task = asyncio.create_task(test_client())
-
         done, _ = await asyncio.wait(
             [openai_server_task, test_client_task],
             timeout=8000.0,
@@ -74,7 +73,7 @@ async def openai_server_task(
             task.result()
 
         return openai_server_task
-    except Exception as e:
+    except Exception:
         openai_server_task.cancel()
         test_client_task.cancel()
         raise

@@ -6,9 +6,9 @@ from typing import cast
 import wandb
 from wandb.sdk.wandb_run import Run
 
-from art.config.openai_server import OpenAIServerConfig
 
 from ..api import API
+from ..config.openai_server import OpenAIServerConfig
 from ..model import Model
 from ..types import BaseModel, Message, Trajectory, TuneConfig, Verbosity
 from ..utils import format_message

@@ -40,6 +40,7 @@ class Trajectory(pydantic.BaseModel):
 class TuneConfig(pydantic.BaseModel):
     # GRPO params
     clip_epsilon: float = 0.2
+    kl_coef: float = 0.0
 
     # Optimizer params
     lr: float = 5e-6

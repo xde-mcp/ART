@@ -1,12 +1,13 @@
 import asyncio
 from dataclasses import dataclass
+import inspect
 import multiprocessing as mp
 import nest_asyncio
 import os
 import setproctitle
 import sys
 from tblib import pickling_support
-from typing import Any, cast, TypeVar
+from typing import Any, AsyncGenerator, cast, TypeVar
 import uuid
 
 from .traceback import streamline_tracebacks
@@ -49,6 +50,7 @@ class Request:
     method_name: str
     args: tuple[Any, ...]
     kwargs: dict[str, Any]
+    send_value: Any = None
 
 
 @dataclass
@@ -92,15 +94,38 @@ class Proxy:
                 f"{type(self._obj).__name__} has no attribute '{name}'"
             )
 
-        async def get_response(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
-            request = Request(str(uuid.uuid4()), name, args, kwargs)
+        async def get_response(
+            args: tuple[Any, ...],
+            kwargs: dict[str, Any],
+            id: uuid.UUID | None = None,
+            send_value: Any | None = None,
+        ) -> Any:
+            request = Request(str(id or uuid.uuid4()), name, args, kwargs, send_value)
             self._futures[request.id] = asyncio.Future()
             self._requests.put_nowait(request)
             return await self._futures[request.id]
 
         # Check if it's a method or property
         attr = getattr(self._obj, name)
-        if asyncio.iscoroutinefunction(attr):
+        if inspect.isasyncgenfunction(attr):
+            # Return an async generator wrapper function
+            @streamline_tracebacks()
+            async def async_gen_wrapper(
+                *args: Any, **kwargs: Any
+            ) -> AsyncGenerator[Any, Any]:
+                try:
+                    id = uuid.uuid4()
+                    send_value = None
+                    while True:
+                        send_value = yield await get_response(
+                            args, kwargs, id, send_value
+                        )
+                        args, kwargs = (), {}
+                except StopAsyncIteration:
+                    return
+
+            return async_gen_wrapper
+        elif asyncio.iscoroutinefunction(attr):
             # Return an async wrapper function
             @streamline_tracebacks()
             async def async_method_wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -143,17 +168,29 @@ def _target(
 async def _handle_requests(
     obj: object, requests: mp.Queue, responses: mp.Queue
 ) -> None:
+    generators: dict[str, AsyncGenerator[Any, Any]] = {}
     while True:
         request: Request = await asyncio.get_event_loop().run_in_executor(
             None, requests.get
         )
-        asyncio.create_task(_handle_request(obj, request, responses))
+        asyncio.create_task(_handle_request(obj, request, responses, generators))
 
 
-async def _handle_request(obj: object, request: Request, responses: mp.Queue) -> None:
+async def _handle_request(
+    obj: object,
+    request: Request,
+    responses: mp.Queue,
+    generators: dict[str, AsyncGenerator[Any, Any]],
+) -> None:
     try:
         result_or_callable = getattr(obj, request.method_name)
-        if callable(result_or_callable):
+        if inspect.isasyncgenfunction(result_or_callable):
+            if not request.id in generators:
+                generators[request.id] = result_or_callable(
+                    *request.args, **request.kwargs
+                )
+            result = await generators[request.id].asend(request.send_value)
+        elif callable(result_or_callable):
             result_or_coro = result_or_callable(*request.args, **request.kwargs)
             if asyncio.iscoroutine(result_or_coro):
                 result = await result_or_coro

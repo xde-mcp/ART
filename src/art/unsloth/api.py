@@ -17,6 +17,7 @@ from ..config.model import get_model_config, ModelConfig
 from ..config.openai_server import OpenAIServerConfig
 from ..model import Model
 from .service import ModelService
+from ..tqdm import tqdm
 from ..types import BaseModel, Message, Trajectory, TuneConfig, Verbosity
 from ..utils import format_message
 from .pack import (
@@ -163,7 +164,7 @@ class UnslothAPI(API):
             plot_packed_tensors(packed_tensors)
         elif verbosity > 0:
             print(
-                f"Prepared tuning data with {packed_tensors['tokens'].shape[0]} sequences of length {packed_tensors['tokens'].shape[1]}"
+                f"Packed {len(tokenized_results)} trajectories into {packed_tensors['tokens'].shape[0]} sequences of length {packed_tensors['tokens'].shape[1]}"
             )
         return packed_tensors
 
@@ -256,8 +257,10 @@ class UnslothAPI(API):
 
         # Collect all metrics (including reward) across all trajectories
         all_metrics: dict[str, list[float]] = {"reward": [], "exception_rate": []}
+        group_rewards = []
 
         for group in trajectory_groups:
+            group_reward_values = []
             for trajectory in group:
                 if isinstance(trajectory, BaseException):
                     all_metrics["exception_rate"].append(1)
@@ -266,6 +269,8 @@ class UnslothAPI(API):
                     all_metrics["exception_rate"].append(0)
                 # Add reward metric
                 all_metrics["reward"].append(trajectory.reward)
+                if not isinstance(trajectory, BaseException):
+                    group_reward_values.append(trajectory.reward)
 
                 # Collect other custom metrics
                 for metric, value in trajectory.metrics.items():
@@ -273,11 +278,30 @@ class UnslothAPI(API):
                         all_metrics[metric] = []
                     all_metrics[metric].append(value)
 
+            # Store rewards for each group for standard deviation calculation
+            if group_reward_values:
+                group_rewards.append(group_reward_values)
+
         # Calculate averages for all metrics
         averages = {}
         for metric, values in all_metrics.items():
             if len(values) > 0:
                 averages[metric] = sum(values) / len(values)
+
+        # Calculate average standard deviation of rewards within groups
+        if group_rewards:
+            # Calculate standard deviation within each group
+            group_std_devs = []
+            for rewards in group_rewards:
+                if len(rewards) > 1:  # Need at least 2 values for std dev
+                    mean = sum(rewards) / len(rewards)
+                    variance = sum((r - mean) ** 2 for r in rewards) / len(rewards)
+                    std_dev = variance**0.5
+                    group_std_devs.append(std_dev)
+
+            # Calculate average of the standard deviations
+            if group_std_devs:
+                averages["reward_std_dev"] = sum(group_std_devs) / len(group_std_devs)
 
         self._log_wandb_data(model, averages, name)
 
@@ -315,7 +339,18 @@ class UnslothAPI(API):
         disk_packed_tensors = packed_tensors_to_dir(
             packed_tensors, f"{self._get_output_dir(model.name)}/tensors"
         )
-        await service.tune(disk_packed_tensors, config)
+        results: list[dict[str, float]] = []
+        pbar = tqdm.tqdm(total=disk_packed_tensors["num_sequences"], desc="tune")
+        async for result in service.tune(disk_packed_tensors, config):
+            results.append(result)
+            pbar.update(1)
+            pbar.set_postfix(result)
+        pbar.close()
+        data = {
+            k: sum(d.get(k, 0) for d in results) / sum(1 for d in results if k in d)
+            for k in {k for d in results for k in d}
+        }
+        self._log_wandb_data(model, data, "train")
 
     def _log_wandb_data(
         self,

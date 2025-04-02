@@ -32,7 +32,7 @@ def get_model_config(
         disable_log_requests=True,
         disable_log_stats=False,
         enable_prefix_caching=True,
-        gpu_memory_utilization=0.62,  # Reduce if out of memory
+        gpu_memory_utilization=0.6,  # Reduce if out of memory
         max_lora_rank=8,
         num_scheduler_steps=16,
         use_async=True,
@@ -73,6 +73,7 @@ def get_model_config(
         save_strategy="no",
         output_dir=output_dir,
         disable_tqdm=True,
+        report_to="none",
     )
     train_args.update(base_model_config.get("train_args", {}))
     train_args.update(config.get("train_args", {}))
@@ -88,13 +89,15 @@ def get_base_model_config(base_model: "types.BaseModel") -> "ModelConfig":
     if base_model == "Qwen/Qwen2.5-7B-Instruct":
         return ModelConfig(
             init_args=InitArgs(
-                max_seq_length=32768, gpu_memory_utilization=0.65, max_lora_rank=8
+                max_seq_length=32768, gpu_memory_utilization=0.55, max_lora_rank=8
             ),
             peft_args=PeftArgs(r=8, lora_alpha=16),
         )
     elif base_model == "Qwen/Qwen2.5-14B-Instruct":
         return ModelConfig(
-            init_args=InitArgs(max_seq_length=8192, max_lora_rank=8),
+            init_args=InitArgs(
+                max_seq_length=8192, gpu_memory_utilization=0.55, max_lora_rank=8
+            ),
             peft_args=PeftArgs(r=8, lora_alpha=16),
         )
     else:
