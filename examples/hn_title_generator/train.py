@@ -34,7 +34,7 @@ async def rollout(client: openai.AsyncOpenAI, prompt: str) -> art.Trajectory:
 
 
 async def main():
-    api = art.UnslothAPI(wandb_project="agent-reinforcement-training")
+    api = art.UnslothAPI(wandb_project="hn-title-generator")
     model = await api.get_or_create_model(
         name=MODEL_NAME, base_model="Qwen/Qwen2.5-7B-Instruct"
     )
