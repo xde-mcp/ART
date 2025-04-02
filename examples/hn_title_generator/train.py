@@ -6,6 +6,9 @@ import asyncio
 load_dotenv()
 
 
+MODEL_NAME = "yes-or-no-unsloth-001"
+
+
 async def rollout(client: openai.AsyncOpenAI, prompt: str) -> art.Trajectory:
     messages: art.Messages = [
         {
@@ -14,7 +17,7 @@ async def rollout(client: openai.AsyncOpenAI, prompt: str) -> art.Trajectory:
         }
     ]
     chat_completion = await client.chat.completions.create(
-        messages=messages, model=model.name, max_tokens=100
+        messages=messages, model=MODEL_NAME, max_tokens=100
     )
     choice = chat_completion.choices[0]
     content = choice.message.content
@@ -32,14 +35,8 @@ async def rollout(client: openai.AsyncOpenAI, prompt: str) -> art.Trajectory:
 
 async def main():
     api = art.UnslothAPI(wandb_project="agent-reinforcement-training")
-    model = await api._get_or_create_model(
-        name="yes-or-no-unsloth-001",
-        base_model="Qwen/Qwen2.5-7B-Instruct",
-        _config={
-            "init_args": {
-                # "model_name": "<YOUR-MODEL-NAME>",
-            },
-        },
+    model = await api.get_or_create_model(
+        name=MODEL_NAME, base_model="Qwen/Qwen2.5-7B-Instruct"
     )
 
     prompts = [
@@ -60,7 +57,7 @@ async def main():
     ]
 
     openai_client = await model.openai_client()
-    for i in range(await model.get_iteration(), 1_000):
+    for _ in range(await model.get_iteration(), 1_000):
         train_groups = await art.gather_trajectories(
             ((rollout(openai_client, prompt) for _ in range(32)) for prompt in prompts),
             pbar_desc="train",
