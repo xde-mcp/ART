@@ -15,7 +15,7 @@ from iterate_dataset import iterate_dataset
 
 load_dotenv()
 
-RUN_NAME = "model11-art-4"
+RUN_NAME = "model11-art-5"
 BASE_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 MAX_COMPLETION_LENGTH = 100
 MAX_PROMPT_LENGTH = 8192 - MAX_COMPLETION_LENGTH
@@ -315,6 +315,7 @@ async def main():
             config=art.TuneConfig(
                 lr=LEARNING_RATE,
                 sequence_length=MAX_PROMPT_LENGTH + MAX_COMPLETION_LENGTH,
+                clip_epsilon=9001,
             ),
         )
 
