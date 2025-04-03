@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional, Dict
 import os
 import httpx
-from panza import SQLiteCache
+from panza import SQLiteCache, limit_concurrency
 from dotenv import load_dotenv
 from datasets import load_dataset, Dataset
 
@@ -89,7 +89,9 @@ REWARD_MODEL_URL = os.getenv("REWARD_MODEL_URL", "http://localhost:80/score")
 
 
 @cache.cache()
-async def score_title(story_dict: Dict, _reward_model: str) -> float:
+async def score_title(
+    story_dict: Dict, _reward_model: str = os.environ["REWARD_MODEL_URL"]
+) -> float:
     """Get the reward model score for a story asynchronously.
 
     Args:
