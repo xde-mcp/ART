@@ -55,11 +55,8 @@ MAX_GRAD_NORM = 0.1
 OUTPUT_DIR = "outputs_reference"
 TRAINING_DATASET_SIZE = 5000
 BETA = 0.0  # GRPO Beta parameter from yaml
-# --- Validation Hyperparameters ---
 VAL_SET_SIZE = 100  # Number of validation samples
 EVAL_STEPS = 50  # Evaluate every N training steps
-
-# --- Data Loading ---
 
 
 def filter_on_length(

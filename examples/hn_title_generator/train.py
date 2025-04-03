@@ -3,9 +3,6 @@ import asyncio
 import openai
 from openai.types.chat import ChatCompletionMessageParam
 import os
-import numpy as np
-import wandb
-from tqdm.auto import tqdm
 from dotenv import load_dotenv
 from datasets import Dataset
 from transformers import AutoTokenizer
@@ -18,7 +15,7 @@ from iterate_dataset import iterate_dataset
 
 load_dotenv()
 
-RUN_NAME = "model11-art-2"
+RUN_NAME = "model11-art-4"
 BASE_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 MAX_COMPLETION_LENGTH = 100
 MAX_PROMPT_LENGTH = 8192 - MAX_COMPLETION_LENGTH
@@ -323,21 +320,8 @@ async def main():
 
         if global_iteration > 0 and global_iteration % EVAL_STEPS == 0:
             print(f"\n--- Evaluating at Iteration {global_iteration} ---")
-            val_rewards = []
-            val_metrics_agg: Dict[str, List[float]] = {
-                "length": [],
-                "matches": [],
-                "rm": [],
-            }
 
-            val_batch_indices = np.random.choice(
-                len(val_data_list),
-                min(VAL_SET_SIZE, len(val_data_list)),
-                replace=False,
-            )
-            val_batch = [val_data_list[i] for i in val_batch_indices]
-
-            print(f"Running validation rollouts on {len(val_batch)} samples...")
+            print(f"Running validation rollouts on {len(val_data_list)} samples...")
             val_trajectories = await art.gather_trajectories(
                 [
                     [
@@ -350,19 +334,14 @@ async def main():
                             global_iteration,
                             epoch,
                         )
-                        for item in val_batch
+                        for item in val_data_list
                     ]
                 ]
             )
 
-            valid_val_trajectories = [
-                t for t in val_trajectories if isinstance(t, art.Trajectory)
-            ]
-
-            await model.log(valid_val_trajectories)
+            await model.log(val_trajectories)
 
     print("Training finished.")
-    wandb.finish()
 
 
 if __name__ == "__main__":
