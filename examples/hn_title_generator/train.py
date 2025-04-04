@@ -15,18 +15,18 @@ from iterate_dataset import iterate_dataset
 
 load_dotenv()
 
-RUN_NAME = "model11-art-5"
+RUN_NAME = "004"
 BASE_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 MAX_COMPLETION_LENGTH = 100
 MAX_PROMPT_LENGTH = 8192 - MAX_COMPLETION_LENGTH
-LEARNING_RATE = 5e-6
-ENTRIES_PER_ITERATION = 1
-EVAL_STEPS = 50
+LEARNING_RATE = 5e-5
+ENTRIES_PER_ITERATION = 16
+EVAL_STEPS = 10
 VAL_SET_SIZE = 100
 TRAINING_DATASET_SIZE = 5000
 WANDB_PROJECT = "hn_title_generation"
 NUM_EPOCHS = 1
-NUM_GENERATIONS = 6
+NUM_GENERATIONS = 16
 
 
 # --- Data Loading ---
@@ -191,7 +191,7 @@ async def rollout(
 
     # 3. Score Title using external RM
     row_with_title = {**row, "title": generated_title}
-    rm_score = await call_score_title(row_with_title)
+    rm_score = await asyncio.wait_for(call_score_title(row_with_title), timeout=30)
     metrics["rm"] = rm_score
 
     # 4. Calculate Final Reward
@@ -233,9 +233,14 @@ async def rollout(
 async def main():
     # Initialize ART API and Model
     api = art.UnslothAPI(wandb_project=WANDB_PROJECT)
-    model = await api.get_or_create_model(
+    model = await api._get_or_create_model(
         name=RUN_NAME,
         base_model=BASE_MODEL,
+        _config={
+            "init_args": {
+                "gpu_memory_utilization": 0.75,
+            }
+        },
     )
     op_client = AsyncOpenPipe(api_key=os.getenv("OPENPIPE_API_KEY"))
 
@@ -335,12 +340,14 @@ async def main():
                             global_iteration,
                             epoch,
                         )
-                        for item in val_data_list
+                        for _ in range(4)
                     ]
+                    for item in val_data_list
                 ]
             )
 
             await model.log(val_trajectories)
+            await model.clear_iterations()
 
     print("Training finished.")
 
