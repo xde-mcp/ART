@@ -1,6 +1,6 @@
-import random
 import math
-from typing import Generator, List, Any, TypeVar, Tuple
+import random
+from typing import List, Generator, Tuple, TypeVar
 from tqdm.auto import tqdm
 
 T = TypeVar("T")
@@ -47,7 +47,6 @@ def iterate_dataset(
             unit="batch",
         )
 
-    current_iteration = 0
     for epoch in range(num_epochs):
         # Create indices and shuffle deterministically based on epoch
         indices = list(range(dataset_size))
@@ -79,47 +78,3 @@ def iterate_dataset(
 
     if progress_bar:
         progress_bar.close()
-
-
-# Example Usage (optional, can be removed)
-if __name__ == "__main__":
-    sample_data = list(range(25))  # Example dataset
-
-    print("--- First Run (Epochs 0-1) ---")
-    last_global_iteration = 0
-    for batch_data, epoch, global_iter, epoch_iter in iterate_dataset(
-        sample_data,
-        batch_size=5,
-        num_epochs=2,
-        initial_iteration=0,
-        use_tqdm=True,
-    ):
-        print(
-            f"Epoch {epoch}, EpochIter {epoch_iter}, GlobalIter {global_iter}: {batch_data}"
-        )
-        last_global_iteration = global_iter
-
-    resume_iteration = 5  # Example: resume from global iteration 5
-    print(f"\n--- Second Run (Resuming from Global Iteration {resume_iteration}) ---")
-    # Note: enumerate is no longer needed as global_iter is yielded
-    for batch_data, epoch, global_iter, epoch_iter in iterate_dataset(
-        sample_data,
-        batch_size=5,
-        num_epochs=2,
-        initial_iteration=resume_iteration,
-        use_tqdm=True,
-    ):
-        print(
-            f"Epoch {epoch}, EpochIter {epoch_iter}, GlobalIter {global_iter}: {batch_data}"
-        )
-
-    print("\n--- Run without tqdm ---")
-    for batch_data, epoch, global_iter, epoch_iter in iterate_dataset(
-        sample_data,
-        batch_size=8,
-        num_epochs=1,
-        use_tqdm=False,
-    ):
-        print(
-            f"Epoch {epoch}, EpochIter {epoch_iter}, GlobalIter {global_iter}: {batch_data}"
-        )

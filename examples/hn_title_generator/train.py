@@ -10,8 +10,7 @@ from typing import List, Dict, Any, Iterable
 from openpipe import AsyncOpenPipe
 from datetime import datetime
 from utils import score_title, pull_data, cache, prompt_for_title
-from panza import limit_concurrency
-from iterate_dataset import iterate_dataset
+from art.utils import iterate_dataset, limit_concurrency
 
 load_dotenv()
 
