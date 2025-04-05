@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional, Dict
 import os
 import httpx
-from panza import SQLiteCache, limit_concurrency
+from panza import SQLiteCache
 from dotenv import load_dotenv
 from datasets import load_dataset, Dataset
 
@@ -85,12 +85,15 @@ def calculate_metrics_by_split(df: pl.DataFrame) -> pl.DataFrame:
     return pl.DataFrame(metrics)
 
 
-REWARD_MODEL_URL = os.getenv("REWARD_MODEL_URL", "http://localhost:80/score")
+REWARD_MODEL_URL = os.getenv(
+    "REWARD_MODEL_URL", "https://openpipe-dev--hn-title-rm-serve-rm.modal.run/score"
+)
 
 
 @cache.cache()
 async def score_title(
-    story_dict: Dict, _reward_model: str = os.environ["REWARD_MODEL_URL"]
+    story_dict: Dict,
+    _reward_model: str = REWARD_MODEL_URL,
 ) -> float:
     """Get the reward model score for a story asynchronously.
 

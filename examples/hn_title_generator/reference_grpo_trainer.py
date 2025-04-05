@@ -14,12 +14,11 @@ from utils import (
     cache,
     prompt_for_title,
 )
-from panza import limit_concurrency
+from art.utils import limit_concurrency
 import os
 from transformers.trainer_callback import TrainerCallback
 from vllm import SamplingParams
 
-# Load environment variables (like REWARD_MODEL_URL)
 load_dotenv()
 
 # --- Hyperparameters (Inlined from model11.yaml and script defaults) ---
@@ -110,17 +109,7 @@ async def load_title_data(
 
 @limit_concurrency(10)  # Limit concurrency for external calls
 async def score_title_async(row_data: dict) -> float:
-    """Asynchronously scores a title using the reward model."""
-    # Assuming score_title takes the row dict and the reward model service name/URL
-    # The REWARD_MODEL_URL should be set in your .env file or environment
-    reward_model_identifier = os.getenv(
-        "REWARD_MODEL_URL", "rm"
-    )  # Default to "rm" if not set
-    if not reward_model_identifier:
-        print(
-            "Warning: REWARD_MODEL_URL environment variable not set. Using default 'rm'."
-        )
-    return await score_title(row_data, reward_model_identifier)
+    return await score_title(row_data)
 
 
 # 1. Load Model and Tokenizer

@@ -1,12 +1,11 @@
 # To launch, run the following command from the root directory of the art repository:
-# `uv run sky launch examples/hn_title_generator/skypilot.yaml --cluster=kyle-hn-title-generator-001 --env-file=.env --yes --retry-until-up --down --idle-minutes-to-autostop 60`
+# `uv run sky launch examples/hn_title_generator/skypilot.yaml --cluster=kyle-hn-title-generator-001 --env-file=.env --yes --retry-until-up --down --idle-minutes-to-autostop 10`
 
 workdir: .
 resources:
   accelerators: ["H100-SXM:1"]
 envs:
   HF_HUB_ENABLE_HF_TRANSFER: 1
-  REWARD_MODEL_URL:
 
 setup: |
   curl -LsSf https://astral.sh/uv/install.sh | sh

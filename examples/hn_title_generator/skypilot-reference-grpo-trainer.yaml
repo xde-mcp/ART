@@ -13,7 +13,6 @@ workdir: .
 envs:
   HF_HUB_ENABLE_HF_TRANSFER: 1
   VLLM_CONFIGURE_LOGGING: 0
-  REWARD_MODEL_URL:
 
 setup: |
   apt-get update && apt-get install -y git
