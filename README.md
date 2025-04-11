@@ -46,3 +46,13 @@ This training loop runs until a specified number of inference and training itera
 ## Contributing
 
 ART is in very active development, and contributions are most welcome! Please see the [CONTRIBUTING.md](CONTRIBUTING.md) file for more information.
+
+## Credits
+
+ART stands on the shoulders of giants. While we owe many of the ideas and early experiments that led to ART's development to the open source RL community at large, we're especially grateful to the authors of the following projects:
+
+- [Unsloth](https://github.com/unslothai/unsloth)
+- [vLLM](https://github.com/vllm-project/vllm)
+- [trl](https://github.com/huggingface/trl)
+
+Finally, thank you to our partners who've helped us test ART in the wild! We're excited to see what you all build with it.
