@@ -10,6 +10,7 @@ from transformers.trainer_utils import (
 )
 from typing import TYPE_CHECKING, TypedDict
 
+from .engine import EngineArgs
 
 if TYPE_CHECKING:
     from .. import types
@@ -29,19 +30,22 @@ def get_model_config(
         load_in_4bit=True,  # False for LoRA 16bit
         fast_inference=True,  # Enable vLLM fast inference
         # vLLM args
-        disable_log_requests=True,
         disable_log_stats=False,
         enable_prefix_caching=True,
         gpu_memory_utilization=(
             0.79 if enable_sleep_mode else 0.55
         ),  # Reduce if out of memory
         max_lora_rank=8,
+        use_async=True,
+    )
+    engine_args = EngineArgs(
+        disable_log_requests=True,
         # Multi-step processing is not supported for the Xformers attention backend
         # which is the fallback for devices with compute capability < 8.0
         num_scheduler_steps=16 if torch.cuda.get_device_capability()[0] >= 8 else 1,
         enable_sleep_mode=enable_sleep_mode,
-        use_async=True,
     )
+    engine_args.update(config.get("engine_args", {}))
     init_args.update(config.get("init_args", {}))
     if lora_path := get_last_checkpoint_dir(output_dir):
         init_args["model_name"] = lora_path
@@ -81,7 +85,10 @@ def get_model_config(
     )
     trainer_args.update(config.get("trainer_args", {}))
     return ModelConfig(
-        init_args=init_args, peft_args=peft_args, trainer_args=trainer_args
+        init_args=init_args,
+        engine_args=engine_args,
+        peft_args=peft_args,
+        trainer_args=trainer_args,
     )
 
 
@@ -96,6 +103,7 @@ class ModelConfig(TypedDict, total=False):
     """
 
     init_args: "InitArgs"
+    engine_args: "EngineArgs"
     peft_args: "PeftArgs"
     trainer_args: "TrainerArgs"
 

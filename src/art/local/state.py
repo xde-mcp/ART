@@ -1,5 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
+from dataclasses import asdict
 import gc
 import unsloth  # type: ignore
 from datasets import Dataset
@@ -13,8 +14,9 @@ from transformers.utils.dummy_pt_objects import (
     GenerationMixin,
 )
 from trl import GRPOConfig, GRPOTrainer
-from typing import AsyncGenerator, cast, TYPE_CHECKING
+from typing import Any, AsyncGenerator, cast, TYPE_CHECKING
 from vllm.engine.async_llm_engine import AsyncLLMEngine
+from vllm.engine.arg_utils import AsyncEngineArgs
 from vllm.worker.worker_base import WorkerWrapperBase
 from vllm.worker.multi_step_model_runner import MultiStepModelRunner
 
@@ -51,10 +53,24 @@ class ModelState:
         # to avoid an allocator error.
         empty_cache = torch.cuda.empty_cache
         torch.cuda.empty_cache = lambda: None
+        from_engine_args = AsyncLLMEngine.from_engine_args
+
+        # NOTE: We also have to patch from_engine_args to control the engine args
+        # that are passed to the engine constructor.
+        def _from_engine_args(
+            engine_args: AsyncEngineArgs, *args: Any, **kwargs: Any
+        ) -> AsyncLLMEngine:
+            engine_args_dict = asdict(engine_args)
+            engine_args_dict.update(config.get("engine_args", {}))
+            engine_args = AsyncEngineArgs(**engine_args_dict)
+            return from_engine_args(engine_args, *args, **kwargs)
+
+        AsyncLLMEngine.from_engine_args = _from_engine_args
         self.model, self.tokenizer = cast(
             tuple[CausallLM, PreTrainedTokenizerBase],
             unsloth.FastLanguageModel.from_pretrained(**config.get("init_args", {})),
         )
+        AsyncLLMEngine.from_engine_args = from_engine_args
         torch.cuda.empty_cache = empty_cache
         torch.cuda.empty_cache()
         self.vllm = vLLMState(self.model.vllm_engine, enable_sleep_mode)
