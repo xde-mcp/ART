@@ -11,6 +11,9 @@ if [[ -z "${PYPI_ART_TOKEN}" ]]; then
     exit 1
 fi
 
+# Delete the dist directory
+rm -rf dist
+
 # Build the package
 uv run hatch build
 
