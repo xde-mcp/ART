@@ -49,8 +49,6 @@ When you're done, you can tear down the cluster with:
 uv run sky down art
 ```
 
-### Local Training
-
 Make sure you are on a machine with at least one H100 or A100-80GB GPU. Machines equipped with lower-end GPUs may work, but training will be slower.
 
 ### "Temporal Clue" example
