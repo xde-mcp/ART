@@ -1,6 +1,6 @@
 [project]
 name = "openpipe-art"
-version = "0.1.5"
+version = "0.1.6"
 description = "The OpenPipe Agent Reinforcement Training (ART) library"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -19,7 +19,7 @@ dependencies = [
     "typer>=0.15.2",
     "trl==0.15.2",
     "tblib>=3.0.0",
-    "litellm>=1.65.0.post1"
+    "litellm>=1.63.0"
 ]
 
 [build-system]
