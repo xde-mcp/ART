@@ -1,16 +1,16 @@
 <div align="center">
 
 <a href="https://openpipe.ai"><picture>
-<img alt="ART header" src="https://github.com/user-attachments/assets/d5441604-59fe-415d-a90a-9e9e2cbd5c2c" width="100%">
+<img alt="ART header" src="https://github.com/openpipe/art/raw/main/assets/ART_header.png" width="100%">
 </picture></a>
 
-<a href="https://colab.research.google.com/github/OpenPipe/ART/blob/main/examples/tic_tac_toe/tic-tac-toe.ipynb"><img src="https://github.com/user-attachments/assets/8d655cbd-6498-4ef0-a4bb-c6c353c63c0e" height="48"></a>
-<a href="https://discord.gg/openpipe"><img src="https://github.com/user-attachments/assets/9d257702-a4a5-4824-901a-5155aa032a27" height="48"></a>
-<a href="https://docs.openpipe.ai"><img src="https://github.com/user-attachments/assets/33acfb02-6920-4636-b66f-38dacdbe59ca" height="48"></a>
+<a href="https://colab.research.google.com/github/openpipe/art/blob/notebooks/examples/2048/2048.ipynb"><img src="https://github.com/openpipe/art/raw/main/assets/Train_pill.png" height="48"></a>
+<a href="https://discord.gg/openpipe"><img src="https://github.com/openpipe/art/raw/main/assets/Discord_pill.png" height="48"></a>
+<a href="https://docs.openpipe.ai"><img src="https://github.com/openpipe/art/raw/main/assets/Documentation_pill.png" height="48"></a>
 
 ### Train free-range RL agents with minimal code changes and maximal performance!
 
-![](https://github.com/user-attachments/assets/13eae0af-a7bf-4fd3-9e13-20847438cd66)
+![](https://github.com/openpipe/art/raw/main/assets/Header_separator.png)
 
 </div>
 
