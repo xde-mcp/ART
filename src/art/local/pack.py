@@ -150,7 +150,7 @@ def packed_tensors_from_dir(**kwargs: Unpack[DiskPackedTensors]) -> PackedTensor
     os.makedirs(kwargs["dir"], exist_ok=True)
     return {
         key: torch.from_file(
-            f"{kwargs["dir"]}/{key}.pt",
+            f"{kwargs['dir']}/{key}.pt",
             shared=True,
             size=kwargs["num_sequences"] * kwargs["sequence_length"],
             dtype=dtype,
