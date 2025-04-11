@@ -5,7 +5,7 @@
 </picture></a>
 
 <a href="https://colab.research.google.com/github/openpipe/art/blob/notebooks/examples/2048/2048.ipynb"><img src="https://github.com/openpipe/art/raw/main/assets/Train_pill.png" height="48"></a>
-<a href="https://discord.gg/openpipe"><img src="https://github.com/openpipe/art/raw/main/assets/Discord_pill.png" height="48"></a>
+<a href="https://discord.com/invite/dnseNZuQ"><img src="https://github.com/openpipe/art/raw/main/assets/Discord_pill.png" height="48"></a>
 <a href="https://openpipe.ai/blog/art-trainer-a-new-rl-trainer-for-agents"><img src="https://github.com/openpipe/art/raw/main/assets/Launch_pill.png" height="48"></a>
 
 ### Train free-range RL agents with minimal code changes and maximal performance!
