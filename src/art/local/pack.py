@@ -4,7 +4,8 @@ import random
 import seaborn as sns
 import torch
 from torch.utils.data import Dataset
-from typing import TypedDict, Unpack
+from typing import TypedDict
+from typing_extensions import Unpack
 
 from .tokenize import TokenizedResult
 from ..types import Verbosity
@@ -45,6 +46,7 @@ def packed_tensors_from_tokenized_results(
     truncate_long_results: bool = True,
     verbosity: Verbosity = 1,
 ) -> PackedTensors:
+    # TODO: This function could potentially be optimized with vectorized operations
     token_ids: list[list[int]] = [[]]
     group_ids: list[list[int]] = [[]]
     parent_ids: list[list[int]] = [[]]
@@ -94,9 +96,6 @@ def packed_tensors_from_tokenized_results(
         assistant_mask[-1].extend(result.assistant_mask)
         logprobs[-1].extend(result.logprobs)
         advantages[-1].extend([result.advantage] * len(result.token_ids))
-        # prevent the model unlearning when to stop
-        # advantages[-1][-1] = max(0, advantages[-1][-1])
-        advantages[-1][-1] = 0
         weights[-1].extend([1 / sum(result.assistant_mask)] * len(result.token_ids))
         if truncate_long_results:
             token_ids[-1] = token_ids[-1][:seq_len]
@@ -107,6 +106,17 @@ def packed_tensors_from_tokenized_results(
             logprobs[-1] = logprobs[-1][:seq_len]
             advantages[-1] = advantages[-1][:seq_len]
             weights[-1] = weights[-1][:seq_len]
+
+    permutation = list(range(len(token_ids)))
+    random.shuffle(permutation)
+    token_ids = [token_ids[i] for i in permutation]
+    group_ids = [group_ids[i] for i in permutation]
+    parent_ids = [parent_ids[i] for i in permutation]
+    input_pos = [input_pos[i] for i in permutation]
+    assistant_mask = [assistant_mask[i] for i in permutation]
+    logprobs = [logprobs[i] for i in permutation]
+    advantages = [advantages[i] for i in permutation]
+    weights = [weights[i] for i in permutation]
 
     def pad(values: list[list], pad_value) -> list[list]:
         max_len = seq_len
@@ -141,9 +151,7 @@ def packed_tensors_from_dir(**kwargs: Unpack[DiskPackedTensors]) -> PackedTensor
         key: torch.from_file(
             f"{kwargs['dir']}/{key}.pt",
             shared=True,
-            size=kwargs["num_sequences"]
-            * kwargs["sequence_length"]
-            * (kwargs["sequence_length"] if key == "mask" else 1),
+            size=kwargs["num_sequences"] * kwargs["sequence_length"],
             dtype=dtype,
         ).view(kwargs["num_sequences"], kwargs["sequence_length"])
         for key, dtype in {

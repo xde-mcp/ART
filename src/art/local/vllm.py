@@ -1,206 +1,351 @@
+from argparse import Namespace
 import asyncio
-from dataclasses import dataclass
-import httpx
-from openai import AsyncOpenAI, DefaultAsyncHttpxClient
+from contextlib import asynccontextmanager
+import ctypes
+import logging
+from openai import AsyncOpenAI
 import os
-import socket
-import subprocess
-import sys
-import re
-import time
-from typing import Any, IO, Optional
+import torch
+from typing import Any, AsyncIterator, Callable, Coroutine, TYPE_CHECKING
+from vllm.engine.async_llm_engine import AsyncLLMEngine
+from vllm.engine.protocol import EngineClient
+from vllm.entrypoints.openai.cli_args import make_arg_parser, validate_parsed_serve_args
+from vllm.lora.request import LoRARequest
+from vllm.logger import _DATE_FORMAT, _FORMAT
+from vllm.utils import FlexibleArgumentParser
+from uvicorn.config import LOGGING_CONFIG
 
-from ..types import Verbosity
+from ..dev.openai_server import OpenAIServerConfig
 
-
-@dataclass
-class vLLM:
-    client: AsyncOpenAI
-    max_concurrent_tokens: int
-    model: str
-    process: asyncio.subprocess.Process
+if TYPE_CHECKING:
+    from .state import vLLMState
 
 
-async def start_vllm(
-    model: str,
-    model_name: str,
-    env: Optional[dict[str, str]] = None,
-    log_file: str = "./logs/vllm.log",
-    max_concurrent_requests: int = 128,
-    named_arguments: dict[str, Any] = {},
-    timeout: float = 120.0,
-    verbosity: Verbosity = 2,
-) -> vLLM:
-    kill_vllm_workers()
-    if os.path.exists(os.path.abspath(model)):
-        model = os.path.abspath(model)
-    named_arguments.setdefault("served_model_name", model_name)
-    port = named_arguments.get("port") or 8000
-    while True:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            sock.bind((named_arguments.get("host") or "0.0.0.0", port))
-            break
-        except socket.error:
-            if "port" in named_arguments and named_arguments["port"] == port:
-                raise RuntimeError(f"Port {port} is already in use")
-            port += 1
-        finally:
-            sock.close()
-    named_arguments["port"] = port
-    args = [
-        "vllm",
-        "serve",
-        model,
-        *[
-            f"--{key.replace('_', '-')}{f'={value}' if value is not True else ''}"
-            for key, value in named_arguments.items()
-            if value is not None
-        ],
-        "--api-key=default",
-    ]
-    # os.system("lsof -ti :8000 | xargs kill -9 2>/dev/null || true")
-    process = await asyncio.create_subprocess_exec(
-        *args,
-        stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.DEVNULL,
-        env={
-            **os.environ,
-            **(env or {}),
-        },
-    )
-    if verbosity > 0:
-        print(f"$ {' '.join(args)}")
-    os.makedirs(os.path.dirname(log_file), exist_ok=True)
-    log = open(log_file, "w")
-    logging = verbosity > 1
-    max_concurrent_tokens: Optional[int] = None
+async def openai_server_task(
+    state: "vLLMState",
+    config: OpenAIServerConfig,
+) -> asyncio.Task[None]:
+    """
+    Starts an asyncio task that runs an OpenAI-compatible server.
 
-    async def log_output(stream: asyncio.StreamReader, io: IO[str]) -> None:
-        while True:
-            line = await stream.readline()
-            if not line:
-                break
-            decoded_line = line.decode()
-            if logging:
-                io.write(decoded_line)
-                io.flush()
-            log.write(decoded_line)
-            log.flush()
-        log.close()
+    Args:
+        state: The state of the vLLM engine.
+        config: The configuration for the OpenAI-compatible server.
 
-    # if process.stdout:
-    #     asyncio.create_task(log_output(process.stdout, sys.stdout))
-    # if process.stderr:
-    #     asyncio.create_task(log_output(process.stderr, sys.stderr))
+    Returns:
+        A running asyncio task for the OpenAI-compatible server. Cancel the task
+        to stop the server.
+    """
+    # We must subclass ChatCompletionRequest before importing api_server
+    # or logprobs will not always be returned
+    subclass_chat_completion_request()
+    from vllm.entrypoints.openai import api_server
+
+    patch_lora_request()
+    patch_get_lora_tokenizer_async()
+    patch_listen_for_disconnect()
+    patch_multi_step_model_runner(state)
+    set_vllm_log_file(config.get("log_file", "vllm.log"))
+
+    @asynccontextmanager
+    async def build_async_engine_client(
+        _: Namespace,
+    ) -> AsyncIterator[EngineClient]:
+        yield state.async_engine
+
+    api_server.build_async_engine_client = build_async_engine_client
+    openai_server_task = asyncio.create_task(_openai_server_coroutine(config))
+    server_args = config.get("server_args", {})
     client = AsyncOpenAI(
-        api_key="default",
-        base_url=f"http://{named_arguments.get('host', '0.0.0.0')}:{named_arguments['port']}/v1",
-        max_retries=1,
-        http_client=DefaultAsyncHttpxClient(
-            limits=httpx.Limits(
-                max_connections=max_concurrent_requests,
-                max_keepalive_connections=max_concurrent_requests,
-            ),
-            timeout=httpx.Timeout(timeout=None),
-        ),
-    )
-    start = asyncio.get_event_loop().time()
-    while True:
-        try:
-            await client.chat.completions.create(
-                messages=[{"role": "user", "content": "Hello"}],
-                model=named_arguments.get("served_model_name", model),
-                max_tokens=1,
-            )
-            break
-        except Exception:
-            if asyncio.get_event_loop().time() - start > timeout:
-                process.terminate()
-                kill_vllm_workers()
-                raise TimeoutError("vLLM server did not start in time")
-            continue
-    if logging:
-        print(f"vLLM server started succesfully. Logs can be found at {log_file}")
-        logging = False
-    with open(log_file, "r") as f:
-        match = re.search(
-            r"Maximum concurrency for (\d+) tokens per request: ([\d.]+)x",
-            f.read(),
-        )
-        if match:
-            max_concurrent_tokens = int(int(match.group(1)) * float(match.group(2)))
-        else:
-            print("No max concurrent tokens logged, using default of 32768 * 100")
-            max_concurrent_tokens = 32768 * 100
-    if max_concurrent_tokens is None:
-        process.terminate()
-        kill_vllm_workers()
-        raise RuntimeError(
-            "Max concurrent requests for the maximum model length not logged"
-        )
-    return vLLM(
-        client,
-        max_concurrent_tokens,
-        named_arguments.get("served_model_name", model),
-        process,
+        api_key=server_args.get("api_key"),
+        base_url=f"http://{server_args.get('host', '0.0.0.0')}:{server_args.get('port', 8000)}/v1",
     )
 
-
-def kill_vllm_workers() -> None:
-    try:
-        # kill any processes that contain vllm in the name
-        result = subprocess.run(["pgrep", "-f", "vllm"], capture_output=True, text=True)
-        if result.returncode == 0:
-            subprocess.run(["pkill", "-9", "vllm"], check=True)
-
-        # kill any multiprocessing workers
-        result = subprocess.run(["ps", "aux"], capture_output=True, text=True)
-        pids = [
-            line.split()[1]
-            for line in result.stdout.splitlines()
-            if "from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd="
-            in line
-        ]
-        for pid in pids:
-            subprocess.run(["kill", "-9", pid], check=True)
-
-        # Instead of a fixed sleep, wait until GPU memory is mostly freed.
-        # We'll poll nvidia-smi until all GPUs show memory usage below a threshold.
-        threshold_mb = 100  # memory threshold in MB
-        poll_interval = 2  # check every 2 seconds
-        max_wait = 60  # maximum wait time in seconds
-        start_time = time.time()
-
+    async def test_client() -> None:
         while True:
             try:
-                gpu_query = subprocess.run(
-                    [
-                        "nvidia-smi",
-                        "--query-gpu=memory.used",
-                        "--format=csv,noheader,nounits",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    check=True,
+                async for _ in client.models.list():
+                    return
+            except:
+                pass
+
+    test_client_task = asyncio.create_task(test_client())
+    try:
+        done, _ = await asyncio.wait(
+            [openai_server_task, test_client_task],
+            timeout=10.0,
+            return_when="FIRST_COMPLETED",
+        )
+        if not done:
+            raise TimeoutError("Unable to reach OpenAI-compatible server in time.")
+        for task in done:
+            task.result()
+
+        return openai_server_task
+    except Exception:
+        openai_server_task.cancel()
+        test_client_task.cancel()
+        raise
+
+
+def _openai_server_coroutine(
+    config: OpenAIServerConfig,
+) -> Coroutine[Any, Any, None]:
+    from vllm.entrypoints.openai import api_server
+
+    parser = FlexibleArgumentParser(
+        description="vLLM OpenAI-Compatible RESTful API server."
+    )
+    parser = make_arg_parser(parser)
+    engine_args = config.get("engine_args", {})
+    server_args = config.get("server_args", {})
+    args = [
+        *[
+            f"--{key.replace('_', '-')}{f'={item}' if item is not True else ''}"
+            for args in [engine_args, server_args]
+            for key, value in args.items()
+            for item in (value if isinstance(value, list) else [value])
+            if item is not None
+        ],
+    ]
+    namespace = parser.parse_args(args)
+    validate_parsed_serve_args(namespace)
+    return api_server.run_server(
+        namespace,
+        log_config=get_uvicorn_logging_config(config.get("log_file", "vllm.log")),
+    )
+
+
+def create_engine_pause_and_resume_functions(
+    engine: AsyncLLMEngine,
+) -> tuple[
+    Callable[[], Coroutine[Any, Any, None]], Callable[[], Coroutine[Any, Any, None]]
+]:
+    """
+    Patches the vLLM engine and returns a pair of functions for pausing and resuming
+    request processing respectively.
+    """
+    _engine_step = engine.engine_step
+    resume_event = asyncio.Event()
+    resume_event.set()
+    engine_step_event = asyncio.Event()
+
+    async def engine_step(virtual_engine: int) -> bool:
+        engine_step_event.set()
+        await resume_event.wait()
+        return await _engine_step(virtual_engine)
+
+    engine.engine_step = engine_step
+
+    async def pause_engine() -> None:
+        resume_event.clear()
+        if engine.engine.has_unfinished_requests():
+            engine_step_event.clear()
+            await engine_step_event.wait()
+
+    async def resume_engine() -> None:
+        resume_event.set()
+
+    return pause_engine, resume_engine
+
+
+def patch_allocator() -> None:
+    """
+    Patch the vLLM CuMemAllocator to specifically focus on offloading/discarding
+    the KV cache.
+    """
+    from vllm.device_allocator.cumem import (
+        create_and_map,
+        CuMemAllocator,
+        libcudart,
+        unmap_and_release,
+    )
+    from vllm.utils import is_pin_memory_available
+
+    allocator = CuMemAllocator.get_instance()
+
+    def sleep(offload_tags: tuple[str, ...] | str | None = None) -> None:
+        # In this version of vLLM (0.7.3) one tag is provided for sleep level 1
+        # and no tags are provided for sleep level 2, so we can reverse-engineer
+        # the sleep level from the tags
+        sleep_level = 1 if offload_tags else 2
+        # We reinterpret the sleep levels as follows:
+        # Sleep level 1: offload kv cache to CPU memory (or disk)
+        if sleep_level == 1:
+            offload_to = "cpu"
+            # TODO: Check if there is sufficient CPU memory, otherwise offload to disk
+        # Sleep level 2: discard kv cache
+        else:
+            offload_to = "none"
+
+        for ptr, data in allocator.pointer_to_data.items():
+            if data.tag != "kv_cache":
+                continue
+            handle = data.handle
+            size_in_bytes = handle[1]
+            if offload_to != "none":
+                if offload_to == "disk":
+                    cpu_backup_tensor = torch.from_file(
+                        f"/tmp/kv-cache-{ptr}.pt",
+                        size=size_in_bytes,
+                        dtype=torch.uint8,
+                        device="cpu",
+                        shared=True,
+                    )
+                else:
+                    cpu_backup_tensor = torch.empty(
+                        size_in_bytes,
+                        dtype=torch.uint8,
+                        device="cpu",
+                        pin_memory=is_pin_memory_available(),
+                    )
+                cpu_ptr = cpu_backup_tensor.data_ptr()
+                libcudart.cudaMemcpy(
+                    ctypes.c_void_p(cpu_ptr), ctypes.c_void_p(ptr), size_in_bytes
                 )
-                usage_values = [
-                    int(line.strip())
-                    for line in gpu_query.stdout.strip().splitlines()
-                    if line.strip().isdigit()
-                ]
-                # If GPU memory usage is below the threshold on all devices, break out of the loop.
-                if usage_values and all(usage < threshold_mb for usage in usage_values):
+                data.cpu_backup_tensor = cpu_backup_tensor
+            unmap_and_release(handle)
+
+    def wake_up() -> None:
+        """
+        Wake up the allocator from sleep mode.
+        All data that is previously offloaded will be loaded back to GPU
+        memory, and the rest of the data will have empty memory.
+        """
+        for ptr, data in allocator.pointer_to_data.items():
+            if data.tag != "kv_cache":
+                continue
+            create_and_map(data.handle)
+            if data.cpu_backup_tensor is not None:
+                cpu_backup_tensor = data.cpu_backup_tensor
+                if cpu_backup_tensor is not None:
+                    size_in_bytes = (
+                        cpu_backup_tensor.numel() * cpu_backup_tensor.element_size()
+                    )
+                    cpu_ptr = cpu_backup_tensor.data_ptr()
+                    libcudart.cudaMemcpy(
+                        ctypes.c_void_p(ptr), ctypes.c_void_p(cpu_ptr), size_in_bytes
+                    )
+                    data.cpu_backup_tensor = None
+
+    allocator.sleep = sleep
+    allocator.wake_up = wake_up
+
+
+def subclass_chat_completion_request() -> None:
+    """
+    Subclass ChatCompletionRequest so that logprobs are always returned.
+    """
+    import vllm.entrypoints.openai.protocol
+
+    class ChatCompletionRequest(vllm.entrypoints.openai.protocol.ChatCompletionRequest):
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            super().__init__(*args, **kwargs)
+            self.logprobs = True
+            if self.top_logprobs is None:
+                self.top_logprobs = 0
+
+    vllm.entrypoints.openai.protocol.ChatCompletionRequest = ChatCompletionRequest
+
+
+def patch_lora_request() -> None:
+    """
+    Patches the vLLM LoRARequest type to have attributes Unsloth expects.
+    """
+    LoRARequest.lora_tensors = {}  # type: ignore
+    LoRARequest.lora_embeddings = {}  # type: ignore
+
+
+def patch_get_lora_tokenizer_async() -> None:
+    """
+    Patches an Unsloth patch that causes issues with vLLM.
+
+    Specifically, Unsloth patches get_lora_tokenizer_async with a non-async function, which causes issues.
+    """
+    import vllm.transformers_utils.tokenizer_group.tokenizer_group
+
+    async def _return_nothing(*_, **__) -> None:
+        return None
+
+    vllm.transformers_utils.tokenizer_group.tokenizer_group.get_lora_tokenizer_async = _return_nothing  # type: ignore
+
+
+def patch_listen_for_disconnect() -> None:
+    async def patched_listen_for_disconnect(request):
+        try:
+            while True:
+                message = await request.receive()
+                if message["type"] == "http.disconnect":
                     break
-            except Exception as gpu_err:
-                print(f"Error checking GPU memory: {gpu_err}")
-                break
+        except UnboundLocalError:
+            pass
 
-            if time.time() - start_time > max_wait:
-                print("Timeout waiting for GPU memory to be freed.")
-                break
+    # Replace the original function
+    import vllm.entrypoints.utils
 
-            time.sleep(poll_interval)
-    except Exception as e:
-        print(f"Error killing vLLM workers: {e}")
-        print(type(e))
+    vllm.entrypoints.utils.listen_for_disconnect = patched_listen_for_disconnect
+
+
+def patch_multi_step_model_runner(state: "vLLMState") -> None:
+    """
+    Patches the vLLM multi-step model runner to support LoRA adapters.
+    """
+    model_runner = state.multi_step_model_runner  # type: ignore
+    if not hasattr(model_runner, "_base_model_runner"):
+        return
+    base_model_runner = model_runner._base_model_runner
+    model_runner.set_active_loras = base_model_runner.set_active_loras
+    model_runner.add_lora = base_model_runner.add_lora
+    model_runner.remove_lora = base_model_runner.remove_lora
+    model_runner.pin_lora = base_model_runner.pin_lora
+    model_runner.list_loras = base_model_runner.list_loras
+
+
+def get_uvicorn_logging_config(path: str) -> dict[str, Any]:
+    """
+    Returns a Uvicorn logging config that writes to the given path.
+    """
+    return {
+        **LOGGING_CONFIG,
+        "handlers": {
+            "default": {
+                "formatter": "default",
+                "class": "logging.FileHandler",
+                "filename": path,
+            },
+            "access": {
+                "formatter": "default",
+                "class": "logging.FileHandler",
+                "filename": path,
+            },
+        },
+    }
+
+
+def set_vllm_log_file(path: str) -> None:
+    """
+    Sets the vLLM log file to the given path.
+    """
+
+    # Create directory for the log file if it doesn't exist
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    # Get the vLLM logger
+    vllm_logger = logging.getLogger("vllm")
+
+    # Remove existing handlers
+    for handler in vllm_logger.handlers[:]:
+        vllm_logger.removeHandler(handler)
+
+    # Create a file handler
+    file_handler = logging.FileHandler(path)
+
+    # Use the same formatter as vLLM's default
+    formatter = logging.Formatter(_FORMAT, _DATE_FORMAT)
+    file_handler.setFormatter(formatter)
+
+    # Add the handler to the logger
+    vllm_logger.addHandler(file_handler)
+
+    # Set log level to filter out DEBUG messages
+    vllm_logger.setLevel(logging.INFO)

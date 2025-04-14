@@ -1,6 +1,3 @@
-import asyncio
-import contextlib
-import datetime
 import openai
 from openai import AsyncStream
 from openai._streaming import AsyncStream
@@ -14,93 +11,50 @@ from openai.types.chat.chat_completion_message_tool_call import (
     ChatCompletionMessageToolCall,
     Function,
 )
-from typing import (
-    Any,
-    Callable,
-    Coroutine,
-)
+from typing import Any, Callable
 
-from .gather_trajectories import get_groups_context
-from .utils import format_message
+from .gather import get_gather_context
 
 
-def patch_openai(
-    client: openai.AsyncOpenAI,
-    semaphore: asyncio.Semaphore,
-    close: Callable[[openai.AsyncOpenAI], Coroutine[None, None, None]],
-) -> openai.AsyncOpenAI:
+def patch_openai(client: openai.AsyncOpenAI) -> openai.AsyncOpenAI:
     create = client.chat.completions.create
 
     def report_usage(chat_completion: ChatCompletion) -> None:
-        context = get_groups_context()
+        context = get_gather_context()
         if chat_completion.usage is not None:
             context.metric_sums["prompt_tokens"] += chat_completion.usage.prompt_tokens
             context.metric_divisors["prompt_tokens"] += 1
 
     async def create_patched(*args: Any, **kwargs: Any) -> ChatCompletion | AsyncStream:
-        kwargs["logprobs"] = True
         return_stream = kwargs.get("stream", False)
-        context = get_groups_context()
-        should_stream = next(context.should_stream)
-        if context.pbar_total_completion_tokens or should_stream:
+        context = get_gather_context()
+        if context.pbar_total_completion_tokens:
             kwargs["stream"] = True
             kwargs["stream_options"] = {"include_usage": True}
-        async with semaphore:
-            return_value = await create(*args, **kwargs)
-            if isinstance(return_value, ChatCompletion):
-                report_usage(return_value)
-                return return_value
-            assert isinstance(return_value, AsyncStream)
-            if return_stream:
-                return return_value
+        return_value = await create(*args, **kwargs)
+        if isinstance(return_value, ChatCompletion):
+            report_usage(return_value)
+            return return_value
+        assert isinstance(return_value, AsyncStream)
+        if return_stream:
+            return return_value
 
-            with (
-                open(
-                    f"{context.streaming_chat_completions_dir}/{datetime.datetime.now().isoformat()}.log",
-                    "a",
+        def on_chunk(chunk: ChatCompletionChunk, _: ChatCompletion) -> None:
+            context = get_gather_context()
+            if context.pbar_total_completion_tokens:
+                context.metric_sums["total_completion_tokens"] += sum(
+                    len(choice.logprobs.content or choice.logprobs.refusal or [])
+                    for choice in chunk.choices
+                    if choice.logprobs
+                    and (choice.logprobs.content or choice.logprobs.refusal)
                 )
-                if should_stream
-                else contextlib.nullcontext()
-            ) as log_file:
-                if log_file:
-                    log_file.write(
-                        f"\n".join(
-                            format_message(message) for message in kwargs["messages"]
-                        )
-                        + "\nAssistant:\n"
-                    )
-                    log_file.flush()
+                context.update_pbar(n=0)
 
-                def on_chunk(chunk: ChatCompletionChunk, _: ChatCompletion) -> None:
-                    context = get_groups_context()
-                    if context.pbar_total_completion_tokens:
-                        context.metric_sums["total_completion_tokens"] += sum(
-                            len(
-                                choice.logprobs.content or choice.logprobs.refusal or []
-                            )
-                            for choice in chunk.choices
-                            if choice.logprobs
-                            and (choice.logprobs.content or choice.logprobs.refusal)
-                        )
-                        context.update_pbar(n=0)
-                    if log_file and chunk.choices:
-                        log_file.write(chunk.choices[0].delta.content or "")
-                        log_file.flush()
-
-                chat_completion = await consume_chat_completion_stream(
-                    return_value, on_chunk
-                )
+        chat_completion = await consume_chat_completion_stream(return_value, on_chunk)
         report_usage(chat_completion)
         return chat_completion
 
     client.chat.completions.create = create_patched  # type: ignore
-    _close = client.close
-
-    async def __close() -> None:
-        await _close()
-        await close(client)
-
-    client.close = __close
     return client
 
 

@@ -5,7 +5,7 @@ from openai.types.chat import ChatCompletionMessageParam
 import os
 from dotenv import load_dotenv
 from datasets import Dataset
-from transformers import AutoTokenizer
+from transformers.models.auto.tokenization_auto import AutoTokenizer
 from typing import List, Dict, Any, Iterable
 from openpipe import AsyncOpenPipe
 from datetime import datetime
@@ -14,7 +14,7 @@ from art.utils import iterate_dataset, limit_concurrency
 
 load_dotenv()
 
-RUN_NAME = "011"
+MODEL_NAME = "001"
 BASE_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 MAX_COMPLETION_LENGTH = 100
 MAX_PROMPT_LENGTH = 8192 - MAX_COMPLETION_LENGTH
@@ -23,7 +23,7 @@ ENTRIES_PER_ITERATION = 1
 EVAL_STEPS = 50
 VAL_SET_SIZE = 100
 TRAINING_DATASET_SIZE = 5000
-WANDB_PROJECT = "hn_title_generation"
+PROJECT = "hn_title_generation"
 NUM_EPOCHS = 1
 NUM_GENERATIONS = 6
 
@@ -231,9 +231,10 @@ async def rollout(
 # --- Main Training Loop ---
 async def main():
     # Initialize ART API and Model
-    api = art.UnslothAPI(wandb_project=WANDB_PROJECT)
-    model = await api._get_or_create_model(
-        name=RUN_NAME,
+    api = art.LocalAPI()
+    model = await api.get_or_create_model(
+        name=MODEL_NAME,
+        project=PROJECT,
         base_model=BASE_MODEL,
         _config={
             "init_args": {
@@ -242,7 +243,7 @@ async def main():
             "peft_args": {
                 "lora_alpha": 8,
             },
-            "train_args": {
+            "trainer_args": {
                 "max_grad_norm": 0.1,
             },
         },
@@ -274,11 +275,11 @@ async def main():
     print(f"Training data size: {len(train_data_list)}")
     print(f"Validation data size: {len(val_data_list)}")
 
-    # Get OpenAI Client from ART Model
+    # Get OpenAI Client for the ART Model
     openai_client = await model.openai_client()
 
     # Training Loop
-    start_iteration = await model.get_iteration()
+    start_iteration = await model.get_step()
     print(f"Starting training from global iteration {start_iteration}")
 
     data_iterator = iterate_dataset(
@@ -290,13 +291,13 @@ async def main():
     )
 
     for batch_inputs, epoch, global_iteration, epoch_iteration in data_iterator:
-        train_groups = await art.gather_trajectories(
+        train_groups = await art.gather_trajectory_groups(
             (
-                (
+                art.TrajectoryGroup(
                     rollout(
                         openai_client,
                         op_client,
-                        RUN_NAME,
+                        MODEL_NAME,
                         bi["prompt"],
                         bi["row"],
                         global_iteration,
@@ -320,13 +321,9 @@ async def main():
             )
             continue
 
-        await model.tune(
+        await model.train(
             valid_train_groups,
-            config=art.TuneConfig(
-                lr=LEARNING_RATE,
-                sequence_length=MAX_PROMPT_LENGTH + MAX_COMPLETION_LENGTH,
-                clip_epsilon=9001,
-            ),
+            config=art.TrainConfig(learning_rate=LEARNING_RATE),
         )
 
         if global_iteration > 0 and global_iteration % EVAL_STEPS == 0:
@@ -334,25 +331,23 @@ async def main():
 
             print(f"Running validation rollouts on {len(val_data_list)} samples...")
             val_trajectories = await art.gather_trajectories(
-                [
-                    [
-                        rollout(
-                            openai_client,
-                            op_client,
-                            RUN_NAME,
-                            item["prompt"],
-                            item["row"],
-                            global_iteration,
-                            epoch,
-                        )
-                        for _ in range(1)
-                    ]
+                (
+                    rollout(
+                        openai_client,
+                        op_client,
+                        MODEL_NAME,
+                        item["prompt"],
+                        item["row"],
+                        global_iteration,
+                        epoch,
+                    )
                     for item in val_data_list
-                ]
+                ),
+                pbar_desc="val",
             )
 
             await model.log(val_trajectories)
-            await model.clear_iterations()
+            await model.delete_checkpoints()
 
     print("Training finished.")
 

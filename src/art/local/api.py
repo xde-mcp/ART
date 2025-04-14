@@ -1,41 +1,43 @@
-import asyncio
-from openai import AsyncOpenAI
+import httpx
+import json
+import math
+from mp_actors import move_to_child_process
+import numpy as np
+from openai import (
+    AsyncOpenAI,
+    DefaultAsyncHttpxClient,
+)
 import os
-import torch
+import polars as pl
+import subprocess
+from transformers.models.auto.tokenization_auto import AutoTokenizer
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+from tqdm import auto as tqdm
 from typing import cast
 import wandb
 from wandb.sdk.wandb_run import Run
 
-
-from ..api import API
-from ..config.openai_server import OpenAIServerConfig
+from .. import dev
 from ..model import Model
-from ..types import BaseModel, Message, Trajectory, TuneConfig, Verbosity
+from .service import ModelService
+from ..trajectories import Trajectory, TrajectoryGroup
+from ..types import BaseModel, Message, TrainConfig
 from ..utils import format_message
-from .grpo import GRPO
-from .pack import packed_tensors_from_tokenized_results, plot_packed_tensors
-from .model_configs import model_configs
-from .recipe import ComponentConfig, TuneRecipeConfig
-from .tokenize import tokenize_trajectory_groups
-from .tune import (
-    clear_iteration_dirs,
-    get_iteration,
-    get_last_iteration_dir,
-    get_last_tune_metrics,
-    tune,
+from .pack import (
+    packed_tensors_from_tokenized_results,
+    packed_tensors_to_dir,
+    PackedTensors,
+    plot_packed_tensors,
 )
-from .vllm import kill_vllm_workers, start_vllm, vLLM
+from .tokenize import tokenize_trajectory_groups
+from .checkpoints import (
+    delete_checkpoints,
+    get_step,
+)
 
 
-class LocalAPI(API):
-
-    def __init__(
-        self,
-        *,
-        path: str = "./.art",
-        wandb_entity: str | None = None,
-        wandb_project: str | None = None,
-    ) -> None:
+class LocalAPI:
+    def __init__(self, *, in_process: bool = False, path: str = "./.art") -> None:
         """
         Initializes a local, directory-based API interface at the given path.
 
@@ -44,146 +46,177 @@ class LocalAPI(API):
             If you don't have a W&B account, you can create one at https://wandb.ai.
 
         Args:
+            in_process: Whether to run the local service in-process.
             path: The path to the local directory. Defaults to "./.art".
-            wandb_entity: The preferred Weights & Biases entity.
             wandb_project: The preferred Weights & Biases project.
         """
+        self._in_process = in_process
         self._path = path
         os.makedirs(self._path, exist_ok=True)
-        self._wandb_entity = wandb_entity
-        self._wandb_project = wandb_project
-        self._vllm: vLLM | None = None
+
+        # Other initialization
+        self._services: dict[str, ModelService] = {}
+        self._tokenizers: dict[str, "PreTrainedTokenizerBase"] = {}
         self._wandb_runs: dict[str, Run] = {}
 
-    async def get_or_create_model(self, name: str, base_model: BaseModel) -> Model:
+    async def get_or_create_model(
+        self,
+        name: str,
+        project: str,
+        base_model: BaseModel,
+        _config: dev.ModelConfig | None = None,
+    ) -> Model:
         """
-        Retrieves an existing model or creates a new one.
+        Retrieve an existing model or create a new one.
 
         Args:
-            name: The model's name.
-            base_model: The model's base model.
-            tool_use: Whether to enable tool use.
+            name: A project-unique identifier for the model.
+            project: The project to save the model to.
+            base_model: The base model to start training from.
+            _config: A ModelConfig object. May be subject to breaking changes at any time.
+                Use at your own risk.
 
         Returns:
             Model: A model instance.
         """
-        os.makedirs(self._get_output_dir(name), exist_ok=True)
-        return Model(api=self, name=name, base_model=base_model)
+        model = Model(
+            name=name,
+            project=project,
+            base_model=base_model,
+            _api=self,
+            _config=_config,
+        )
+        os.makedirs(self._get_output_dir(model), exist_ok=True)
+        return model
 
-    def _get_output_dir(self, model_name: str) -> str:
-        return f"{self._path}/models/{model_name}"
+    async def _get_service(self, model: Model) -> ModelService:
+        if model.name not in self._services:
+            config = dev.get_model_config(
+                base_model=model.base_model,
+                output_dir=self._get_output_dir(model),
+                config=model._config,
+            )
+            self._services[model.name] = ModelService(
+                host="localhost",
+                port=8089 + len(self._services),
+                model_name=model.name,
+                base_model=model.base_model,
+                config=config,
+                output_dir=self._get_output_dir(model),
+            )
+            if not self._in_process:
+                # Kill all "model-service" processes to free up GPU memory
+                subprocess.run(["pkill", "-9", "model-service"])
+                # To enable sleep mode, import peft before unsloth
+                # Unsloth will issue warnings, but everything appears to be okay
+                if config.get("engine_args", {}).get("enable_sleep_mode", False):
+                    os.environ["IMPORT_PEFT"] = "1"
+                # When moving the service to a child process, import unsloth
+                # early to maximize optimizations
+                os.environ["IMPORT_UNSLOTH"] = "1"
+                self._services[model.name] = move_to_child_process(
+                    self._services[model.name],
+                    process_name="model-service",
+                )
+        return self._services[model.name]
 
-    async def _get_iteration(self, model: Model) -> int:
-        return self.__get_iteration(model)
-
-    def __get_iteration(self, model: Model) -> int:
-        return get_iteration(self._get_output_dir(model.name))
-
-    async def _clear_iterations(
+    def _get_packed_tensors(
         self,
         model: Model,
-        benchmark: str,
-        benchmark_smoothing: float = 1.0,
-        verbosity: Verbosity = 1,
+        trajectory_groups: list[TrajectoryGroup],
+        plot_tensors: bool,
+    ) -> PackedTensors | None:
+        if not model.base_model in self._tokenizers:
+            self._tokenizers[model.base_model] = AutoTokenizer.from_pretrained(
+                model.base_model
+            )
+        tokenizer = self._tokenizers[model.base_model]
+        tokenized_results = list(
+            tokenize_trajectory_groups(
+                tokenizer,
+                trajectory_groups,
+            )
+        )
+        if not tokenized_results:
+            return None
+        max_tokens = max(len(result.tokens) for result in tokenized_results)
+        # Round up max_tokens to the nearest multiple of 2048
+        sequence_length = math.ceil(max_tokens / 2048) * 2048
+        packed_tensors = packed_tensors_from_tokenized_results(
+            tokenized_results,
+            sequence_length,
+            pad_token_id=tokenizer.eos_token_id,  # type: ignore
+        )
+        # If all logprobs are NaN then there is no suitable data for tuning
+        if np.isnan(packed_tensors["logprobs"]).all():
+            print(
+                "There are no assistant logprobs to train on. Did you forget to include at least one Choice in Trajectory.messages_and_choices?"
+            )
+            return None
+        if plot_tensors:
+            plot_packed_tensors(packed_tensors)
+        else:
+            print(
+                f"Packed {len(tokenized_results)} trajectories into {packed_tensors['tokens'].shape[0]} sequences of length {packed_tensors['tokens'].shape[1]}"
+            )
+        return packed_tensors
+
+    def _get_output_dir(self, model: Model) -> str:
+        return f"{self._path}/{model.project}/models/{model.name}"
+
+    async def _get_step(self, model: Model) -> int:
+        return self.__get_step(model)
+
+    def __get_step(self, model: Model) -> int:
+        return get_step(self._get_output_dir(model))
+
+    async def _delete_checkpoints(
+        self, model: Model, benchmark: str, benchmark_smoothing: float = 1.0
     ) -> None:
-        run = self._get_wandb_run(model)
-        output_dir = self._get_output_dir(model.name)
-        # Keep the latest iteration
-        iterations_to_keep = [get_iteration(output_dir)]
+        output_dir = self._get_output_dir(model)
+        # Keep the latest step
+        steps_to_keep = [get_step(output_dir)]
         try:
-            history_df = (
-                wandb.Api()
-                .run(f"{run.entity}/{run.project}/{run.id}")
-                .history()
-                .dropna(subset=[benchmark])
-                .groupby("iteration")
+            best_step = (
+                pl.read_ndjson(f"{output_dir}/history.jsonl")
+                .drop_nulls(subset=[benchmark])
+                .group_by("step")
                 .mean()
-                .sort_index()
+                .with_columns(pl.col(benchmark).ewm_mean(alpha=benchmark_smoothing))
+                .sort(benchmark)
+                .select(pl.col("step").last())
+                .item()
             )
-            # Keep the best iteration so far, potentially smoothing to account for variance
-            best_iteration = (
-                history_df[benchmark].ewm(alpha=benchmark_smoothing).mean().idxmax()
-            )
-            iterations_to_keep.append(best_iteration)
-        except KeyError:
-            if verbosity > 1:
-                print(f'No "{benchmark}" metric found in history')
-        clear_iteration_dirs(output_dir, iterations_to_keep)
+            steps_to_keep.append(best_step)
+        except FileNotFoundError:
+            pass
+        except pl.exceptions.ColumnNotFoundError:
+            print(f'No "{benchmark}" metric found in history')
+        delete_checkpoints(output_dir, steps_to_keep)
 
     async def _get_openai_client(
         self,
         model: Model,
-        estimated_completion_tokens: int,
-        tool_use: bool,
-        verbosity: Verbosity,
-        config: OpenAIServerConfig | None,
-    ) -> tuple[AsyncOpenAI, asyncio.Semaphore]:
-        model_config = model_configs[model.base_model]()
-        self._vllm = await start_vllm(
-            get_last_iteration_dir(self._get_output_dir(model.name))
-            or model.base_model,
-            model.name,
-            max_concurrent_requests=2048,
-            named_arguments=dict(
-                # block_size=32,
-                disable_log_requests=True,
-                # enable_chunked_prefill=True,
-                enable_prefix_caching=True,
-                enforce_eager=True,
-                gpu_memory_utilization=0.95,
-                # max_num_seqs=2048,
-                # max_num_batched_tokens=16384,
-                # num_scheduler_steps=8,
-                # preemption_mode="swap",
-                return_tokens_as_token_ids=True,
-                # swap_space=80,
-                tensor_parallel_size=torch.cuda.device_count(),
-                # enable_auto_tool_choice=tool_use or None,
-                # tool_call_parser=model_config.vllm_tool_call_parser,
-                max_model_len=32768,
+        config: dev.OpenAIServerConfig | None,
+    ) -> AsyncOpenAI:
+        service = await self._get_service(model)
+        await service.start_openai_server(config=config)
+        server_args = (config or {}).get("server_args", {})
+        return AsyncOpenAI(
+            base_url=f"http://{server_args.get('host', '0.0.0.0')}:{server_args.get('port', 8000)}/v1",
+            api_key=server_args.get("api_key", "default"),
+            http_client=DefaultAsyncHttpxClient(
+                timeout=httpx.Timeout(timeout=1200, connect=5.0),
+                limits=httpx.Limits(
+                    max_connections=100_000, max_keepalive_connections=100_000
+                ),
             ),
-            timeout=360 + 15 * torch.cuda.device_count(),
-            verbosity=verbosity,
         )
-        try:
-            run = self._get_wandb_run(model)
-            history_df = (
-                wandb.Api()
-                .run(f"{run.entity}/{run.project}/{run.id}")
-                .history()
-                .dropna(subset=["train/completion_tokens"])
-                .sort_values("iteration")
-            )
-            estimated_completion_tokens = history_df["train/completion_tokens"].iloc[-1]
-            if verbosity > 1:
-                print(
-                    f"Using previous iteration {estimated_completion_tokens} completion tokens per request as estimate"
-                )
-        except KeyError:
-            if verbosity > 1:
-                print(f'"train/completion_tokens" not found in run history')
-        return self._vllm.client, asyncio.Semaphore(
-            int(self._vllm.max_concurrent_tokens / estimated_completion_tokens)
-        )
-
-    async def _close_openai_client(self, client: AsyncOpenAI) -> None:
-        try:
-            await client.close()
-        except RuntimeError as e:
-            if "Event loop is closed" in str(e):
-                # Log the error but don't propagate it
-                print("Warning: Attempted to close client when event loop was already closed")
-            else:
-                # Re-raise if it's a different RuntimeError
-                raise
-        if self._vllm:
-            self._vllm.process.kill()
-            kill_vllm_workers()
 
     async def _log(
         self,
         model: Model,
-        trajectory_groups: list[list[Trajectory | BaseException]],
+        trajectory_groups: list[TrajectoryGroup],
         split: str = "val",
     ) -> None:
         # Save logs for each trajectory
@@ -191,7 +224,7 @@ class LocalAPI(API):
             for j, trajectory in enumerate(group):
                 if isinstance(trajectory, BaseException):
                     continue
-                directory = f"{self._get_output_dir(model.name)}/trajectories/{split}/{self.__get_iteration(model):04d}"
+                directory = f"{self._get_output_dir(model)}/trajectories/{split}/{self.__get_step(model):04d}"
                 os.makedirs(directory, exist_ok=True)
                 i_digits = len(str(len(trajectory_groups) - 1))
                 j_digits = len(str(len(group) - 1))
@@ -202,8 +235,10 @@ class LocalAPI(API):
 
         # Collect all metrics (including reward) across all trajectories
         all_metrics: dict[str, list[float]] = {"reward": [], "exception_rate": []}
+        group_rewards = []
 
         for group in trajectory_groups:
+            group_reward_values = []
             for trajectory in group:
                 if isinstance(trajectory, BaseException):
                     all_metrics["exception_rate"].append(1)
@@ -212,6 +247,8 @@ class LocalAPI(API):
                     all_metrics["exception_rate"].append(0)
                 # Add reward metric
                 all_metrics["reward"].append(trajectory.reward)
+                if not isinstance(trajectory, BaseException):
+                    group_reward_values.append(trajectory.reward)
 
                 # Collect other custom metrics
                 for metric, value in trajectory.metrics.items():
@@ -219,13 +256,32 @@ class LocalAPI(API):
                         all_metrics[metric] = []
                     all_metrics[metric].append(value)
 
+            # Store rewards for each group for standard deviation calculation
+            if group_reward_values:
+                group_rewards.append(group_reward_values)
+
         # Calculate averages for all metrics
         averages = {}
         for metric, values in all_metrics.items():
             if len(values) > 0:
                 averages[metric] = sum(values) / len(values)
 
-        self._log_wandb_data(model, averages, split)
+        # Calculate average standard deviation of rewards within groups
+        if group_rewards:
+            # Calculate standard deviation within each group
+            group_std_devs = []
+            for rewards in group_rewards:
+                if len(rewards) > 1:  # Need at least 2 values for std dev
+                    mean = sum(rewards) / len(rewards)
+                    variance = sum((r - mean) ** 2 for r in rewards) / len(rewards)
+                    std_dev = variance**0.5
+                    group_std_devs.append(std_dev)
+
+            # Calculate average of the standard deviations
+            if group_std_devs:
+                averages["reward_std_dev"] = sum(group_std_devs) / len(group_std_devs)
+
+        self._log_data(model, averages, split)
 
     def _trajectory_log(self, trajectory: Trajectory) -> str:
         """Format a trajectory into a readable log string."""
@@ -239,90 +295,47 @@ class LocalAPI(API):
             formatted_messages.append(format_message(message))
         return header + "\n".join(formatted_messages)
 
-    async def _tune_model(
+    async def _train_model(
         self,
         model: Model,
-        trajectory_groups: list[list[Trajectory | BaseException]],
-        config: TuneConfig,
+        trajectory_groups: list[TrajectoryGroup],
+        config: TrainConfig,
+        _config: dev.TrainConfig,
     ) -> None:
-        from transformers import AutoTokenizer
-
+        service = await self._get_service(model)
         await self._log(model, trajectory_groups, "train")
-        tokenizer = AutoTokenizer.from_pretrained(model.base_model)
-        tokenized_results = list(
-            tokenize_trajectory_groups(
-                tokenizer,
-                [
-                    [t for t in g if isinstance(t, Trajectory)]
-                    for g in trajectory_groups
-                ],
-            )
+        packed_tensors = self._get_packed_tensors(
+            model, trajectory_groups, plot_tensors=False
         )
-        packed_tensors = packed_tensors_from_tokenized_results(
-            tokenized_results,
-            config.sequence_length,
-            pad_token_id=tokenizer.eos_token_id,  # type: ignore
-            verbosity=config.verbosity,
-        )
-        if config.plot_tensors:
-            plot_packed_tensors(packed_tensors)
-        elif config.verbosity > 0:
+        if packed_tensors is None:
             print(
-                f"Prepared tuning data with {packed_tensors['tokens'].shape[0]} sequences of length {packed_tensors['tokens'].shape[1]}"
+                "Skipping tuning as there is no suitable data. "
+                "This can happen when all the trajectories in the same group "
+                "have the same reward and thus no advantage to train on."
             )
-        model_config = model_configs[model.base_model]()
-        optimizer = ComponentConfig(
-            (
-                "torch.optim.AdamW"
-                if torch.cuda.device_count() > 1
-                else "bitsandbytes.optim.PagedAdam8bit"
-            ),
-            lr=config.lr,
-            betas=config.betas,
-            weight_decay=config.weight_decay,
+            return
+        disk_packed_tensors = packed_tensors_to_dir(
+            packed_tensors, f"{self._get_output_dir(model)}/tensors"
         )
-        if torch.cuda.device_count() > 1:
-            optimizer.fused = True
-        await tune(
-            base_model=model.base_model,
-            output_dir=self._get_output_dir(model.name),
-            packed_tensors=packed_tensors,
-            model=model_config.tune_model,
-            model_type=model_config.tune_model_type,
-            config=TuneRecipeConfig(
-                optimizer=optimizer,
-                loss=ComponentConfig(
-                    GRPO,
-                    clip_epsilon=config.clip_epsilon,
-                    entropy_coef=0.0,
-                    kl_coef=0.0,
-                ),
-                shuffle=True,
-                batch_size=32768 // config.sequence_length,
-                fsdp_cpu_offload=True,
-                enable_activation_checkpointing=True,
-                enable_activation_offloading=True,
-                custom_sharded_layers=["tok_embeddings", "output"],
-                num_output_chunks=model_config.tune_num_output_chunks,
-                compile=True,
-            ),
-            verbosity=config.verbosity,
-        )
-        self._log_wandb_data(
-            model,
-            {
-                **get_last_tune_metrics(self._get_output_dir(model.name)),
-            },
-            "train",
-            iteration_offset=-1,
-        )
+        results: list[dict[str, float]] = []
+        pbar = tqdm.tqdm(total=disk_packed_tensors["num_sequences"], desc="train")
+        async for result in service.train(disk_packed_tensors, config, _config):
+            results.append(result)
+            pbar.update(1)
+            pbar.set_postfix(result)
+        pbar.close()
+        data = {
+            k: sum(d.get(k, 0) for d in results) / sum(1 for d in results if k in d)
+            for k in {k for d in results for k in d}
+        }
+        self._log_data(model, data, "train", step_offset=-1)
 
-    def _log_wandb_data(
+    def _log_data(
         self,
         model: Model,
         data: dict[str, float],
         namespace: str,
-        iteration_offset: int = 0,
+        step_offset: int = 0,
     ) -> None:
         # Add namespacing if needed
         data = (
@@ -330,20 +343,25 @@ class LocalAPI(API):
             if namespace
             else data
         )
+        step = self.__get_step(model) + step_offset
 
-        # Log the data
-        self._get_wandb_run(model).log(
-            {
-                "iteration": self.__get_iteration(model) + iteration_offset,
-                **data,
-            }
-        )
+        # Log the data to history.jsonl
+        with open(f"{self._get_output_dir(model)}/history.jsonl", "a") as f:
+            f.write(json.dumps({**data, "step": step}) + "\n")
 
-    def _get_wandb_run(self, model: Model) -> Run:
+        # If we have a W&B run, log the data there as well
+        if run := self._get_wandb_run(model):
+            run.log(
+                data,
+                step=step,
+            )
+
+    def _get_wandb_run(self, model: Model) -> Run | None:
+        if "WANDB_API_KEY" not in os.environ:
+            return None
         if model.name not in self._wandb_runs:
             run = wandb.init(
-                entity=self._wandb_entity,
-                project=self._wandb_project,
+                project=model.project,
                 name=model.name,
                 id=model.name,
                 resume="allow",

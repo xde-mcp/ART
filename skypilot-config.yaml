@@ -400,6 +400,3 @@ setup: |
   sudo snap install --classic astral-uv
   # Sync the dependencies
   uv sync
-  # Unfortunate workaround because of a cli tool naming conflict
-  uv remove torchtune
-  uv add torchtune==0.5.0

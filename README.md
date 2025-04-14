@@ -1,79 +1,63 @@
-![image](https://github.com/user-attachments/assets/42b2d869-949e-4faa-a363-5310c0b66491)
+<div align="center">
 
-# The OpenPipe Agent Reinforcement Trainer (ART)
+<a href="https://openpipe.ai"><picture>
+<img alt="ART header" src="https://github.com/openpipe/art/raw/main/assets/ART_header.png" width="100%">
+</picture></a>
 
-An open-source reinforcement training library for LLMs and agentic workflows
+<a href="https://colab.research.google.com/github/openpipe/art/blob/main/examples/2048/2048.ipynb"><img src="https://github.com/openpipe/art/raw/main/assets/Train_pill.png" height="48"></a>
+<a href="https://discord.com/invite/dnseNZuQ"><img src="https://github.com/openpipe/art/raw/main/assets/Discord_pill.png" height="48"></a>
+<a href="https://openpipe.ai/blog/art-trainer-a-new-rl-trainer-for-agents"><img src="https://github.com/openpipe/art/raw/main/assets/Launch_pill.png" height="48"></a>
 
-## Getting Started
+### Train free-range RL agents with minimal code changes and maximal performance!
 
-Clone the repository:
+![](https://github.com/openpipe/art/raw/main/assets/Header_separator.png)
 
-```bash
-git clone https://github.com/OpenPipe/agent-reinforcement-training.git
-cd agent-reinforcement-training
-```
+</div>
 
-Install the dependencies:
+# Agent Reinforcement Trainer (ART)
 
-```bash
-uv sync
-```
+ART is an open-source reinforcement training library for improving LLM performance in agentic workflows. Unlike most RL libraries, ART allows you to execute agent runs **in your existing codebase** while offloading all the complexity of the RL training loop to the ART backend. Read about the [ training loop](#training-loop-overview). Then try out one of the notebooks below!
 
-Then follow the SkyPilot or Local Training instructions below.
+## 📒 Notebooks
 
-> **Warning:** There is currently a bug with tool use functionality. The issue appears to be that vLLM does not return all the token log probabilities for tool use. Further investigation is needed to determine the exact cause. For now, teaching use case-specific tool use with non-tool use models is the recommended workaround.
+| Agent Task | Example Notebook                                                                                                | Description                     | Comparative Performance |
+| ---------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------- | ----------------------- |
+| **2048**   | [🏋️ Train your agent](https://colab.research.google.com/github/openpipe/art/blob/main/examples/2048/2048.ipynb) | Qwen 2.5 7B learns to play 2048 | [Link coming soon]      |
 
-### SkyPilot
+## 🔁 Training Loop Overview
 
-Copy the `.env.example` file to `.env` and set the environment variables:
+ART's functionality is divided into a **client** and a **server**. The OpenAI-compatible client is responsible for interfacing between ART and your codebase. Using the client, you can pass messages and get completions from your LLM as it improves. The server runs independently on any machine with a GPU. It abstracts away the complexity of the inference and training portions of the RL loop while allowing for some custom configuration. An outline of the training loop is shown below:
 
-```bash
-cp .env.example .env
-```
+1. **Inference**
 
-Ensure you have a valid SkyPilot cloud available:
+   1. Your code uses the ART client to perform an agentic workflow (usually executing several rollouts in parallel to gather data faster).
+   2. Completion requests are routed to the ART server, which runs the model's latest LoRA in vLLM.
+   3. As the agent executes, each `system`, `user`, and `assistant` message is stored in a Trajectory.
+   4. When a rollout finishes, your code assigns a `reward` to its Trajectory, indicating the performance of the LLM.
 
-```bash
-uv run sky check
-```
+2. **Training**
+   1. When each rollout has finished, Trajectories are grouped and sent to the server. Inference is blocked while training executes.
+   2. The server trains your model using GRPO, initializing from the latest checkpoint (or an empty LoRA on the first iteration).
+   3. The server saves the newly trained LoRA to a local directory and loads it into vLLM.
+   4. Inference is unblocked and the loop resumes at step 1.
 
-Launch a cluster:
+This training loop runs until a specified number of inference and training iterations have completed.
 
-```bash
-./launch-cluster.sh # you can pass any sky launch arguments here
-```
+## ⚠️ Disclaimer
 
-SSH into the `art` cluster with VSCode or from the command line:
+ART is currently in alpha and has only been tested on a few projects in the wild! We're working hard to make it work for everyone, but if you run into any issues, please let us know on [Discord](https://discord.com/invite/dnseNZuQ) or open an issue on [GitHub](https://github.com/openpipe/art/issues)!
 
-```bash
-ssh art
-```
+## 🤝 Contributing
 
-When you're done, you can tear down the cluster with:
+ART is in very active development, and contributions are most welcome! Please see the [CONTRIBUTING.md](CONTRIBUTING.md) file for more information.
 
-```bash
-uv run sky down art
-```
+## 🙏 Credits
 
-### Local Training
+ART stands on the shoulders of giants. While we owe many of the ideas and early experiments that led to ART's development to the open source RL community at large, we're especially grateful to the authors of the following projects:
 
-Make sure you are on a machine with at least one H100 or A100-80GB GPU.
+- [Unsloth](https://github.com/unslothai/unsloth)
+- [vLLM](https://github.com/vllm-project/vllm)
+- [trl](https://github.com/huggingface/trl)
+- [SkyPilot](https://github.com/skypilot-org/skypilot)
 
-Reinstall torchtune due to a CLI naming conflict:
-
-```bash
-uv remove torchtune
-uv add torchtune
-```
-
-### "Temporal Clue" example
-
-Now you can run the "Temporal Clue" example in `/examples/temporal-clue.ipynb`.
-
-It has been tested with the `NousResearch/Hermes-2-Theta-Llama-3-8B` model on a 1xH100 instance.
-
-You can monitor training progress with Weights & Biases at https://wandb.ai/your-wandb-organization/agent-reinforcement-training.
-
-You should see immediate improvement in `val/reward` after one iteration.
-
-If you run into any issues, the training output is set to maximum verbosity. Copying the outputs such as the vLLM or torchtune logs, or copying/screenshotting the plotted packed tensors, may help me debug the issue.
+Finally, thank you to our partners who've helped us test ART in the wild! We're excited to see what you all build with it.

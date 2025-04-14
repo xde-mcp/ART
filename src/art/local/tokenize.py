@@ -2,12 +2,10 @@ from dataclasses import dataclass
 from itertools import takewhile
 import math
 import random
-from typing import cast, Generator, TYPE_CHECKING, TypedDict
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+from typing import cast, Generator, TypedDict
 
-from ..types import Trajectory
-
-if TYPE_CHECKING:
-    from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
+from ..trajectories import Trajectory, TrajectoryGroup
 
 
 @dataclass
@@ -48,8 +46,8 @@ class TokenizedResultDict(TypedDict):
 
 
 def tokenize_trajectory_groups(
-    tokenizer: "PreTrainedTokenizer | PreTrainedTokenizerFast",
-    trajectory_groups: list[list[Trajectory]],
+    tokenizer: "PreTrainedTokenizerBase",
+    trajectory_groups: list[TrajectoryGroup],
 ) -> Generator["TokenizedResult", None, None]:
     for group in trajectory_groups:
         if not group:
@@ -68,7 +66,7 @@ def tokenize_trajectory_groups(
             if advantage == 0:
                 continue
             results.append(
-                _tokenize_trajectory(
+                tokenize_trajectory(
                     tokenizer,
                     trajectory,
                     advantage,
@@ -77,6 +75,9 @@ def tokenize_trajectory_groups(
         # Choose a random prompt id
         prompt_id = random.randint(-(2**63), 2**63 - 1)
         # Find the longest shared prefix
+        # TODO: Potentially support multiple prompts per group
+        # Initial thought is to sort the results by token_ids and then
+        # successively group prompts with the same prefix.
         prompt_length = len(
             list(
                 takewhile(
@@ -90,13 +91,15 @@ def tokenize_trajectory_groups(
             result.prompt_id = prompt_id
             result.prompt_length = prompt_length
             # zero out assistant prompt tokens
+            # TODO: If we support multiple prompts per group,
+            # this may be harmful.
             result.assistant_mask[:prompt_length] = [0] * prompt_length
         random.shuffle(results)
         yield from results
 
 
-def _tokenize_trajectory(
-    tokenizer: "PreTrainedTokenizer | PreTrainedTokenizerFast",
+def tokenize_trajectory(
+    tokenizer: "PreTrainedTokenizerBase",
     trajectory: Trajectory,
     advantage: float,
 ) -> TokenizedResult:
@@ -111,24 +114,19 @@ def _tokenize_trajectory(
             else {
                 "role": "assistant",
                 "content": message_or_choice.message.content or "",
-                "tool_calls": [
-                    tool_call.model_dump()
-                    for tool_call in message_or_choice.message.tool_calls or []
-                ],
             }
         )
         for message_or_choice in trajectory.messages_and_choices
     ]
     # Update the chat template to add generation tags for assistant token masking.
-    chat_template = _updated_chat_template(
-        tokenizer.get_chat_template("tool_use" if trajectory.tools else None)
-    )
+    # TODO: Improve the way we get chat templates, potentially just use the default
+    # chat template and identify the assistant tokens a different way.
+    chat_template = _updated_chat_template(tokenizer.get_chat_template())
     # Apply the chat template to the conversation to get a string representation.
     chat = cast(
         str,
         tokenizer.apply_chat_template(
             conversation,
-            tools=list(trajectory.tools) if trajectory.tools else None,  # type: ignore
             chat_template=chat_template,
             tokenize=False,
         ),
@@ -138,7 +136,6 @@ def _tokenize_trajectory(
         TokenizedResultDict,
         tokenizer.apply_chat_template(
             conversation,
-            tools=list(trajectory.tools) if trajectory.tools else None,  # type: ignore
             chat_template=chat_template,
             return_dict=True,
             return_assistant_tokens_mask=True,
@@ -235,6 +232,9 @@ def _updated_chat_template(chat_template: str) -> str:
     """
     Returns an updated chat template that adds generation tags for assistant token masking.
     """
+    # TODO: This is a mess. We should either just use the default chat template and find
+    # the assistant tokens a different way or store full chat templates somewhere for
+    # each model.
     return (
         chat_template
         # Remove template logic that strips reasoning content from the chat messages
@@ -262,7 +262,7 @@ def _updated_chat_template(chat_template: str) -> str:
     {%- if (message.role == "user") or (message.role == "system" and not loop.first) %}
         {{- '<|im_start|>' + message.role + '\\n' + message.content + '<|im_end|>' + '\\n' }}
     {%- elif message.role == "assistant" and not message.tool_calls %}
-        {{- '<|im_start|>' + message.role + '\\n' }}{% generation %}{{ message.content }}{% endgeneration %}{{ '<|im_end|>' + '\\n' }}
+        {{- '<|im_start|>' + message.role + '\\n' }}{% generation %}{{ message.content  + '<|im_end|>' }}{% endgeneration %}{{ '\\n' }}
 """.strip(),
         ).replace(
             """
