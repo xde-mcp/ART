@@ -1,13 +1,16 @@
 from argparse import Namespace
 import asyncio
 from contextlib import asynccontextmanager
+import ctypes
 from functools import partial
 import logging
 import multiprocessing
 from openai import AsyncOpenAI
 import os
-from typing import AsyncIterator, Coroutine, Any
+import torch
+from typing import Any, AsyncIterator, Callable, Coroutine, Literal, TYPE_CHECKING
 from vllm.engine.arg_utils import AsyncEngineArgs
+from vllm.engine.async_llm_engine import AsyncLLMEngine
 from vllm.engine.multiprocessing.client import MQLLMEngineClient
 from vllm.engine.protocol import EngineClient
 from vllm.entrypoints.openai import api_server
@@ -15,7 +18,6 @@ from vllm.entrypoints.openai.cli_args import make_arg_parser, validate_parsed_se
 from vllm.entrypoints.openai.serving_models import LoRARequest  # type: ignore
 from vllm.logger import _DATE_FORMAT, _FORMAT
 from vllm.utils import get_open_zmq_ipc_path, FlexibleArgumentParser
-from typing import TYPE_CHECKING
 from uvicorn.config import LOGGING_CONFIG
 
 from .async_multiprocessing_engine import MQAsyncLLMEngine
@@ -33,6 +35,17 @@ async def openai_server_task(
     state: "vLLMState",
     config: OpenAIServerConfig,
 ) -> asyncio.Task[None]:
+    """
+    Starts an asyncio task that runs an OpenAI-compatible server.
+
+    Args:
+        state: The state of the vLLM engine.
+        config: The configuration for the OpenAI-compatible server.
+
+    Returns:
+        A running asyncio task for the OpenAI-compatible server. Cancel the task
+        to stop the server.
+    """
     patch_get_lora_tokenizer_async()
     patch_listen_for_disconnect()
     patch_multi_step_model_runner(state)
@@ -103,6 +116,122 @@ def _openai_server_coroutine(
         namespace,
         log_config=get_uvicorn_logging_config(config.get("log_file", "vllm.log")),
     )
+
+
+def create_engine_pause_and_resume_functions(
+    engine: AsyncLLMEngine,
+) -> tuple[
+    Callable[[], Coroutine[Any, Any, None]], Callable[[], Coroutine[Any, Any, None]]
+]:
+    """
+    Patches the vLLM engine and returns a pair of functions for pausing and resuming
+    request processing respectively.
+    """
+    _engine_step = engine.engine_step
+    resume_event = asyncio.Event()
+    resume_event.set()
+    engine_step_event = asyncio.Event()
+
+    async def engine_step(virtual_engine: int) -> bool:
+        engine_step_event.set()
+        await resume_event.wait()
+        return await _engine_step(virtual_engine)
+
+    engine.engine_step = engine_step
+
+    async def pause_engine() -> None:
+        resume_event.clear()
+        if engine.engine.has_unfinished_requests():
+            engine_step_event.clear()
+            await engine_step_event.wait()
+
+    async def resume_engine() -> None:
+        resume_event.set()
+
+    return pause_engine, resume_engine
+
+
+def patch_allocator() -> None:
+    """
+    Patch the vLLM CuMemAllocator to specifically focus on offloading/discarding
+    the KV cache.
+    """
+    from vllm.device_allocator.cumem import (
+        create_and_map,
+        CuMemAllocator,
+        libcudart,
+        unmap_and_release,
+    )
+    from vllm.utils import is_pin_memory_available
+
+    allocator = CuMemAllocator.get_instance()
+
+    def sleep(offload_tags: tuple[str, ...] | str | None = None) -> None:
+        # In this version of vLLM (0.7.3) one tag is provided for sleep level 1
+        # and no tags are provided for sleep level 2, so we can reverse-engineer
+        # the sleep level from the tags
+        sleep_level = 1 if offload_tags else 2
+        # We reinterpret the sleep levels as follows:
+        # Sleep level 1: offload kv cache to CPU memory (or disk)
+        if sleep_level == 1:
+            offload_to = "cpu"
+            # TODO: Check if there is sufficient CPU memory, otherwise offload to disk
+        # Sleep level 2: discard kv cache
+        else:
+            offload_to = "none"
+
+        for ptr, data in allocator.pointer_to_data.items():
+            if data.tag != "kv_cache":
+                continue
+            handle = data.handle
+            size_in_bytes = handle[1]
+            if offload_to != "none":
+                if offload_to == "disk":
+                    cpu_backup_tensor = torch.from_file(
+                        f"/tmp/kv-cache-{ptr}.pt",
+                        size=size_in_bytes,
+                        dtype=torch.uint8,
+                        device="cpu",
+                        shared=True,
+                    )
+                else:
+                    cpu_backup_tensor = torch.empty(
+                        size_in_bytes,
+                        dtype=torch.uint8,
+                        device="cpu",
+                        pin_memory=is_pin_memory_available(),
+                    )
+                cpu_ptr = cpu_backup_tensor.data_ptr()
+                libcudart.cudaMemcpy(
+                    ctypes.c_void_p(cpu_ptr), ctypes.c_void_p(ptr), size_in_bytes
+                )
+                data.cpu_backup_tensor = cpu_backup_tensor
+            unmap_and_release(handle)
+
+    def wake_up() -> None:
+        """
+        Wake up the allocator from sleep mode.
+        All data that is previously offloaded will be loaded back to GPU
+        memory, and the rest of the data will have empty memory.
+        """
+        for ptr, data in allocator.pointer_to_data.items():
+            if data.tag != "kv_cache":
+                continue
+            create_and_map(data.handle)
+            if data.cpu_backup_tensor is not None:
+                cpu_backup_tensor = data.cpu_backup_tensor
+                if cpu_backup_tensor is not None:
+                    size_in_bytes = (
+                        cpu_backup_tensor.numel() * cpu_backup_tensor.element_size()
+                    )
+                    cpu_ptr = cpu_backup_tensor.data_ptr()
+                    libcudart.cudaMemcpy(
+                        ctypes.c_void_p(ptr), ctypes.c_void_p(cpu_ptr), size_in_bytes
+                    )
+                    data.cpu_backup_tensor = None
+
+    allocator.sleep = sleep
+    allocator.wake_up = wake_up
 
 
 def patch_get_lora_tokenizer_async() -> None:
@@ -197,12 +326,13 @@ def set_vllm_log_file(path: str) -> None:
     vllm_logger.setLevel(logging.INFO)
 
 
-def mp_openai_server_task(
+async def mp_openai_server_task(
     state: "vLLMState",
     config: OpenAIServerConfig,
 ) -> asyncio.Task[None]:
     patch_get_lora_tokenizer_async()
     patch_multi_step_model_runner(state)
+    set_vllm_log_file(config.get("log_file", "vllm.log"))
 
     # Select random path for IPC.
     ipc_path = get_open_zmq_ipc_path()
@@ -216,9 +346,9 @@ def mp_openai_server_task(
     # Start client in separate process (provides the OpenAI API server).
     # the current process might have CUDA context,
     # so maybe we need to spawn a new process
-    context = multiprocessing.get_context("spawn")
+    # context = multiprocessing.get_context("spawn")
 
-    client_process = context.Process(
+    client_process = multiprocessing.Process(
         target=openai_server_target,
         args=(ipc_path, os.getpid(), config),
     )
@@ -232,7 +362,37 @@ def mp_openai_server_task(
             engine_task.cancel()
             client_process.terminate()
 
-    return asyncio.create_task(openai_server_task())
+    task = asyncio.create_task(openai_server_task())
+    server_args = config.get("server_args", {})
+    client = AsyncOpenAI(
+        api_key=server_args.get("api_key"),
+        base_url=f"http://{server_args.get('host', '0.0.0.0')}:{server_args.get('port', 8000)}/v1",
+    )
+
+    async def test_client() -> None:
+        while True:
+            try:
+                async for _ in client.models.list():
+                    return
+            except:
+                pass
+
+    test_client_task = asyncio.create_task(test_client())
+    try:
+        done, _ = await asyncio.wait(
+            [task, test_client_task],
+            timeout=30.0,
+            return_when="FIRST_COMPLETED",
+        )
+        if not done:
+            raise TimeoutError("Unable to reach OpenAI-compatible server in time.")
+        for task in done:
+            task.result()
+        return task
+    except Exception:
+        if exception := task.exception():
+            raise exception
+        raise
 
 
 def openai_server_target(

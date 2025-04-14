@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, TypedDict
+import torch
+from typing import Literal, TYPE_CHECKING, TypedDict
 
 
 if TYPE_CHECKING:
@@ -22,7 +23,7 @@ def get_model_config(
 
     if config is None:
         config = ModelConfig()
-    base_model_config = get_base_model_config(base_model=base_model)
+    enable_sleep_mode = config.get("init_args", {}).get("enable_sleep_mode", True)
     init_args = InitArgs(
         model_name=base_model,
         max_seq_length=32768,
@@ -32,12 +33,16 @@ def get_model_config(
         disable_log_requests=True,
         disable_log_stats=False,
         enable_prefix_caching=True,
-        gpu_memory_utilization=0.6,  # Reduce if out of memory
+        gpu_memory_utilization=(
+            0.79 if enable_sleep_mode else 0.55
+        ),  # Reduce if out of memory
         max_lora_rank=8,
-        num_scheduler_steps=16,
+        # Multi-step processing is not supported for the Xformers attention backend
+        # which is the fallback for devices with compute capability < 8.0
+        num_scheduler_steps=16 if torch.cuda.get_device_capability()[0] >= 8 else 1,
+        enable_sleep_mode=enable_sleep_mode,
         use_async=True,
     )
-    init_args.update(base_model_config.get("init_args", {}))
     init_args.update(config.get("init_args", {}))
     if lora_path := get_last_iteration_dir(output_dir):
         init_args["model_name"] = lora_path
@@ -57,7 +62,6 @@ def get_model_config(
         use_gradient_checkpointing="unsloth",  # type: ignore
         random_state=3407,
     )
-    peft_args.update(base_model_config.get("peft_args", {}))
     peft_args.update(config.get("peft_args", {}))
     train_args = TrainArgs(
         learning_rate=5e-6,
@@ -75,35 +79,8 @@ def get_model_config(
         disable_tqdm=True,
         report_to="none",
     )
-    train_args.update(base_model_config.get("train_args", {}))
     train_args.update(config.get("train_args", {}))
-    # TODO: Add base model conditional configuration
-    return ModelConfig(
-        init_args=init_args,
-        peft_args=peft_args,
-        train_args=train_args,
-    )
-
-
-def get_base_model_config(base_model: "types.BaseModel") -> "ModelConfig":
-    if base_model == "Qwen/Qwen2.5-7B-Instruct":
-        return ModelConfig(
-            init_args=InitArgs(
-                max_seq_length=32768, gpu_memory_utilization=0.55, max_lora_rank=8
-            ),
-            peft_args=PeftArgs(r=8, lora_alpha=16),
-        )
-    elif base_model == "Qwen/Qwen2.5-14B-Instruct":
-        return ModelConfig(
-            init_args=InitArgs(
-                max_seq_length=8192, gpu_memory_utilization=0.55, max_lora_rank=8
-            ),
-            peft_args=PeftArgs(r=8, lora_alpha=16),
-        )
-    else:
-        raise RuntimeError(
-            f"{base_model} is not supported by the Unsloth backend at this time"
-        )
+    return ModelConfig(init_args=init_args, peft_args=peft_args, train_args=train_args)
 
 
 class ModelConfig(TypedDict, total=False):
@@ -145,7 +122,9 @@ class InitArgs(TypedDict, total=False):
     disable_log_requests: bool
     disable_log_stats: bool
     enable_prefix_caching: bool
+    enforce_eager: bool
     num_scheduler_steps: int
+    enable_sleep_mode: bool
     use_async: bool
 
 

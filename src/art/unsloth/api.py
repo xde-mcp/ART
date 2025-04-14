@@ -1,5 +1,6 @@
 import asyncio
 import httpx
+import math
 from mp_actors import move_to_child_process
 import numpy as np
 from openai import (
@@ -75,8 +76,8 @@ class UnslothAPI(API):
         Retrieve an existing model or create a new one.
 
         Args:
-            name: The model's name.
-            base_model: The model's base model.
+            name: A unique identifier for the model.
+            base_model: The base model to start training from.
 
         Returns:
             Model: A model instance.
@@ -84,14 +85,17 @@ class UnslothAPI(API):
         return await self._get_or_create_model(name, base_model, None)
 
     async def _get_or_create_model(
-        self, name: str, base_model: BaseModel, _config: ModelConfig | None = None
+        self,
+        name: str,
+        base_model: BaseModel,
+        _config: ModelConfig | None = None,
     ) -> Model:
         """
         Private method to retrieve an existing model or create a new one.
 
         Args:
-            name: The model's name.
-            base_model: The model's base model.
+            name: A unique identifier for the model.
+            base_model: The base model to start training from.
             _config: A ModelConfig object. May be subject to breaking changes at any time.
                 Use at your own risk.
 
@@ -103,21 +107,28 @@ class UnslothAPI(API):
 
     async def _get_service(self, model: Model) -> ModelService:
         if model.name not in self._services:
+            config = get_model_config(
+                base_model=model.base_model,
+                output_dir=self._get_output_dir(model.name),
+                config=model._config,
+            )
             self._services[model.name] = ModelService(
                 host="localhost",
                 port=8089 + len(self._services),
                 model_name=model.name,
                 base_model=model.base_model,
-                config=get_model_config(
-                    base_model=model.base_model,
-                    output_dir=self._get_output_dir(model.name),
-                    config=model._config,
-                ),
+                config=config,
                 output_dir=self._get_output_dir(model.name),
             )
             if not self._in_process:
                 # Kill all "model-service" processes to free up GPU memory
                 subprocess.run(["pkill", "-9", "model-service"])
+                # To enable sleep mode, import peft before unsloth
+                # Unsloth will issue warnings, but everything appears to be okay
+                if config.get("init_args", {}).get("enable_sleep_mode", False):
+                    os.environ["IMPORT_PEFT"] = "1"
+                # When moving the service to a child process, import unsloth
+                # early to maximize optimizations
                 os.environ["IMPORT_UNSLOTH"] = "1"
                 self._services[model.name] = move_to_child_process(
                     self._services[model.name],
@@ -129,7 +140,6 @@ class UnslothAPI(API):
         self,
         model: Model,
         trajectory_groups: list[list[Trajectory | BaseException]],
-        sequence_length: int,
         verbosity: Verbosity,
         plot_tensors: bool,
     ) -> PackedTensors | None:
@@ -149,6 +159,12 @@ class UnslothAPI(API):
                 ],
             )
         )
+        if not tokenized_results:
+            return None
+        max_tokens = max(len(result.tokens) for result in tokenized_results)
+        # Round up max_tokens to the nearest power of 2
+        max_tokens = 2 ** math.ceil(math.log2(max_tokens))
+        sequence_length = max(8192, max_tokens)
         packed_tensors = packed_tensors_from_tokenized_results(
             tokenized_results,
             sequence_length,
@@ -230,7 +246,7 @@ class UnslothAPI(API):
                     ),
                 ),
             ),
-            asyncio.Semaphore(226),
+            asyncio.Semaphore(1024),
         )
 
     async def _close_openai_client(self, _: AsyncOpenAI) -> None: ...
@@ -328,7 +344,6 @@ class UnslothAPI(API):
         packed_tensors = self._get_packed_tensors(
             model,
             trajectory_groups,
-            config.sequence_length,
             config.verbosity,
             config.plot_tensors,
         )

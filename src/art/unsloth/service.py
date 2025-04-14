@@ -72,48 +72,80 @@ class ModelService:
     async def tune(
         self, disk_packed_tensors: DiskPackedTensors, config: types.TuneConfig
     ) -> AsyncIterator[dict[str, float]]:
+        # Get the packed tensors from disk
         packed_tensors = packed_tensors_from_dir(**disk_packed_tensors)
         # Wait for existing batches to finish
         await self.results_queue.join()
-        # If we haven't already started, start the training task
+        # If we haven't already, start the training task
         if self._train_task is None:
             self._train_task = asyncio.create_task(
-                train(self.state.trainer, self.results_queue)
-            )
-        # Currently limit batch size to 1
-        for i in range(packed_tensors["tokens"].shape[0]):
-            self.state.inputs_queue.put_nowait(
-                TuneInputs(
-                    **{
-                        k: v[i : i + 1]
-                        for k, v in packed_tensors.items()
-                        if isinstance(v, torch.Tensor)
-                    },
-                    config=config,
+                train(
+                    trainer=self.state.trainer,
+                    model_config=self.config,
+                    results_queue=self.results_queue,
                 )
             )
-            # Wait for a result from the queue or the training task to, presumably, raise an exception
-            done, _ = await asyncio.wait(
-                [asyncio.create_task(self.results_queue.get()), self._train_task],
-                return_when=asyncio.FIRST_COMPLETED,
+            warmup = True
+        else:
+            warmup = False
+        # Enter training mode
+        async with self.state.vllm.train_mode():
+            for offset in range(0, packed_tensors["tokens"].shape[0]):
+                for _ in range(2 if warmup else 1):
+                    self.state.inputs_queue.put_nowait(
+                        TuneInputs(
+                            **{
+                                k: (
+                                    v[offset : offset + 1, :1024]
+                                    if warmup and v.dim() > 1
+                                    else v[offset : offset + 1]
+                                )
+                                for k, v in packed_tensors.items()
+                                if isinstance(v, torch.Tensor)
+                            },
+                            config=(
+                                config.model_copy(
+                                    update={"lr": 1e-9, "beta": 0.0, "kl_coef": 0.0}
+                                )
+                                if warmup
+                                else config
+                            ),
+                        )
+                    )
+                    # Wait for a result from the queue or for the training task to,
+                    # presumably, raise an exception
+                    done, _ = await asyncio.wait(
+                        [
+                            asyncio.create_task(self.results_queue.get()),
+                            self._train_task,
+                        ],
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    for task in done:
+                        result = task.result()
+                        # If `result` is `None`, the training task finished somehow.
+                        assert (
+                            result is not None
+                        ), "The training task should never finish."
+                        self.results_queue.task_done()
+                        if warmup:
+                            warmup = False
+                        else:
+                            yield result
+            # Save the new LoRA adapter
+            iteration_dir = (
+                f"{self.output_dir}/{get_iteration(self.output_dir) + 1:04d}"
             )
-            for task in done:
-                result = task.result()
-                assert result is not None, "The training task should never finish."
-                yield result
-                self.results_queue.task_done()
-        # Save the new LoRA adapter
-        iteration_dir = f"{self.output_dir}/{get_iteration(self.output_dir) + 1:04d}"
-        self.state.trainer.save_model(iteration_dir)
-        # Set the new LoRA adapter
-        self._set_lora(iteration_dir)
+            self.state.trainer.save_model(iteration_dir)
+            # Set the new LoRA adapter
+            self._set_lora(iteration_dir)
 
     def _set_lora(self, lora_path: str) -> None:
-        """Sets the LoRA adapter with ID 1 for the VLLM engine."""
+        """Sets the LoRA adapter with ID 1 in the vLLM engine."""
         lora_request: "LoRARequest" = self.state.peft_model.load_lora(
             lora_path,
             load_tensors=True,
-        )
+        )  # type: ignore
         lora_request.lora_int_id = 1
         lora_request.lora_name = self.model_name
         self.state.vllm.async_engine.engine.remove_lora(1)

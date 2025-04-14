@@ -20,6 +20,7 @@ BaseModel = Literal[
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
     "unsloth/Llama-3.3-70B-Instruct",
     "OpenPipe/mergedd-7b",
+    "Qwen/Qwen2.5-72B-Instruct",
 ]
 
 Message = ChatCompletionMessageParam
@@ -38,17 +39,29 @@ class Trajectory(pydantic.BaseModel):
 
 
 class TuneConfig(pydantic.BaseModel):
+    learning_rate_multiplier: float = 1.0
+    beta: float = 0.0
+
     # GRPO params
     clip_epsilon: float = 0.2
-    kl_coef: float = 0.0
+    kl_coef: float = pydantic.Field(
+        default=0.0,
+        deprecated="`kl_coef` is deprecated, use `beta` instead.",
+    )
 
     # Optimizer params
-    lr: float = 5e-6
+    lr: float = pydantic.Field(
+        default=5e-6,
+        deprecated="`lr` is deprecated, use `learning_rate_multiplier` instead.",
+    )
     betas: tuple[float, float] = (0.9, 0.99)
     weight_decay: float = 0.1
 
     # Tensor packing params
-    sequence_length: int = 16_384
+    sequence_length: int | None = pydantic.Field(
+        default=None,
+        deprecated="Sequence length is now automatically determined from trajectory data.",
+    )
 
     # Logging params
     plot_tensors: bool = False

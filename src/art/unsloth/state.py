@@ -1,15 +1,17 @@
 import asyncio
+from contextlib import asynccontextmanager
 import unsloth
 from datasets import Dataset
 import nest_asyncio
+import os
 import peft
 import torch
 import transformers
 from trl import GRPOConfig, GRPOTrainer
-from typing import cast
-from typing import TYPE_CHECKING
+from typing import AsyncGenerator, cast, TYPE_CHECKING
 
 from ..config.model import ModelConfig
+from .train import free_memory
 
 if TYPE_CHECKING:
     import vllm
@@ -26,12 +28,30 @@ class CausallLM(transformers.PreTrainedModel, transformers.GenerationMixin): ...
 
 class ModelState:
     def __init__(self, config: ModelConfig) -> None:
+        from vllm.engine import async_llm_engine
+
+        # Set effectively unlimited timeout to support engine pausing & resumption
+        async_llm_engine.ENGINE_ITERATION_TIMEOUT_S = 2**31 - 1
+        # Sticking with V0 engine for now
+        os.environ["VLLM_USE_V1"] = "0"
+        # We can't use expandable segments with sleep mode
+        enable_sleep_mode = config.get("init_args", {}).get("enable_sleep_mode", False)
+        if enable_sleep_mode:
+            os.environ["PYTORCH_CUDA_ALLOC_CONF"] = ""
         # Initialize Unsloth model
+        # NOTE: We have to patch empty_cache with a no-op during model initialization
+        # to avoid an allocator error.
+        empty_cache = torch.cuda.empty_cache
+        torch.cuda.empty_cache = lambda: None
         self.model, self.tokenizer = cast(
             tuple[CausallLM, transformers.PreTrainedTokenizerBase],
             unsloth.FastLanguageModel.from_pretrained(**config.get("init_args", {})),
         )
-        self.vllm = vLLMState(cast("vllm.AsyncLLMEngine", self.model.vllm_engine))
+        torch.cuda.empty_cache = empty_cache
+        torch.cuda.empty_cache()
+        self.vllm = vLLMState(
+            cast("vllm.AsyncLLMEngine", self.model.vllm_engine), enable_sleep_mode
+        )
         # Initialize PEFT model
         self.peft_model = cast(
             peft.peft_model.PeftModelForCausalLM,
@@ -65,8 +85,19 @@ class ModelState:
 
 
 class vLLMState:
-    def __init__(self, async_engine: "vllm.AsyncLLMEngine") -> None:
+    def __init__(
+        self, async_engine: "vllm.AsyncLLMEngine", enable_sleep_mode: bool
+    ) -> None:
+        from .vllm import create_engine_pause_and_resume_functions, patch_allocator
+
+        if enable_sleep_mode:
+            patch_allocator()
         self.async_engine = async_engine
+        if enable_sleep_mode:
+            self.pause_engine, self.resume_engine = (
+                create_engine_pause_and_resume_functions(self.async_engine)
+            )
+        self.enable_sleep_mode = enable_sleep_mode
         self.driver_worker = cast(
             "WorkerWrapperBase",
             getattr(self.async_engine.engine.model_executor, "driver_worker"),
@@ -74,3 +105,29 @@ class vLLMState:
         self.multi_step_model_runner: "MultiStepModelRunner" = (
             self.driver_worker.model_runner
         )
+
+    @asynccontextmanager
+    async def train_mode(self) -> AsyncGenerator[None, None]:
+        """
+        A context manager pauses the vLLM engine and frees memory for training.
+        """
+        if not self.enable_sleep_mode:
+            yield
+            return
+        try:
+            await self.pause_engine()
+            try:
+                if self.async_engine.engine.has_unfinished_requests():
+                    # Offload KV cache to CPU memory (or disk)
+                    await self.async_engine.sleep(level=1)
+                else:
+                    # Reset prefix cached and discard KV cache
+                    await self.async_engine.reset_prefix_cache()
+                    await self.async_engine.sleep(level=2)
+                free_memory()
+                yield
+            finally:
+                free_memory()
+                await self.async_engine.wake_up()
+        finally:
+            await self.resume_engine()

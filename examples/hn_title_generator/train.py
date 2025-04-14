@@ -14,18 +14,18 @@ from art.utils import iterate_dataset, limit_concurrency
 
 load_dotenv()
 
-RUN_NAME = "004"
+RUN_NAME = "011"
 BASE_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 MAX_COMPLETION_LENGTH = 100
 MAX_PROMPT_LENGTH = 8192 - MAX_COMPLETION_LENGTH
-LEARNING_RATE = 5e-5
-ENTRIES_PER_ITERATION = 16
-EVAL_STEPS = 10
+LEARNING_RATE = 1.2e-5
+ENTRIES_PER_ITERATION = 1
+EVAL_STEPS = 50
 VAL_SET_SIZE = 100
 TRAINING_DATASET_SIZE = 5000
 WANDB_PROJECT = "hn_title_generation"
 NUM_EPOCHS = 1
-NUM_GENERATIONS = 16
+NUM_GENERATIONS = 6
 
 
 # --- Data Loading ---
@@ -238,7 +238,13 @@ async def main():
         _config={
             "init_args": {
                 "gpu_memory_utilization": 0.75,
-            }
+            },
+            "peft_args": {
+                "lora_alpha": 8,
+            },
+            "train_args": {
+                "max_grad_norm": 0.1,
+            },
         },
     )
     op_client = AsyncOpenPipe(api_key=os.getenv("OPENPIPE_API_KEY"))
@@ -339,7 +345,7 @@ async def main():
                             global_iteration,
                             epoch,
                         )
-                        for _ in range(4)
+                        for _ in range(1)
                     ]
                     for item in val_data_list
                 ]
