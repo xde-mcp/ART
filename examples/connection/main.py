@@ -173,8 +173,12 @@ async def rollout(
                     # Calculate partial correctness - how many words match
                     correct_words = len(model_words.intersection(expected_words_set))
                     word_accuracy = correct_words / 4 
+                    weighted_word_accuracy = color_weights[color] * word_accuracy
+
+                    weighted_correct += weighted_word_accuracy
                     
-                    weighted_correct += color_weights[color] * word_accuracy
+                    # Debug print statement
+                    print(f"Category {color}: {correct_words}/4 words correct, accuracy: {word_accuracy:.2f}, weighted: {weighted_word_accuracy:.2f}")
                     
                     break
         
