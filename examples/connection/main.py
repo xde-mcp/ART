@@ -64,6 +64,12 @@ def load_puzzles(file_path: str) -> List[ConnectionPuzzle]:
     
     return puzzles
 
+model = art.TrainableModel(
+    name="001",
+    project="connection",
+    base_model="Qwen/Qwen2.5-14B-Instruct",
+    _internal_config={"init_args": {"gpu_memory_utilization": 0.775}},
+)
 
 async def rollout(
     client: openai.AsyncOpenAI, puzzle: ConnectionPuzzle
@@ -135,12 +141,11 @@ async def rollout(
     trajectory.messages_and_choices.append(
         {
             "role": "user",
-            "content": puzzle["words"]
+            "content": " ".join(puzzle["words"])
         }
     )
 
     messages = get_trajectory_messages(trajectory)
-
     chat_completion = await client.chat.completions.create(
         messages=messages, model=model.name
     )
@@ -185,6 +190,7 @@ async def rollout(
         # Calculate metrics
         max_weighted_score = sum(color_weights.values())
         weighted_accuracy = weighted_correct / max_weighted_score
+        print(f"Weighted accuracy: {weighted_accuracy:.2f}")
         
         trajectory.reward = weighted_accuracy
 
@@ -193,22 +199,15 @@ async def rollout(
         return trajectory
     
 
-
 async def main():
     connection_puzzles: list[ConnectionPuzzle] = load_puzzles("examples/connection/puzzle.jsonl")
     print(connection_puzzles[0])
-    val_puzzles = connection_puzzles[:90]
-    test_puzzles = connection_puzzles[90:140]
-    train_puzzles = connection_puzzles[140:]
+    val_puzzles = connection_puzzles[:30]
+    test_puzzles = connection_puzzles[30:130]
+    train_puzzles = connection_puzzles[130:]
     random.seed(42)
     random.shuffle(train_puzzles)
 
-    model = art.TrainableModel(
-        name="001",
-        project="connection",
-        base_model="Qwen/Qwen2.5-14B-Instruct",
-        _internal_config={"init_args": {"gpu_memory_utilization": 0.775}},
-    )
     await model.register(art.LocalAPI())
 
     batch_size = 4  # Previously called stride
@@ -252,6 +251,7 @@ async def main():
                     pbar_desc=f"train (epoch {epoch+1}, batch {batch+1})",
                 ),
             )
+
             await model.log(val_groups)
             await model.delete_checkpoints()
             await model.train(
