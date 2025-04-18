@@ -97,15 +97,28 @@ async def rollout(
                 - Forming common phrases or expressions
                 - Sharing word patterns or linguistic features
 
-                Your task is to identify all 4 categories and their 4 words each. 
+                Your task is to identify all 4 categories and their 4 words each.
                 
-                First, provide your reasoning within <reasoning></reasoning> tags, explaining how you identified each category and why the words belong together.
-                
-                Then provide your solution in JSON format within <output></output> tags as follows:
+                First, generate 3 possible combinations with reasoning within <exploration></exploration> tags:
+
+                <exploration>
+                Possibility 1:
+                [Describe your first possible grouping of the words into 4 categories]
+
+                Possibility 2:
+                [Describe your second possible grouping of the words into 4 categories]
+
+                Possibility 3:
+                [Describe your third possible grouping of the words into 4 categories]
+                </exploration>
+
+                Then, think through these 3 possibilities and provide your final reasoning within <reasoning></reasoning> tags. You may use one of your existing solutions or create a new one based on your analysis.
 
                 <reasoning>
                 Explain your thought process for identifying each category and why the words belong together.
                 </reasoning>
+
+                Finally, provide your solution in JSON format within <output></output> tags as follows:
 
                 <output>
                 [
@@ -163,6 +176,17 @@ async def rollout(
     try:
         model_solution = json.loads(output_match.group(1).strip())
         
+        # Extract model's word lists by color
+        model_color_to_words = {}
+        for model_category in model_solution:
+            color = model_category["color"]
+            words = set(word.lower() for word in model_category["words"])
+            model_color_to_words[color] = words
+
+            if len(words) != 4:
+                return trajectory
+
+
         # Initialize counters for correct categories
         weighted_correct = 0
         color_weights = {"yellow": 1, "green": 1.1, "blue": 1.2, "purple": 1.25}
@@ -172,23 +196,16 @@ async def rollout(
         
         # Check each category in the solution
         for color, category_name, expected_words in puzzle["solution"]:
-            # Find matching category in model solution
-            for model_category in model_solution:
-                if model_category["color"] == color:
-                    # Check if words match (order-independent)
-                    model_words = set(word.lower() for word in model_category["words"])
-                    expected_words_set = set(word.lower() for word in expected_words)
-                    
-                    # Calculate partial correctness - how many words match
-                    correct_words = len(model_words.intersection(expected_words_set))
-                    word_accuracy = correct_words / 4 
-                    weighted_word_accuracy = color_weights[color] * word_accuracy
+            model_words = model_color_to_words[color]
+            expected_words_set = set(word.lower() for word in expected_words)
 
-                    weighted_correct += weighted_word_accuracy
-                    
-                    color_accuracies[color] = word_accuracy
-                    
-                    break
+            # Calculate partial correctness - how many words match
+            correct_words = len(model_words.intersection(expected_words_set))
+            word_accuracy = correct_words / 4
+            weighted_word_accuracy = color_weights[color] * word_accuracy
+
+            weighted_correct += weighted_word_accuracy
+            color_accuracies[color] = word_accuracy
         
         # Calculate metrics
         max_weighted_score = sum(color_weights.values())
@@ -202,7 +219,7 @@ async def rollout(
         for color, accuracy in color_accuracies.items():
             trajectory.metrics[f"acc_{color}"] = accuracy
 
-        if random.random() < 0.01:
+        if random.random() < 0.1:
             print(content)
             print(f"Weighted accuracy: {weighted_accuracy:.2f}")
             print(f"Per-color accuracy: Yellow: {color_accuracies.get('yellow', 0):.2f}, "
