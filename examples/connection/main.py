@@ -65,7 +65,7 @@ def load_puzzles(file_path: str) -> List[ConnectionPuzzle]:
     return puzzles
 
 model = art.TrainableModel(
-    name="001",
+    name="006",
     project="connection",
     base_model="Qwen/Qwen2.5-14B-Instruct",
     _internal_config={"init_args": {"gpu_memory_utilization": 0.775}},
@@ -171,6 +171,7 @@ async def rollout(
     # Extract JSON output from the response
     output_match = re.search(r'<output>(.*?)</output>', content, re.DOTALL)
     if not output_match:
+        print("Cannot parse output")
         return trajectory
     
     try:
@@ -184,6 +185,7 @@ async def rollout(
             model_color_to_words[color] = words
 
             if len(words) != 4:
+                print("Invalid number of words")
                 return trajectory
 
 
@@ -219,7 +221,7 @@ async def rollout(
         for color, accuracy in color_accuracies.items():
             trajectory.metrics[f"acc_{color}"] = accuracy
 
-        if random.random() < 0.1:
+        if random.random() < 0.05:
             print(content)
             print(f"Weighted accuracy: {weighted_accuracy:.2f}")
             print(f"Per-color accuracy: Yellow: {color_accuracies.get('yellow', 0):.2f}, "
@@ -235,11 +237,20 @@ async def rollout(
 async def main():
     connection_puzzles: list[ConnectionPuzzle] = load_puzzles("examples/connection/puzzle.jsonl")
     print(connection_puzzles[0])
-    val_puzzles = connection_puzzles[:50]
-    test_puzzles = connection_puzzles[50:100]
-    train_puzzles = connection_puzzles[100:]
+
+    # Shuffle all puzzles before splitting into train/val/test
     random.seed(42)
-    random.shuffle(train_puzzles)
+    random.shuffle(connection_puzzles)
+
+    # Now split into train/val/test sets
+    val_size = 50
+    test_size = 50
+
+    val_puzzles = connection_puzzles[:val_size]
+    test_puzzles = connection_puzzles[val_size:val_size+test_size]
+    train_puzzles = connection_puzzles[val_size+test_size:]
+
+    # No need to shuffle train_puzzles again as all puzzles were already shuffled
 
     await model.register(art.LocalAPI())
 
