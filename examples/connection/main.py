@@ -137,6 +137,7 @@ async def rollout(
             }
         ],
         reward=0,
+        metrics={"acc": 0}
     )
     trajectory.messages_and_choices.append(
         {
@@ -164,7 +165,10 @@ async def rollout(
         
         # Initialize counters for correct categories
         weighted_correct = 0
-        color_weights = {"yellow": 1, "green": 1.25, "blue": 1.5, "purple": 2}
+        color_weights = {"yellow": 1, "green": 1.1, "blue": 1.2, "purple": 1.25}
+
+        # Track per-color accuracy
+        color_accuracies = {}
         
         # Check each category in the solution
         for color, category_name, expected_words in puzzle["solution"]:
@@ -182,17 +186,29 @@ async def rollout(
 
                     weighted_correct += weighted_word_accuracy
                     
-                    # Debug print statement
-                    print(f"Category {color}: {correct_words}/4 words correct, accuracy: {word_accuracy:.2f}, weighted: {weighted_word_accuracy:.2f}")
+                    color_accuracies[color] = word_accuracy
                     
                     break
         
         # Calculate metrics
         max_weighted_score = sum(color_weights.values())
         weighted_accuracy = weighted_correct / max_weighted_score
-        print(f"Weighted accuracy: {weighted_accuracy:.2f}")
+
+        # Double reward if perfect accuracy
+        trajectory.reward = weighted_accuracy * 2 if weighted_accuracy == 1.0 else weighted_accuracy
+        trajectory.metrics["acc"] = weighted_accuracy
         
-        trajectory.reward = weighted_accuracy
+        # Add per-color metrics
+        for color, accuracy in color_accuracies.items():
+            trajectory.metrics[f"acc_{color}"] = accuracy
+
+        if random.random() < 0.01:
+            print(content)
+            print(f"Weighted accuracy: {weighted_accuracy:.2f}")
+            print(f"Per-color accuracy: Yellow: {color_accuracies.get('yellow', 0):.2f}, "
+                  f"Green: {color_accuracies.get('green', 0):.2f}, "
+                  f"Blue: {color_accuracies.get('blue', 0):.2f}, "
+                  f"Purple: {color_accuracies.get('purple', 0):.2f}")
 
         return trajectory
     except (json.JSONDecodeError, KeyError, TypeError):
@@ -202,16 +218,16 @@ async def rollout(
 async def main():
     connection_puzzles: list[ConnectionPuzzle] = load_puzzles("examples/connection/puzzle.jsonl")
     print(connection_puzzles[0])
-    val_puzzles = connection_puzzles[:30]
-    test_puzzles = connection_puzzles[30:130]
-    train_puzzles = connection_puzzles[130:]
+    val_puzzles = connection_puzzles[:50]
+    test_puzzles = connection_puzzles[50:100]
+    train_puzzles = connection_puzzles[100:]
     random.seed(42)
     random.shuffle(train_puzzles)
 
     await model.register(art.LocalAPI())
 
     batch_size = 4  # Previously called stride
-    num_epochs = 1  # Number of complete passes through the training data
+    num_epochs = 3  # Number of complete passes through the training data
     openai_client = model.openai_client()
     
     start_step = await model.get_step()
@@ -245,7 +261,7 @@ async def main():
                 ),
                 art.gather_trajectory_groups(
                     (
-                        art.TrajectoryGroup(rollout(openai_client, puzzle) for _ in range(12))
+                        art.TrajectoryGroup(rollout(openai_client, puzzle) for _ in range(24))
                         for puzzle in train_puzzles[batch_start_idx:batch_end_idx]
                     ),
                     pbar_desc=f"train (epoch {epoch+1}, batch {batch+1})",
