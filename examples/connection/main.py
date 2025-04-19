@@ -163,7 +163,7 @@ async def rollout(
     chat_completion = await client.chat.completions.create(
         messages=messages,
         model=model.name,
-        max_tokens=4096
+        max_tokens=2048
     )
     choice = chat_completion.choices[0]
     trajectory.messages_and_choices.append(choice)
