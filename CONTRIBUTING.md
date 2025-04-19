@@ -34,26 +34,54 @@ uv run sky check
 Launch a cluster:
 
 ```bash
-./launch-cluster.sh # you can pass any sky launch arguments here
+./scripts/launch-cluster.sh # you can pass any sky launch arguments here
 ```
 
-SSH into the `art` cluster with VSCode or from the command line:
+Make sure you are on a machine with at least one H100 or A100-80GB GPU. Machines equipped with lower-end GPUs may work, but training will be slower.
+
+You can now SSH into the `art` cluster, using either VSCode or the command line.
+
+### Connecting via Command Line
+
+Simply run:
 
 ```bash
 ssh art
 ```
 
-When you're done, you can tear down the cluster with:
+### Connecting via VSCode
 
-```bash
-uv run sky down art
-```
+1. **Install the Remote-SSH extension on your local machine**
 
-Make sure you are on a machine with at least one H100 or A100-80GB GPU. Machines equipped with lower-end GPUs may work, but training will be slower.
+   - Open the extensions view by clicking on the Extensions icon in the Activity Bar on the left.
+   - Search for **"Remote-SSH"** and install it.
 
-### "Temporal Clue" example
+2. **Configure default extensions for your remote host**
 
-Now you can run the "Temporal Clue" example in `/examples/temporal-clue.ipynb`.
+   - In your VSCode settings, find **"Remote.SSH: Default Extensions"**
+   - Add the following extensions:
+     - `ms-python.python`
+     - `ms-toolsai.jupyter`
+     - `eamodio.gitlens`
+     - `charliermarsh.ruff`
+
+3. **Connect to the host**
+
+   - Open the command palette and run **"Remote-SSH: Connect to Host..."**
+   - Select `art`
+
+4. **Set up the host**
+
+   - Click **"Open Folder"**
+     - Select **"sky_workdir"**
+     - Click **OK**
+
+5. **Run a notebook**
+   - Find `2048.ipynb` and run it!
+
+### "2048" example
+
+Now you can run the "2048" example in `/examples/2048/2048.ipynb`.
 
 It has been tested with the `Qwen/Qwen2.5-14B-Instruct` model on a 1xH100 instance.
 
@@ -62,3 +90,11 @@ You can monitor training progress with Weights & Biases at https://wandb.ai/your
 You should see immediate improvement in `val/reward` after one step.
 
 If you run into any issues, the training output is set to maximum verbosity. Copying the outputs such as the vLLM or torchtune logs, or copying/screenshotting the plotted packed tensors, may help me debug the issue.
+
+### Cleaning Up
+
+When you're done, you can tear down the cluster with:
+
+```bash
+uv run sky down art
+```

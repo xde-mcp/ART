@@ -44,6 +44,7 @@ async def openai_server_task(
     patch_lora_request()
     patch_get_lora_tokenizer_async()
     patch_listen_for_disconnect()
+    patch_tool_parser_manager()
     patch_multi_step_model_runner(state)
     set_vllm_log_file(config.get("log_file", "vllm.log"))
 
@@ -284,6 +285,33 @@ def patch_listen_for_disconnect() -> None:
     import vllm.entrypoints.utils
 
     vllm.entrypoints.utils.listen_for_disconnect = patched_listen_for_disconnect
+
+
+def patch_tool_parser_manager() -> None:
+    """
+    Patch ToolParserManager to support streaming tool call logprobs.
+    """
+    from vllm.entrypoints.openai.protocol import DeltaMessage
+    from vllm.entrypoints.openai.tool_parsers.abstract_tool_parser import (
+        ToolParserManager,
+    )
+
+    get_tool_parser = ToolParserManager.get_tool_parser
+
+    def patched_get_tool_parser(name: str) -> type:
+        tool_parser_class = get_tool_parser(name)
+        original = tool_parser_class.extract_tool_calls_streaming
+
+        def patch(
+            *args: Any,
+            **kwargs: Any,
+        ) -> Any:
+            return original(*args, **kwargs) or DeltaMessage()
+
+        tool_parser_class.extract_tool_calls_streaming = patch
+        return tool_parser_class
+
+    ToolParserManager.get_tool_parser = patched_get_tool_parser
 
 
 def patch_multi_step_model_runner(state: "vLLMState") -> None:
