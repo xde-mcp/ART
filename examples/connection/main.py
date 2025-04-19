@@ -233,6 +233,7 @@ async def rollout(
 
         if random.random() < 0.05:
             print(content)
+            print(f"Reward: {reward:.2f}")
             print(f"Weighted accuracy: {weighted_accuracy:.2f}")
             print(f"Per-color accuracy: Yellow: {color_accuracies.get('yellow', 0):.2f}, "
                   f"Green: {color_accuracies.get('green', 0):.2f}, "
