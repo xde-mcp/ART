@@ -65,7 +65,7 @@ def load_puzzles(file_path: str) -> List[ConnectionPuzzle]:
     return puzzles
 
 model = art.TrainableModel(
-    name="006",
+    name="007",
     project="connection",
     base_model="Qwen/Qwen2.5-14B-Instruct",
     _internal_config={"init_args": {"gpu_memory_utilization": 0.775}},
@@ -115,7 +115,7 @@ async def rollout(
                 Then, think through these 3 possibilities and provide your final reasoning within <reasoning></reasoning> tags. You may use one of your existing solutions or create a new one based on your analysis.
 
                 <reasoning>
-                Explain your thought process for identifying each category and why the words belong together.
+                Explain your thought process for identifying each category and why the words belong together in maximum of 800 words.
                 </reasoning>
 
                 Finally, provide your solution in JSON format within <output></output> tags as follows:
@@ -161,7 +161,9 @@ async def rollout(
 
     messages = get_trajectory_messages(trajectory)
     chat_completion = await client.chat.completions.create(
-        messages=messages, model=model.name
+        messages=messages,
+        model=model.name,
+        max_tokens=4096
     )
     choice = chat_completion.choices[0]
     trajectory.messages_and_choices.append(choice)
@@ -191,11 +193,11 @@ async def rollout(
 
         # Initialize counters for correct categories
         weighted_correct = 0
-        color_weights = {"yellow": 1, "green": 1.1, "blue": 1.2, "purple": 1.25}
+        color_weights = {"yellow": 0.5, "green": 0.5, "blue": 0.5, "purple": 0.5}
 
         # Track per-color accuracy
         color_accuracies = {}
-        
+        reward = 0
         # Check each category in the solution
         for color, category_name, expected_words in puzzle["solution"]:
             model_words = model_color_to_words[color]
@@ -205,6 +207,9 @@ async def rollout(
             correct_words = len(model_words.intersection(expected_words_set))
             word_accuracy = correct_words / 4
             weighted_word_accuracy = color_weights[color] * word_accuracy
+            if word_accuracy == 1:
+                # All 4 words are correct
+                reward += 1
 
             weighted_correct += weighted_word_accuracy
             color_accuracies[color] = word_accuracy
@@ -214,7 +219,12 @@ async def rollout(
         weighted_accuracy = weighted_correct / max_weighted_score
 
         # Double reward if perfect accuracy
-        trajectory.reward = weighted_accuracy * 2 if weighted_accuracy == 1.0 else weighted_accuracy
+        if reward == 4:
+            # All 4 categories are correct
+            reward += 4
+
+        reward += weighted_accuracy
+        trajectory.reward = reward
         trajectory.metrics["acc"] = weighted_accuracy
         
         # Add per-color metrics
