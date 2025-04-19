@@ -223,7 +223,7 @@ async def rollout(
             # All 4 categories are correct
             reward += 4
 
-        reward += weighted_accuracy
+        reward += weighted_correct
         trajectory.reward = reward
         trajectory.metrics["acc"] = weighted_accuracy
         
