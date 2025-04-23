@@ -10,7 +10,7 @@ load_dotenv()
 
 
 class ModelConfig(BaseModel):
-    litellm_model_name: str | None
+    litellm_model_name: str | None = None
 
 
 async def rollout(model: art.Model, prompt: str) -> art.Trajectory:
@@ -48,22 +48,34 @@ async def rollout(model: art.Model, prompt: str) -> art.Trajectory:
     return art.Trajectory(messages_and_choices=[*messages, choice], reward=reward)
 
 
-prompts = [
-    f"{prefix} with {', '.join([f"'{w}'" if use_quotes else w for w in words]) if len(words) == 3 else f'{words[0]}' + (f' or {words[1]}' if len(words) > 1 else '')}"
-    for prefix in ["respond", "just respond"]
-    for use_quotes in [True, False]
-    for words in [
-        ["yes", "no", "maybe"],
-        ["maybe", "yes", "no"],
-        ["no", "yes", "maybe"],
-        ["yes", "maybe", "no"],
-        ["yes", "no"],
-        ["maybe", "no"],
-        ["no", "maybe"],
-        ["no", "yes"],
-        ["yes", "no"],
-    ]
-]
+prompts = []
+for prefix in ["respond", "just respond"]:
+    for use_quotes in [True, False]:
+        for words in [
+            ["yes", "no", "maybe"],
+            ["maybe", "yes", "no"],
+            ["no", "yes", "maybe"],
+            ["yes", "maybe", "no"],
+            ["yes", "no"],
+            ["maybe", "no"],
+            ["no", "maybe"],
+            ["no", "yes"],
+            ["yes", "no"],
+        ]:
+            if len(words) == 3:
+                word_list = ", ".join([f"'{w}'" if use_quotes else w for w in words])
+                prompt = f"{prefix} with {word_list}"
+            else:
+                part1 = f"'{words[0]}'" if use_quotes else words[0]
+                part2 = (
+                    f" or '{words[1]}'"
+                    if use_quotes
+                    else f" or {words[1]}"
+                    if len(words) > 1
+                    else ""
+                )
+                prompt = f"{prefix} with {part1}{part2}"
+            prompts.append(prompt)
 
 
 async def main():
