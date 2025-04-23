@@ -93,6 +93,9 @@ Consider different meanings, contexts, and patterns. Words might be related by:
 
 Your task is to identify all 4 categories and their 4 words each.
 
+IMPORTANT: Only use the exact 16 words provided by the user. Do not add, remove, or modify any words.
+Your solution must contain exactly the same words that were given to you. Each word can only be used once, in exactly one category.
+
 First, generate 3 possible combinations with reasoning within <exploration></exploration> tags:
 
 <exploration>
@@ -323,8 +326,7 @@ async def rollout(client: openai.AsyncOpenAI, puzzle: ConnectionPuzzle) -> art.T
                 "content": CONNECTION_SYSTEM_PROMPT,
             }
         ],
-        reward=0,
-        metrics={"acc": 0}
+        reward=0
     )
     
     # Add user message with puzzle words
@@ -348,6 +350,7 @@ async def rollout(client: openai.AsyncOpenAI, puzzle: ConnectionPuzzle) -> art.T
     # Extract and validate model solution
     model_solution = extract_model_solution(content)
     if not model_solution or not validate_model_solution(model_solution, puzzle["words"]):
+        trajectory.reward = -1
         return trajectory
     
     # Prepare categories for matching
