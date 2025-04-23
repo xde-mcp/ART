@@ -66,8 +66,8 @@ def load_puzzles(file_path: str) -> List[ConnectionPuzzle]:
 
 # Define the model
 model = art.TrainableModel(
-    name="010",
-    project="connection",
+    name="004",
+    project="greedy-connection",
     base_model="Qwen/Qwen2.5-14B-Instruct",
     _internal_config={"init_args": {"gpu_memory_utilization": 0.775}},
 )
@@ -332,7 +332,7 @@ async def rollout(client: openai.AsyncOpenAI, puzzle: ConnectionPuzzle) -> art.T
     # Add user message with puzzle words
     trajectory.messages_and_choices.append({
         "role": "user",
-        "content": " ".join(puzzle["words"])
+        "content": ", ".join(puzzle["words"])
     })
 
     # Get model response
