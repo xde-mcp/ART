@@ -112,7 +112,7 @@ Possibility 3:
 Then, think through these 3 possibilities and provide your final reasoning within <reasoning></reasoning> tags. You may use one of your existing solutions or create a new one based on your analysis.
 
 <reasoning>
-Explain your thought process for identifying each category and why the words belong together in maximum of 800 words.
+Explain your thought process for identifying each category and why the words belong together in maximum of 5000 words.
 </reasoning>
 
 Finally, provide your solution in JSON format within <output></output> tags as follows:
@@ -340,7 +340,7 @@ async def rollout(client: openai.AsyncOpenAI, puzzle: ConnectionPuzzle) -> art.T
     chat_completion = await client.chat.completions.create(
         messages=messages,
         model=model.name,
-        max_tokens=2048
+        max_tokens=6144
     )
     choice = chat_completion.choices[0]
     trajectory.messages_and_choices.append(choice)
