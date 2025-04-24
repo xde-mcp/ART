@@ -66,9 +66,9 @@ def load_puzzles(file_path: str) -> List[ConnectionPuzzle]:
 
 # Define the model
 model = art.TrainableModel(
-    name="005",
+    name="006",
     project="greedy-connection",
-    base_model="Qwen/Qwen2.5-32B-Instruct",
+    base_model="google/gemma-3-27b-it",
     _internal_config={"init_args": {"gpu_memory_utilization": 0.775}},
 )
 
