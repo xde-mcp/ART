@@ -1,4 +1,5 @@
 import art
+from art.local import LocalAPI
 import asyncio
 import openai
 from openai.types.chat import ChatCompletionMessageParam
@@ -14,16 +15,16 @@ from art.utils import iterate_dataset, limit_concurrency
 
 load_dotenv()
 
-RUN_NAME = "011"
+MODEL_NAME = "001"
 BASE_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 MAX_COMPLETION_LENGTH = 100
 MAX_PROMPT_LENGTH = 8192 - MAX_COMPLETION_LENGTH
 LEARNING_RATE = 1.2e-5
-ENTRIES_PER_ITERATION = 1
+GROUPS_PER_STEP = 1
 EVAL_STEPS = 50
 VAL_SET_SIZE = 100
 TRAINING_DATASET_SIZE = 5000
-WANDB_PROJECT = "hn_title_generation"
+PROJECT = "hn_title_generation"
 NUM_EPOCHS = 1
 NUM_GENERATIONS = 6
 
@@ -159,7 +160,7 @@ async def rollout(
     model_name: str,
     prompt: Iterable[ChatCompletionMessageParam],
     row: Dict[str, Any],
-    global_iteration: int,
+    global_step: int,
     epoch: int,
 ) -> art.Trajectory:
     """Generates a title, validates it, scores it, and returns a trajectory."""
@@ -209,7 +210,7 @@ async def rollout(
             "metadata": {
                 "type": "art_rollout",
                 "split": row["split"],
-                "iteration": global_iteration,
+                "step": global_step,
                 "epoch": epoch,
                 "dataset_id": row["id"],
                 **metrics,
@@ -231,22 +232,24 @@ async def rollout(
 # --- Main Training Loop ---
 async def main():
     # Initialize ART API and Model
-    api = art.LocalAPI(wandb_project=WANDB_PROJECT)
-    model = await api._get_or_create_model(
-        name=RUN_NAME,
+    api = LocalAPI()
+    model = art.TrainableModel(
+        name=MODEL_NAME,
+        project=PROJECT,
         base_model=BASE_MODEL,
-        _config={
-            "init_args": {
-                "gpu_memory_utilization": 0.75,
-            },
-            "peft_args": {
-                "lora_alpha": 8,
-            },
-            "trainer_args": {
-                "max_grad_norm": 0.1,
-            },
-        },
+        _internal_config=art.dev.InternalModelConfig(
+            init_args=art.dev.InitArgs(
+                gpu_memory_utilization=0.75,
+            ),
+            peft_args=art.dev.PeftArgs(
+                lora_alpha=8,
+            ),
+            trainer_args=art.dev.TrainerArgs(
+                max_grad_norm=0.1,
+            ),
+        ),
     )
+    await model.register(api)
     op_client = AsyncOpenPipe(api_key=os.getenv("OPENPIPE_API_KEY"))
 
     # Load Data
@@ -274,32 +277,32 @@ async def main():
     print(f"Training data size: {len(train_data_list)}")
     print(f"Validation data size: {len(val_data_list)}")
 
-    # Get OpenAI Client from ART Model
-    openai_client = await model.openai_client()
+    # Get OpenAI Client for the ART Model
+    openai_client = model.openai_client()
 
     # Training Loop
-    start_iteration = await model.get_step()
-    print(f"Starting training from global iteration {start_iteration}")
+    start_step = await model.get_step()
+    print(f"Starting training from global step {start_step}")
 
     data_iterator = iterate_dataset(
         dataset=train_data_list,
-        batch_size=ENTRIES_PER_ITERATION,
+        groups_per_step=GROUPS_PER_STEP,
         num_epochs=NUM_EPOCHS,
-        initial_iteration=start_iteration,
+        initial_step=start_step,
         use_tqdm=True,
     )
 
-    for batch_inputs, epoch, global_iteration, epoch_iteration in data_iterator:
-        train_groups = await art.gather_trajectories(
+    for batch_inputs, epoch, global_step, epoch_step in data_iterator:
+        train_groups = await art.gather_trajectory_groups(
             (
-                (
+                art.TrajectoryGroup(
                     rollout(
                         openai_client,
                         op_client,
-                        RUN_NAME,
+                        MODEL_NAME,
                         bi["prompt"],
                         bi["row"],
-                        global_iteration,
+                        global_step,
                         epoch,
                     )
                     for _ in range(NUM_GENERATIONS)
@@ -316,39 +319,33 @@ async def main():
 
         if not valid_train_groups:
             print(
-                f"Warning: No valid trajectories generated for iteration {global_iteration}. Skipping tune step."
+                f"Warning: No valid trajectories generated for step {global_step}. Skipping tune step."
             )
             continue
 
-        await model.tune(
+        await model.train(
             valid_train_groups,
-            config=art.TuneConfig(
-                lr=LEARNING_RATE,
-                sequence_length=MAX_PROMPT_LENGTH + MAX_COMPLETION_LENGTH,
-                clip_epsilon=9001,
-            ),
+            config=art.TrainConfig(learning_rate=LEARNING_RATE),
         )
 
-        if global_iteration > 0 and global_iteration % EVAL_STEPS == 0:
-            print(f"\n--- Evaluating at Iteration {global_iteration} ---")
+        if global_step > 0 and global_step % EVAL_STEPS == 0:
+            print(f"\n--- Evaluating at Step {global_step} ---")
 
             print(f"Running validation rollouts on {len(val_data_list)} samples...")
             val_trajectories = await art.gather_trajectories(
-                [
-                    [
-                        rollout(
-                            openai_client,
-                            op_client,
-                            RUN_NAME,
-                            item["prompt"],
-                            item["row"],
-                            global_iteration,
-                            epoch,
-                        )
-                        for _ in range(1)
-                    ]
+                (
+                    rollout(
+                        openai_client,
+                        op_client,
+                        MODEL_NAME,
+                        item["prompt"],
+                        item["row"],
+                        global_step,
+                        epoch,
+                    )
                     for item in val_data_list
-                ]
+                ),
+                pbar_desc="val",
             )
 
             await model.log(val_trajectories)

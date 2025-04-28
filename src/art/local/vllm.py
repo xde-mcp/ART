@@ -9,14 +9,13 @@ import torch
 from typing import Any, AsyncIterator, Callable, Coroutine, TYPE_CHECKING
 from vllm.engine.async_llm_engine import AsyncLLMEngine
 from vllm.engine.protocol import EngineClient
-from vllm.entrypoints.openai import api_server
 from vllm.entrypoints.openai.cli_args import make_arg_parser, validate_parsed_serve_args
 from vllm.lora.request import LoRARequest
 from vllm.logger import _DATE_FORMAT, _FORMAT
 from vllm.utils import FlexibleArgumentParser
 from uvicorn.config import LOGGING_CONFIG
 
-from ..config.openai_server import OpenAIServerConfig
+from ..dev.openai_server import OpenAIServerConfig
 
 if TYPE_CHECKING:
     from .state import vLLMState
@@ -37,9 +36,15 @@ async def openai_server_task(
         A running asyncio task for the OpenAI-compatible server. Cancel the task
         to stop the server.
     """
+    # We must subclass ChatCompletionRequest before importing api_server
+    # or logprobs will not always be returned
+    subclass_chat_completion_request()
+    from vllm.entrypoints.openai import api_server
+
     patch_lora_request()
     patch_get_lora_tokenizer_async()
     patch_listen_for_disconnect()
+    patch_tool_parser_manager()
     patch_multi_step_model_runner(state)
     set_vllm_log_file(config.get("log_file", "vllm.log"))
 
@@ -87,6 +92,8 @@ async def openai_server_task(
 def _openai_server_coroutine(
     config: OpenAIServerConfig,
 ) -> Coroutine[Any, Any, None]:
+    from vllm.entrypoints.openai import api_server
+
     parser = FlexibleArgumentParser(
         description="vLLM OpenAI-Compatible RESTful API server."
     )
@@ -226,6 +233,22 @@ def patch_allocator() -> None:
     allocator.wake_up = wake_up
 
 
+def subclass_chat_completion_request() -> None:
+    """
+    Subclass ChatCompletionRequest so that logprobs are always returned.
+    """
+    import vllm.entrypoints.openai.protocol
+
+    class ChatCompletionRequest(vllm.entrypoints.openai.protocol.ChatCompletionRequest):
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            super().__init__(*args, **kwargs)
+            self.logprobs = True
+            if self.top_logprobs is None:
+                self.top_logprobs = 0
+
+    vllm.entrypoints.openai.protocol.ChatCompletionRequest = ChatCompletionRequest
+
+
 def patch_lora_request() -> None:
     """
     Patches the vLLM LoRARequest type to have attributes Unsloth expects.
@@ -245,7 +268,9 @@ def patch_get_lora_tokenizer_async() -> None:
     async def _return_nothing(*_, **__) -> None:
         return None
 
-    vllm.transformers_utils.tokenizer_group.tokenizer_group.get_lora_tokenizer_async = _return_nothing  # type: ignore
+    vllm.transformers_utils.tokenizer_group.tokenizer_group.get_lora_tokenizer_async = (
+        _return_nothing  # type: ignore
+    )
 
 
 def patch_listen_for_disconnect() -> None:
@@ -262,6 +287,33 @@ def patch_listen_for_disconnect() -> None:
     import vllm.entrypoints.utils
 
     vllm.entrypoints.utils.listen_for_disconnect = patched_listen_for_disconnect
+
+
+def patch_tool_parser_manager() -> None:
+    """
+    Patch ToolParserManager to support streaming tool call logprobs.
+    """
+    from vllm.entrypoints.openai.protocol import DeltaMessage
+    from vllm.entrypoints.openai.tool_parsers.abstract_tool_parser import (
+        ToolParserManager,
+    )
+
+    get_tool_parser = ToolParserManager.get_tool_parser
+
+    def patched_get_tool_parser(name: str) -> type:
+        tool_parser_class = get_tool_parser(name)
+        original = tool_parser_class.extract_tool_calls_streaming
+
+        def patch(
+            *args: Any,
+            **kwargs: Any,
+        ) -> Any:
+            return original(*args, **kwargs) or DeltaMessage()
+
+        tool_parser_class.extract_tool_calls_streaming = patch
+        return tool_parser_class
+
+    ToolParserManager.get_tool_parser = patched_get_tool_parser
 
 
 def patch_multi_step_model_runner(state: "vLLMState") -> None:

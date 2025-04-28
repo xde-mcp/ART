@@ -1,4 +1,5 @@
 import os
+import sys
 
 # Import peft (and transformers by extension) before unsloth to enable sleep mode
 if os.environ.get("IMPORT_PEFT", "0") == "1":
@@ -9,22 +10,26 @@ if os.environ.get("IMPORT_PEFT", "0") == "1":
 if os.environ.get("IMPORT_UNSLOTH", "0") == "1":
     import unsloth  # type: ignore
 
-from .gather_trajectories import gather_trajectories
-from .model import Model
-from .types import Messages, MessagesAndChoices, Trajectory, TuneConfig
-from .local import LocalAPI
+from . import dev
+from .api import API
+from .gather import gather_trajectories, gather_trajectory_groups
+from .model import Model, TrainableModel
+from .trajectories import Trajectory, TrajectoryGroup
+from .types import Messages, MessagesAndChoices, Tools, TrainConfig
 from .utils import retry
 
-UnslothAPI = LocalAPI
-
 __all__ = [
+    "dev",
     "gather_trajectories",
-    "LocalAPI",
+    "gather_trajectory_groups",
+    "API",
     "Messages",
     "MessagesAndChoices",
+    "Tools",
     "Model",
+    "TrainableModel",
     "retry",
+    "TrainConfig",
     "Trajectory",
-    "TuneConfig",
-    "UnslothAPI",
+    "TrajectoryGroup",
 ]

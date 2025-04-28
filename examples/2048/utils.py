@@ -2,7 +2,6 @@ from dotenv import load_dotenv
 import random
 from typing import TypedDict
 from typing import Literal
-from pydantic import BaseModel
 import string
 import xml.etree.ElementTree as ET
 
@@ -128,10 +127,6 @@ def condense_board(
             condensed_column = condense_sequence(reversed_column)[::-1]
             for row_index in range(len(column)):
                 game["board"][row_index][col_index] = condensed_column[row_index]
-
-
-class AgentMove(BaseModel):
-    direction: Literal["left", "right", "up", "down"]
 
 
 def apply_agent_move(game: TwentyFortyEightGame, move_xml: str) -> None:

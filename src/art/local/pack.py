@@ -4,7 +4,7 @@ import random
 import seaborn as sns
 import torch
 from torch.utils.data import Dataset
-from typing import TypedDict, Unpack
+from typing_extensions import TypedDict, Unpack
 
 from .tokenize import TokenizedResult
 from ..types import Verbosity
@@ -61,7 +61,7 @@ def packed_tensors_from_tokenized_results(
                 print("Result is too long, skipping")
             continue
         result_without_prompt = result.without_prompt()
-        if sum(result.assistant_mask) == 0:
+        if sum(result_without_prompt.assistant_mask) == 0:
             if verbosity > 1:
                 print("Result has no unique completion tokens, skipping")
             continue
@@ -95,9 +95,9 @@ def packed_tensors_from_tokenized_results(
         assistant_mask[-1].extend(result.assistant_mask)
         logprobs[-1].extend(result.logprobs)
         advantages[-1].extend([result.advantage] * len(result.token_ids))
-        # prevent the model forgetting how to stop
-        advantages[-1][-1] = 0
-        weights[-1].extend([1 / sum(result.assistant_mask)] * len(result.token_ids))
+        weights[-1].extend(
+            [1 / (sum(result.assistant_mask) + 1e-6)] * len(result.token_ids)
+        )
         if truncate_long_results:
             token_ids[-1] = token_ids[-1][:seq_len]
             group_ids[-1] = group_ids[-1][:seq_len]
@@ -150,7 +150,7 @@ def packed_tensors_from_dir(**kwargs: Unpack[DiskPackedTensors]) -> PackedTensor
     os.makedirs(kwargs["dir"], exist_ok=True)
     return {
         key: torch.from_file(
-            f"{kwargs["dir"]}/{key}.pt",
+            f"{kwargs['dir']}/{key}.pt",
             shared=True,
             size=kwargs["num_sequences"] * kwargs["sequence_length"],
             dtype=dtype,

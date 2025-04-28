@@ -4,10 +4,9 @@ import functools
 import torch
 from typing import AsyncIterator, TYPE_CHECKING
 
+from .. import dev
 from .. import types
 from .checkpoints import get_step, get_last_checkpoint_dir
-from ..config.model import ModelConfig
-from ..config.openai_server import get_openai_server_config, OpenAIServerConfig
 from .pack import DiskPackedTensors, packed_tensors_from_dir, PackedTensors
 from .train import train
 
@@ -17,8 +16,9 @@ if TYPE_CHECKING:
     from .state import ModelState
 
 
-class TuneInputs(PackedTensors):
-    config: types.TuneConfig
+class TrainInputs(PackedTensors):
+    config: types.TrainConfig
+    _config: dev.TrainConfig
 
 
 @dataclass
@@ -26,8 +26,8 @@ class ModelService:
     host: str
     port: int
     model_name: str
-    base_model: types.BaseModel
-    config: ModelConfig
+    base_model: str
+    config: dev.InternalModelConfig
     output_dir: str
     _openai_server_task: asyncio.Task[None] | None = None
     _train_task: asyncio.Task[None] | None = None
@@ -42,7 +42,7 @@ class ModelService:
     def results_queue(self) -> asyncio.Queue[dict[str, float]]:
         return asyncio.Queue()
 
-    async def start_openai_server(self, config: OpenAIServerConfig | None) -> None:
+    async def start_openai_server(self, config: dev.OpenAIServerConfig | None) -> None:
         from .vllm import openai_server_task
 
         lora_path = get_last_checkpoint_dir(self.output_dir)
@@ -52,7 +52,7 @@ class ModelService:
         await self.stop_openai_server()
         self._openai_server_task = await openai_server_task(
             state=self.state.vllm,
-            config=get_openai_server_config(
+            config=dev.get_openai_server_config(
                 model_name=self.model_name,
                 base_model=self.base_model,
                 log_file=f"{self.output_dir}/logs/vllm.log",
@@ -67,8 +67,11 @@ class ModelService:
             self._openai_server_task.cancel()
             self._openai_server_task = None
 
-    async def tune(
-        self, disk_packed_tensors: DiskPackedTensors, config: types.TuneConfig
+    async def train(
+        self,
+        disk_packed_tensors: DiskPackedTensors,
+        config: types.TrainConfig,
+        _config: dev.TrainConfig,
     ) -> AsyncIterator[dict[str, float]]:
         # Get the packed tensors from disk
         packed_tensors = packed_tensors_from_dir(**disk_packed_tensors)
@@ -90,7 +93,7 @@ class ModelService:
             for offset in range(0, packed_tensors["tokens"].shape[0]):
                 for _ in range(2 if warmup else 1):
                     self.state.inputs_queue.put_nowait(
-                        TuneInputs(
+                        TrainInputs(
                             **{
                                 k: (
                                     v[offset : offset + 1, :1024]
@@ -107,6 +110,7 @@ class ModelService:
                                 if warmup
                                 else config
                             ),
+                            _config=_config,
                         )
                     )
                     # Wait for a result from the queue or for the training task to,
@@ -121,11 +125,15 @@ class ModelService:
                     for task in done:
                         result = task.result()
                         # If `result` is `None`, the training task finished somehow.
-                        assert (
-                            result is not None
-                        ), "The training task should never finish."
+                        assert result is not None, (
+                            "The training task should never finish."
+                        )
                         self.results_queue.task_done()
                         if warmup:
+                            from .state import free_memory
+
+                            free_memory()
+                            await asyncio.sleep(0.1)
                             warmup = False
                         else:
                             yield result
