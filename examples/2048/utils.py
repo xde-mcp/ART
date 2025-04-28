@@ -7,14 +7,16 @@ import xml.etree.ElementTree as ET
 
 load_dotenv()
 
-WINNING_VALUE = 512
+WINNING_VALUE = 128
 
 
+# Class that keeps track of state for a single game of 2048
 class TwentyFortyEightGame(TypedDict):
     id: str
     board: list[list[int | None]]
 
 
+# Randomly populates a cell on the board with a 2 or 4
 def populate_random_cell(game: TwentyFortyEightGame) -> None:
     all_clear_coordinates = [
         (i, j)
@@ -29,6 +31,7 @@ def populate_random_cell(game: TwentyFortyEightGame) -> None:
     )
 
 
+# Generates a new game of 2048
 def generate_game(board_length: int = 4) -> TwentyFortyEightGame:
     # random 6 character string
     id = "".join(random.choices(string.ascii_letters + string.digits, k=6))
@@ -44,6 +47,7 @@ def generate_game(board_length: int = 4) -> TwentyFortyEightGame:
     return game
 
 
+# Renders the board in a human-readable format
 def render_board(game: TwentyFortyEightGame) -> str:
     board = game["board"]
     # print something like this:
@@ -95,6 +99,7 @@ def condense_sequence(sequence: list[int | None]) -> list[int | None]:
     return condensed_sequence + [None] * (4 - len(condensed_sequence))
 
 
+# Condenses the board in a given direction
 def condense_board(
     game: TwentyFortyEightGame, direction: Literal["left", "right", "up", "down"]
 ) -> None:
@@ -129,6 +134,7 @@ def condense_board(
                 game["board"][row_index][col_index] = condensed_column[row_index]
 
 
+# Applies an agent move to the game board
 def apply_agent_move(game: TwentyFortyEightGame, move_xml: str) -> None:
     direction = None
     # parse the move
@@ -146,10 +152,12 @@ def apply_agent_move(game: TwentyFortyEightGame, move_xml: str) -> None:
     populate_random_cell(game)
 
 
+# Returns the maximum cell value on the board
 def max_cell_value(game: TwentyFortyEightGame) -> int:
     return max([cell for row in game["board"] for cell in row if cell is not None])
 
 
+# Returns True if the game is finished
 def check_game_finished(game: TwentyFortyEightGame) -> bool:
     if max_cell_value(game) >= WINNING_VALUE:
         return True
@@ -159,3 +167,8 @@ def check_game_finished(game: TwentyFortyEightGame) -> bool:
         return False
 
     return True
+
+
+# Returns the sum of all the cell values on the board
+def total_board_value(game: TwentyFortyEightGame) -> int:
+    return sum([cell for row in game["board"] for cell in row if cell is not None])
