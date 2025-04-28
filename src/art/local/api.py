@@ -1,7 +1,7 @@
 from datetime import datetime
 import json
 import math
-from art.utils.benchmarking.calculate_step_metrics import calculate_step_std_dev
+from art.utils.old_benchmarking.calculate_step_metrics import calculate_step_std_dev
 from art.utils.output_dirs import get_model_dir, get_trajectories_split_dir
 from art.utils.trajectory_logging import serialize_trajectory_groups
 from mp_actors import move_to_child_process
