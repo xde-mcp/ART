@@ -57,7 +57,7 @@ class SkyPilotAPI(API):
 
         # check if cluster already exists
         cluster_status = await to_thread_typed(
-            lambda: sky.status(cluster_names=[self._cluster_name])
+            lambda: sky.stream_and_get(sky.status(cluster_names=[self._cluster_name]))
         )
         if (
             len(cluster_status) == 0
@@ -73,19 +73,20 @@ class SkyPilotAPI(API):
             print("Art server task already running, using it...")
         else:
             art_server_task = sky.Task(name="art_server", run="uv run art")
-            resources = await to_thread_typed(
-                lambda: sky.status(cluster_names=[self._cluster_name])[0][
-                    "handle"
-                ].launched_resources
+            clusters = await to_thread_typed(
+                lambda: sky.stream_and_get(
+                    sky.status(cluster_names=[self._cluster_name])
+                )
             )
-            art_server_task.set_resources(resources)
+            art_server_task.set_resources(clusters[0]["handle"].launched_resources)
 
             # run art server task
             await to_thread_typed(
-                lambda: sky.exec(
-                    task=art_server_task,
-                    cluster_name=self._cluster_name,
-                    detach_run=True,
+                lambda: sky.stream_and_get(
+                    sky.exec(
+                        task=art_server_task,
+                        cluster_name=self._cluster_name,
+                    )
                 )
             )
             print("Task launched, waiting for it to start...")
@@ -116,7 +117,7 @@ class SkyPilotAPI(API):
         # TODO: TEST VERSIONED INSTALLATION ONCE WE'VE PUBLISHED A NEW VERSION OF ART WITH THE 'art' CLI SCRIPT
 
         # default to installing latest version of art
-        art_installation_command = "uv pip install openpipe-art"
+        art_installation_command = "uv pip install art"
         if art_version is not None:
             art_version_is_semver = False
             # check if art_version is valid semver
@@ -128,7 +129,7 @@ class SkyPilotAPI(API):
                     pass
 
             if art_version_is_semver:
-                art_installation_command = f"uv pip install openpipe-art=={art_version}"
+                art_installation_command = f"uv pip install art=={art_version}"
             elif os.path.exists(art_version):
                 # copy the contents of the art_path onto the new machine
                 task.set_file_mounts(
@@ -136,7 +137,7 @@ class SkyPilotAPI(API):
                         "~/sky_workdir": art_version,
                     }
                 )
-                art_installation_command = "uv sync"
+                art_installation_command = ""
             else:
                 raise ValueError(
                     f"Invalid art_version: {art_version}. Must be a semver or a path to a local directory."
@@ -150,6 +151,7 @@ class SkyPilotAPI(API):
     git config --global --add safe.directory /root/sky_workdir
 
     {art_installation_command}
+    uv sync
     """
 
         task.setup = setup_script
@@ -164,7 +166,9 @@ class SkyPilotAPI(API):
 
         try:
             await to_thread_typed(
-                lambda: sky.launch(task=task, cluster_name=self._cluster_name)
+                lambda: sky.stream_and_get(
+                    sky.launch(task=task, cluster_name=self._cluster_name)
+                )
             )
         except Exception as e:
             print(f"Error launching cluster: {e}")
@@ -204,4 +208,6 @@ class SkyPilotAPI(API):
         return [vllm_base_url, api_key]
 
     async def down(self) -> None:
-        await to_thread_typed(lambda: sky.down(cluster_name=self._cluster_name))
+        await to_thread_typed(
+            lambda: sky.stream_and_get(sky.down(cluster_name=self._cluster_name))
+        )

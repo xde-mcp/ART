@@ -48,7 +48,8 @@ dev-dependencies = [
     "openpipe>=4.49.0",
     "panza",
     "polars>=1.26.0",
-    "skypilot[aws,cudo,do,fluidstack,gcp,lambda,paperspace,runpod]>=0.8.0",
+    "skypilot[aws,cudo,do,fluidstack,gcp,lambda,paperspace,runpod]>=0.9.1",
+    "omegaconf>=2.4.0.dev3",
     "hatch>=1.14.1",
     "semver>=3.0.4",
 ]

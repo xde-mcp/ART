@@ -12,7 +12,9 @@ async def to_thread_typed(func: Callable[[], T]) -> T:
 
 
 async def get_task_status(cluster_name: str, task_name: str) -> sky.JobStatus:
-    job_queue = await to_thread_typed(lambda: sky.queue(cluster_name))
+    job_queue = await to_thread_typed(
+        lambda: sky.stream_and_get(sky.queue(cluster_name))
+    )
 
     for job in job_queue:
         if job["job_name"] == task_name:
