@@ -25,11 +25,11 @@ async def main():
     )
     await model.register(api)
 
-    for i in range(await model.get_step(), 30):
+    for i in range(await model.get_step(), 100):
         train_groups = await art.gather_trajectory_groups(
             (
                 art.TrajectoryGroup(
-                    rollout(model, i, is_validation=False) for _ in range(100)
+                    rollout(model, i, is_validation=False) for _ in range(200)
                 )
                 for _ in range(1)
             ),
