@@ -66,7 +66,7 @@ def load_puzzles(file_path: str) -> List[ConnectionPuzzle]:
 
 # Define the model
 model = art.TrainableModel(
-    name="001",
+    name="002",
     project="multi-turn-connection",
     base_model="Qwen/Qwen2.5-32B-Instruct",
     _internal_config={"init_args": {"gpu_memory_utilization": 0.775}},
