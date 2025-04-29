@@ -20,9 +20,10 @@ ART is an open-source reinforcement training library for improving LLM performan
 
 ## 📒 Notebooks
 
-| Agent Task | Example Notebook                                                                                                | Description                     | Comparative Performance |
-| ---------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------- | ----------------------- |
-| **2048**   | [🏋️ Train your agent](https://colab.research.google.com/github/openpipe/art/blob/main/examples/2048/2048.ipynb) | Qwen 2.5 3B learns to play 2048 | [Link coming soon]      |
+| Agent Task        | Example Notebook                                                                                                    | Description                               | Comparative Performance |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ----------------------- |
+| **2048**          | [🏋️ Train your agent](https://colab.research.google.com/github/openpipe/art/blob/main/examples/2048/2048.ipynb)     | Qwen 2.5 3B learns to play 2048           | [Link coming soon]      |
+| **Temporal Clue** | [🏋️ Train your agent](https://colab.research.google.com/github/openpipe/art/blob/main/examples/temporal-clue.ipynb) | Qwen 2.5 7B learns to solve Temporal Clue | [Link coming soon]      |
 
 ## 🔁 Training Loop Overview
 
