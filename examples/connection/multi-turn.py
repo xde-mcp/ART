@@ -226,7 +226,7 @@ async def rollout(client: openai.AsyncOpenAI, puzzle: ConnectionPuzzle) -> art.T
         # No need for an explicit game_over check here, the loop condition handles it
 
     if game_error:
-        trajectory.reward = -1 # Penalize critical errors heavily
+        trajectory.reward = -5 # Penalize critical errors heavily
         trajectory.metrics = {"game_error": 1}
     else:
         # Calculate reward based on performance
@@ -252,9 +252,64 @@ async def rollout(client: openai.AsyncOpenAI, puzzle: ConnectionPuzzle) -> art.T
         trajectory.metrics = metrics
 
     if random.random() < 0.05:
-        print("Trajectory: ", trajectory)
-        # Print all messages except the first one
-        print("Messages:", trajectory.messages()[1:])
+        # print("Trajectory: ", trajectory) # Removed old trajectory print
+        # print("Messages:", trajectory.messages()[1:]) # Removed old messages print
+
+        # --- New Pretty Printing Logic ---
+        print("\n--- Game Start ---")
+        # Print initial words (from the first user message)
+        initial_user_message = trajectory.messages_and_choices[1]
+        if isinstance(initial_user_message, dict) and initial_user_message.get("role") == "user":
+             print(f"Initial Words: {initial_user_message['content'].split(':')[-1].strip()}")
+        else:
+             # Fallback if structure is unexpected
+             print("Initial Words:", list(remaining_words)) # Print initial state if message format changes
+
+        turn_number = 1
+        # Iterate through turns (assistant guess + user feedback)
+        # Start from index 2 (first assistant message)
+        for i in range(2, len(trajectory.messages_and_choices), 2):
+            assistant_choice = trajectory.messages_and_choices[i]
+            user_feedback_message = trajectory.messages_and_choices[i+1] if (i+1) < len(trajectory.messages_and_choices) else None
+
+            print(f"\nTurn {turn_number}:")
+
+            # Print Assistant Guess
+            if hasattr(assistant_choice, 'message') and assistant_choice.message.content:
+                content = assistant_choice.message.content
+                guess = extract_turn_guess(content)
+                if guess:
+                    print(f"  Guess: Category='{guess['category']}', Words={guess['words']}")
+                else:
+                    # Handle cases where extraction fails or format is wrong mid-game
+                    print(f"  Guess: (Invalid Format or Extraction Failed)")
+                    print(f"    Raw Output: {content[:100]}...") # Print snippet of raw output
+            else:
+                print("  Guess: (No content found)")
+
+
+            # Print User Feedback
+            if isinstance(user_feedback_message, dict) and user_feedback_message.get("role") == "user":
+                feedback_lines = user_feedback_message['content'].split('\n')
+                print(f"  Feedback: {feedback_lines[0]}") # Print Correct/Incorrect line
+                # Check if there are enough lines and the second line indicates remaining words
+                if len(feedback_lines) > 2 and feedback_lines[1].strip() == "Remaining words:":
+                     # Print the third line which contains the actual words
+                     print(f"  Remaining words: {feedback_lines[2]}")
+            elif user_feedback_message is None:
+                 print("  Feedback: (Game ended after this guess)")
+            else:
+                 print("  Feedback: (Unexpected format)")
+
+
+            turn_number += 1
+
+        print("--- Game End ---")
+        print(f"Final Result: Correct={len(found_categories_details)}, Mistakes={mistakes}, Game Error={game_error}")
+        print(f"Reward: {trajectory.reward}")
+        print(f"Metrics: {trajectory.metrics}\n")
+        # --- End New Pretty Printing Logic ---
+
 
     return trajectory
 
