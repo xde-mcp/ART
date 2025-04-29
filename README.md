@@ -16,7 +16,7 @@
 
 # Agent Reinforcement Trainer (ART)
 
-ART is an open-source reinforcement training library for improving LLM performance in agentic workflows. Unlike most RL libraries, ART allows you to execute agent runs **in your existing codebase** while offloading all the complexity of the RL training loop to the ART backend. Read about the [ training loop](#training-loop-overview). Then try out one of the notebooks below!
+ART is an open-source reinforcement training library for improving LLM performance in agentic workflows. ART utilizes the powerful GRPO reinforcement learning algorithm to train models from their own experiences. Unlike most RL libraries, ART allows you to execute agent runs **in your existing codebase** while offloading all the complexity of the RL training loop to the ART backend. Read about the [ training loop](#training-loop-overview). Then try out one of the notebooks below!
 
 ## 📒 Notebooks
 
