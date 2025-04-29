@@ -167,7 +167,7 @@ async def rollout(client: openai.AsyncOpenAI, puzzle: ConnectionPuzzle) -> art.T
             chat_completion = await client.chat.completions.create(
                 messages=messages,
                 model=model.name,
-                max_tokens=512 # Reduced max_tokens as only one category is expected
+                max_tokens=2048
             )
             choice = chat_completion.choices[0]
             trajectory.messages_and_choices.append(choice)
@@ -186,7 +186,6 @@ async def rollout(client: openai.AsyncOpenAI, puzzle: ConnectionPuzzle) -> art.T
         guess = extract_turn_guess(content)
         if not guess:
             # Critical error: Invalid format
-            print("Game Error: Invalid guess format.")
             game_error = True
             break
 
@@ -194,7 +193,7 @@ async def rollout(client: openai.AsyncOpenAI, puzzle: ConnectionPuzzle) -> art.T
         # Ensure all guessed words exist in the remaining words
         if not guessed_words.issubset(remaining_words):
              # Critical error: Guessed invalid or already used words
-             print(f"Game Error: Guessed invalid/used words: {guessed_words - remaining_words}")
+             print(f"Game Error: Guessed extra/invalid words: {guessed_words - remaining_words}")
              game_error = True
              break
 
@@ -214,9 +213,6 @@ async def rollout(client: openai.AsyncOpenAI, puzzle: ConnectionPuzzle) -> art.T
             found_categories_details.append(matched_category)
             remaining_words -= guessed_words
             feedback = f"Correct! Category: {matched_category['name']}. Words: {', '.join(sorted(list(matched_category['words'])))}"
-
-            if random.random() < 0.05:
-                print(f"Correct guess: {feedback}")
         else:
             mistakes += 1
             feedback = f"Incorrect. Mistakes remaining: {max_mistakes - mistakes}"
@@ -235,7 +231,7 @@ async def rollout(client: openai.AsyncOpenAI, puzzle: ConnectionPuzzle) -> art.T
         trajectory.metrics = {"game_error": 1}
     else:
         # Calculate reward based on performance
-        reward = len(found_categories_details) * 2 - mistakes
+        reward = len(found_categories_details) * 2.5 - mistakes * 0.5
         trajectory.reward = reward
 
         # Initialize base metrics
@@ -258,6 +254,7 @@ async def rollout(client: openai.AsyncOpenAI, puzzle: ConnectionPuzzle) -> art.T
 
     if random.random() < 0.05:
         print("Trajectory: ", trajectory)
+        print("Messages:", trajectory.messages())
 
     return trajectory
 
