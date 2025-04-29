@@ -24,7 +24,7 @@ ART is an open-source reinforcement training library for improving LLM performan
 | ----------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ----------------------- |
 | **2048**          | [🏋️ Train agent](https://colab.research.google.com/github/openpipe/art/blob/main/examples/2048/2048.ipynb)     | Qwen 2.5 3B learns to play 2048           | [Link coming soon]      |
 | **Temporal Clue** | [🏋️ Train agent](https://colab.research.google.com/github/openpipe/art/blob/more-benchmarks/examples/temporal-clue.ipynb) | Qwen 2.5 7B learns to solve Temporal Clue | [Link coming soon]      |
-| **Tic Tac Toe**   | [🏋️ Train agent](https://colab.research.google.com/github/openpipe/art/blob/more-benchmarks/examples/tic_tac_toe/tic-tac-toe.ipynb)     | Qwen 2.5 7B learns to play Tic Tac Toe   | <img src="https://github.com/openpipe/art/raw/more-benchmarks/assets/benchmarks/tic-tac-toe-local/benchmarks/accuracy-training-progress.svg" height="72"> [see more](https://github.com/openpipe/art/blob/more-benchmarks/examples/tic_tac_toe/benchmark_tic_tac_toe.ipynb)      |
+| **Tic Tac Toe**   | [🏋️ Train agent](https://colab.research.google.com/github/openpipe/art/blob/more-benchmarks/examples/tic_tac_toe/tic-tac-toe.ipynb)     | Qwen 2.5 7B learns to play Tic Tac Toe   | <img src="https://github.com/openpipe/art/raw/more-benchmarks/assets/benchmarks/tic-tac-toe-local/benchmarks/accuracy-training-progress.svg" height="72"> [benchmarks](https://github.com/openpipe/art/blob/more-benchmarks/examples/tic_tac_toe/benchmark_tic_tac_toe.ipynb)      |
 
 ## 🔁 Training Loop Overview
 
