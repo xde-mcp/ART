@@ -16,7 +16,7 @@ DESTROY_AFTER_RUN = False
 
 async def main():
     # run from the root of the repo
-    api = LocalAPI()
+    api = LocalAPI(path="examples/tic_tac_toe/.art")
 
     model = art.TrainableModel(
         name="001-script",
