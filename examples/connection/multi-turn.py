@@ -153,7 +153,7 @@ async def rollout(client: openai.AsyncOpenAI, puzzle: ConnectionPuzzle) -> art.T
             },
             {
                 "role": "user",
-                "content": f"Let's start! Here are the 16 words:\n{', '.join(sorted(list(remaining_words)))}"
+                "content": f"Let's start! Here are the 16 words:\n{', '.join(list(remaining_words))}"
             }
         ],
         reward=0,
@@ -212,15 +212,14 @@ async def rollout(client: openai.AsyncOpenAI, puzzle: ConnectionPuzzle) -> art.T
             matched_category = remaining_categories.pop(found_category_index)
             found_categories_details.append(matched_category)
             remaining_words -= guessed_words
-            feedback = f"Correct! Category: {matched_category['name']}. Words: {', '.join(sorted(list(matched_category['words'])))}"
+            feedback = f"Correct!"
         else:
             mistakes += 1
             feedback = f"Incorrect. Mistakes remaining: {max_mistakes - mistakes}"
 
         # Prepare next user message with feedback and remaining words, if the game is not over
         if len(found_categories_details) < 4 and mistakes < max_mistakes:
-            # Sort remaining words for consistent presentation
-            feedback += f"\nRemaining words:\n{', '.join(sorted(list(remaining_words)))}"
+            feedback += f"\nRemaining words:\n{', '.join(list(remaining_words))}"
             trajectory.messages_and_choices.append(
                 {"role": "user", "content": feedback}
             )
@@ -254,7 +253,8 @@ async def rollout(client: openai.AsyncOpenAI, puzzle: ConnectionPuzzle) -> art.T
 
     if random.random() < 0.05:
         print("Trajectory: ", trajectory)
-        print("Messages:", trajectory.messages())
+        # Print all messages except the first one
+        print("Messages:", trajectory.messages()[1:])
 
     return trajectory
 
