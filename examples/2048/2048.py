@@ -165,7 +165,9 @@ async def rollout(model: art.Model, step: int, is_validation: bool) -> art.Traje
 
 async def main():
     # Initialize the server
-    api = await SkyPilotAPI.initialize_cluster(cluster_name="art", gpu="H100")
+    api = await SkyPilotAPI.initialize_cluster(
+        cluster_name="art", gpu="H100", art_version=".", env_path=".env"
+    )
 
     # Register the model with the local API (sets up logging, inference, and training)
     await model.register(api)
