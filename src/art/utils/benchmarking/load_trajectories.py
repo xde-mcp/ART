@@ -2,76 +2,78 @@ import polars as pl
 import yaml
 from pathlib import Path
 
-from panza import SQLiteCache
-
-cache = SQLiteCache(str(Path(__file__).parent.parent.parent / "data" / "cache.db"))
+from art.utils.output_dirs import get_models_dir, get_trajectories_dir
 
 
-@cache.cache()
 async def load_trajectories(
-    project_path: str, models: list[str] | None = None, debug: bool = False
+    api_path: str,
+    project_name: str,
+    models: list[str] | None = None,
+    debug: bool = False,
 ) -> pl.DataFrame:
     """
-    Load and flatten trajectory YAML files into a Polars DataFrame.
+      Load and flatten trajectory YAML files into a Polars DataFrame.
 
-    The expected on-disk layout is::
+      The expected on-disk layout is::
 
-        {project_path}/models/{model_name}/trajectories/{split}/{step_number}.yaml
+          {api_path}/{project_name}/models/{model_name}/trajectories/{split}/{step_number}.yaml
 
-    Each YAML file contains a list of *TrajectoryGroups* (see `art`), and each
-    group in turn contains a list of *Trajectories*.  This helper walks the
-    directory tree, reads every YAML file, and converts every single trajectory
-    into one row of a tabular dataset.
+      Each YAML file contains a list of *TrajectoryGroups* (see `art`), and each
+      group in turn contains a list of *Trajectories*.  This helper walks the
+      directory tree, reads every YAML file, and converts every single trajectory
+      into one row of a tabular dataset.
 
-    For every trajectory we record a handful of fixed columns plus two dynamic
-    families of columns:
+      For every trajectory we record a handful of fixed columns plus two dynamic
+      families of columns:
 
-    Fixed columns
-    -------------
-    model : str
-        Name of the model that produced the trajectory (taken from the folder
-        name under ``models/``).
-    step : int
-        Training / evaluation step extracted from the YAML filename.
-    reward : float | None
-        Reward associated with the trajectory.
-    group_number : int
-        Running counter that uniquely identifies the surrounding trajectory
-        group within the current parsing session (useful for debugging / joins).
-    messages : list[str] | None
-        Raw list of messages & choices for the dialogue.
-    logs : list[str] | None
-        Internal log lines captured during rollout.
+      Fixed columns
+      -------------
+      model : str
+          Name of the model that produced the trajectory (taken from the folder
+          name under ``models/``).
+    split : str
+          Split name extracted from the folder name under ``trajectories/``.
+      step : int
+          Training / evaluation step extracted from the YAML filename.
+      reward : float | None
+          Reward associated with the trajectory.
+      group_number : int
+          Running counter that uniquely identifies the surrounding trajectory
+          group within the current parsing session (useful for debugging / joins).
+      messages : list[str] | None
+          Raw list of messages & choices for the dialogue.
+      logs : list[str] | None
+          Internal log lines captured during rollout.
 
-    Dynamic columns
-    ---------------
-    metric_* : float
-        One column for every distinct metric key found in the dataset.  Missing
-        values are filled with nulls.
-    metadata_* : str
-        One column for every distinct metadata key (after merging group‑ and
-        trajectory‑level metadata).  Values are coerced to strings so that the
-        resulting table is rectangular.
+      Dynamic columns
+      ---------------
+      metric_* : float
+          One column for every distinct metric key found in the dataset.  Missing
+          values are filled with nulls.
+      metadata_* : str
+          One column for every distinct metadata key (after merging group- and
+          trajectory-level metadata).  Values are coerced to strings so that the
+          resulting table is rectangular.
 
-    Parameters
-    ----------
-    project_path : str
-        Path to the ART project on disk. Typically found in `.art/{project_name}`.
-    debug : bool, optional
-        If *True*, the function prints progress information while parsing.  The
-        default is *False*.
+      Parameters
+      ----------
+      project_path : str
+          Path to the ART project on disk. Typically found in `.art/{project_name}`.
+      debug : bool, optional
+          If *True*, the function prints progress information while parsing.  The
+          default is *False*.
 
-    Returns
-    -------
-    pl.DataFrame
-        A Polars DataFrame containing one row per trajectory with the schema
-        described above.
+      Returns
+      -------
+      pl.DataFrame
+          A Polars DataFrame containing one row per trajectory with the schema
+          described above.
     """
     rows: list[dict] = []
     metric_cols: set[str] = set()
     metadata_cols: set[str] = set()
 
-    root = Path(project_path) / "models"
+    root = Path(get_models_dir(api_path, project_name))
     group_number = 0
 
     # Normalize the optional *models* argument for quick membership tests
@@ -89,7 +91,7 @@ async def load_trajectories(
         if models_set is not None and model_name not in models_set:
             continue
 
-        traj_root = model_dir / "trajectories"
+        traj_root = Path(get_trajectories_dir(model_dir))
         if not traj_root.exists():
             continue
 

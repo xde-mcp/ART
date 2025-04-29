@@ -1,11 +1,12 @@
 import polars as pl
+from ..types import BenchmarkModelKey
+from ..filter_model_split import filter_rename_model_split
 
 
-def comparison_models_bar_chart(
+def percentage_comparison_bar_chart(
     df: pl.DataFrame,
-    split: str,
     metric_name: str,
-    models: list[str | tuple[str, str]] | None = None,
+    models: list[str | BenchmarkModelKey] | None = None,
     title: str | None = None,
     y_label: str | None = None,
     perfect_score: float | None = None,
@@ -23,12 +24,10 @@ def comparison_models_bar_chart(
     ----------
     df : pl.DataFrame
         Table produced by :func:`load_trajectories`.
-    split : str
-        Which evaluation split to visualise (e.g. ``"train"`` / ``"val"``).
     metric_name : str
         Name of the metric (without the ``"metric_"`` prefix) or the full
         column name as it appears in *df*.
-    models : list[str | tuple[str, str]] | None, optional
+    models : list[str | BenchmarkModelKey] | None, optional
         Same semantics as in :func:`training_progress_chart` - accepts either
         plain model identifiers or ``(internal, display)`` tuples.
     title : str | None, optional
@@ -53,6 +52,9 @@ def comparison_models_bar_chart(
     import numpy as np
     import seaborn as sns
 
+    # create new copy of df
+    df = df.clone()
+
     plt.rcParams["figure.dpi"] = 300
 
     # Resolve column name (support both raw + prefixed)
@@ -67,36 +69,16 @@ def comparison_models_bar_chart(
     # ------------------------------------------------------------------
     # Filter + determine model ordering (same logic as *graph_metric*)
     # ------------------------------------------------------------------
-    df = df.filter(pl.col("split") == split)
 
     if models is not None:
-        internal_names: list[str] = []
-        display_names: list[str] = []
-        rename_pairs: list[tuple[str, str]] = []
+        models = [
+            entry if isinstance(entry, BenchmarkModelKey) else BenchmarkModelKey(entry)
+            for entry in models
+        ]
 
-        for entry in models:
-            if isinstance(entry, tuple):
-                internal, display = entry
-            else:
-                internal = display = entry
+        df = filter_rename_model_split(df, models)
 
-            internal_names.append(internal)
-            display_names.append(display)
-
-            if internal != display:
-                rename_pairs.append((internal, display))
-
-        df = df.filter(pl.col("model").is_in(internal_names))
-
-        for internal, display in rename_pairs:
-            df = df.with_columns(
-                pl.when(pl.col("model") == internal)
-                .then(pl.lit(display))
-                .otherwise(pl.col("model"))
-                .alias("model")
-            )
-
-        plot_models = display_names
+        plot_models = [key.display_name for key in models]
     else:
         step_counts = (
             df.group_by("model")
@@ -249,7 +231,7 @@ def comparison_models_bar_chart(
     ax.set_yticks([])
 
     if title is None:
-        title = f"{split}/{metric_name}"
+        title = metric_name
     ax.set_title(title, pad=15)
 
     # Clean up remaining spines

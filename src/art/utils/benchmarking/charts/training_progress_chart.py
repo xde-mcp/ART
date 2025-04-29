@@ -2,12 +2,14 @@ import polars as pl
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+from art.utils.benchmarking.types import BenchmarkModelKey
+from art.utils.benchmarking.filter_model_split import filter_rename_model_split
+
 
 def training_progress_chart(
     df: pl.DataFrame,
-    split: str,
     metric_name: str,
-    models: list[str | tuple[str, str]] | None = None,
+    models: list[str | BenchmarkModelKey] | None = None,
     title: str | None = None,
     x_label: str | None = None,
     y_label: str | None = None,
@@ -20,17 +22,12 @@ def training_progress_chart(
     ----------
     df : pl.DataFrame
         Table produced by :func:`load_trajectories`.
-    split : str
-        Which evaluation split to visualise (e.g. ``"train"`` / ``"val"``).
-    models : list[str | tuple[str, str]] | None
+    metric_name : str
+        Name of the metric to plot.
+    models : list[str | BenchmarkModelKey] | None
         Optional explicit ordering / subset of model names.  Each element can
-        either be a plain string (``"gpt-4o"``) or a 2-tuple where the first
-        item is the *internal* model identifier as it appears in *df* and the
-        second item is the *display* name that should be used in the plot
-        (e.g. ``("gemini-2.0-flash", "Gemini 2.0\nFlash")``).  When a tuple is
-        supplied, the function automatically renames the corresponding rows in
-        the DataFrame so that downstream processing and the final legend use
-        the display name.
+        either be a plain string (``"gpt-4o"``) or a ``BenchmarkModelKey``
+        object.
     title : str | None, optional
         Custom figure title.  If *None* (default) a sensible title will be
         generated automatically.
@@ -68,45 +65,19 @@ def training_progress_chart(
             f"Column '{full_metric_col}' not found in DataFrame. Available columns: {list(df.columns)}"
         )
 
-    df = df.filter(pl.col("split") == split)
-
     # ------------------------------------------------------------------
     # Determine plotting / legend order
     # ------------------------------------------------------------------
     if models is not None:
-        # ------------------------------------------------------------------
-        # Support internal→display name mapping via (internal, display) tuples
-        # ------------------------------------------------------------------
-        internal_names: list[str] = []  # models to keep in the DataFrame
-        display_names: list[str] = []  # names as they should appear in plots
-        rename_pairs: list[tuple[str, str]] = []
+        models = [
+            entry if isinstance(entry, BenchmarkModelKey) else BenchmarkModelKey(entry)
+            for entry in models
+        ]
 
-        for entry in models:
-            if isinstance(entry, tuple):
-                internal, display = entry
-            else:
-                internal = display = entry  # plain string → same internal/display
-
-            internal_names.append(internal)
-            display_names.append(display)
-
-            if internal != display:
-                rename_pairs.append((internal, display))
-
-        # Restrict to the requested models (internal identifiers)
-        df = df.filter(pl.col("model").is_in(internal_names))
-
-        # Apply renaming so that subsequent logic only sees display names
-        for internal, display in rename_pairs:
-            df = df.with_columns(
-                pl.when(pl.col("model") == internal)
-                .then(pl.lit(display))
-                .otherwise(pl.col("model"))
-                .alias("model")
-            )
+        df = filter_rename_model_split(df, models)
 
         # Preserve caller‑specified order *after* renaming
-        plot_models = display_names
+        plot_models = [key.display_name for key in models]
     else:
         # Separate trained models (multiple distinct steps) from comparison
         # models (exactly one step) and list trained models first.
@@ -251,7 +222,7 @@ def training_progress_chart(
             )
 
     if title is None:
-        title = f"{split}/{metric_name}"
+        title = f"{metric_name}"
     ax.set_title(title)
 
     # ------------------------------------------------------------------
