@@ -1,10 +1,17 @@
 import polars as pl
 import yaml
 from pathlib import Path
+from panza import SQLiteCache
 
+from art.utils.get_repo_root_path import get_repo_root_path
 from art.utils.output_dirs import get_models_dir, get_trajectories_dir
 
+cache_path = Path(get_repo_root_path()) / "data" / "cache.db"
+cache_path.parent.mkdir(parents=True, exist_ok=True)
+cache = SQLiteCache(str(cache_path))
 
+
+@cache.cache()
 async def load_trajectories(
     api_path: str,
     project_name: str,
