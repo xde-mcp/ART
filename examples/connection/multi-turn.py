@@ -90,12 +90,12 @@ Provide your guess in JSON format within <output></output> tags as follows:
 </output>
 
 After each guess, you will receive feedback:
-- If your guess is correct, you'll be told "Correct", the category name, and the words will be removed from the list.
-- If your guess is incorrect, you'll be told "Incorrect".
+- If your guess is correct, you'll be told "Correct", and the words will be removed from the list.
+- If your guess is incorrect, you'll be told "Incorrect", and the words will not be removed from the list.
 
 You have a maximum of 4 mistakes allowed.
 Continue guessing until you have found all 4 groups or run out of mistakes.
-Only guess words currently available in the grid.
+Only guess words currently available in the list of remaining words.
 """
 
 def extract_turn_guess(content: str) -> Dict | None:
@@ -111,10 +111,11 @@ def extract_turn_guess(content: str) -> Dict | None:
         if isinstance(guess_data, dict) and \
            "category" in guess_data and isinstance(guess_data["category"], str) and \
            "words" in guess_data and isinstance(guess_data["words"], list) and \
-           len(guess_data["words"]) == 4 and all(isinstance(w, str) for w in guess_data["words"]):
+           len(guess_data["words"]) == 4 and all(isinstance(w, str) for w in guess_data["words"]) and \
+           len(set(guess_data["words"])) == 4: # Ensure all 4 words are distinct
             return guess_data
         else:
-            print(f"Warning: Invalid JSON structure in output: {guess_data}")
+            print(f"Warning: Invalid JSON structure or duplicate words in output: {guess_data}")
             return None
     except json.JSONDecodeError:
         print("Warning: Failed to parse JSON output.")
@@ -155,7 +156,7 @@ async def rollout(client: openai.AsyncOpenAI, puzzle: ConnectionPuzzle) -> art.T
                 "content": f"Let's start! Here are the 16 words:\n{', '.join(sorted(list(remaining_words)))}"
             }
         ],
-        # Reward will be calculated at the end
+        reward=0,
     )
 
     while len(found_categories_details) < 4 and mistakes < max_mistakes:
@@ -213,6 +214,9 @@ async def rollout(client: openai.AsyncOpenAI, puzzle: ConnectionPuzzle) -> art.T
             found_categories_details.append(matched_category)
             remaining_words -= guessed_words
             feedback = f"Correct! Category: {matched_category['name']}. Words: {', '.join(sorted(list(matched_category['words'])))}"
+
+            if random.random() < 0.05:
+                print(f"Correct guess: {feedback}")
         else:
             mistakes += 1
             feedback = f"Incorrect. Mistakes remaining: {max_mistakes - mistakes}"
@@ -253,7 +257,7 @@ async def rollout(client: openai.AsyncOpenAI, puzzle: ConnectionPuzzle) -> art.T
         trajectory.metrics = metrics
 
     if random.random() < 0.05:
-        print(trajectory)
+        print("Trajectory: ", trajectory)
 
     return trajectory
 
