@@ -35,7 +35,7 @@ class SkyPilotAPI(API):
     ) -> None:
         self = cls.__new__(cls)
         self._cluster_name = cluster_name
-
+        self._job_id = None
         if gpu is None and resources is None:
             raise ValueError("Either gpu or resources must be provided")
 
@@ -96,6 +96,7 @@ class SkyPilotAPI(API):
                     )
                 )
             )
+            self._job_id = job_id
 
             print("Task launched, waiting for it to start...")
             await wait_for_art_server_to_start(cluster_name=self._cluster_name)
@@ -107,14 +108,15 @@ class SkyPilotAPI(API):
         # Manually call the real __init__ now that base_url is ready
         super(SkyPilotAPI, self).__init__(base_url=base_url)
 
-        asyncio.create_task(
-            asyncio.to_thread(
-                sky.tail_logs,
-                cluster_name=self._cluster_name,
-                job_id=job_id,
-                follow=True,
+        if self._job_id is not None:
+            asyncio.create_task(
+                asyncio.to_thread(
+                    sky.tail_logs,
+                    cluster_name=self._cluster_name,
+                    job_id=job_id,
+                    follow=True,
+                )
             )
-        )
         return self
 
     async def _launch_cluster(
