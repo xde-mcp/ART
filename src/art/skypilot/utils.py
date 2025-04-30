@@ -22,6 +22,17 @@ async def get_task_status(cluster_name: str, task_name: str) -> sky.JobStatus:
     return None
 
 
+async def get_task_job_id(cluster_name: str, task_name: str) -> str:
+    job_queue = await to_thread_typed(
+        lambda: sky.stream_and_get(sky.queue(cluster_name))
+    )
+
+    for job in job_queue:
+        if job["job_name"] == task_name:
+            return job["job_id"]
+    return None
+
+
 async def is_task_created(cluster_name: str, task_name: str) -> bool:
     task_status = await get_task_status(cluster_name, task_name)
     if task_status is None:

@@ -11,6 +11,7 @@ from .utils import (
     wait_for_art_server_to_start,
     get_art_server_base_url,
     get_vllm_base_url,
+    get_task_job_id,
 )
 
 from .. import dev
@@ -77,6 +78,9 @@ class SkyPilotAPI(API):
         if await is_task_created(
             cluster_name=self._cluster_name, task_name="art_server"
         ):
+            self._job_id = await get_task_job_id(
+                cluster_name=self._cluster_name, task_name="art_server"
+            )
             print("Art server task already running, using it...")
         else:
             art_server_task = sky.Task(name="art_server", run="uv run art")
@@ -113,7 +117,7 @@ class SkyPilotAPI(API):
                 asyncio.to_thread(
                     sky.tail_logs,
                     cluster_name=self._cluster_name,
-                    job_id=job_id,
+                    job_id=self._job_id,
                     follow=True,
                 )
             )
