@@ -160,12 +160,15 @@ async def main():
         cluster_name="art6", art_version=".", env_path=".env", gpu="H100"
     )
 
+    print("Model registered")
+
     model = art.TrainableModel(
         name="005", project="tic-tac-toe", base_model="Qwen/Qwen2.5-3B-Instruct"
     )
     await model.register(api)
 
     for i in range(await model.get_step(), 3):
+        print("Training step:", i)
         train_groups = await art.gather_trajectory_groups(
             (
                 art.TrajectoryGroup(

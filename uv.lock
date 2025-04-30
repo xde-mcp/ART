@@ -3045,18 +3045,6 @@ wheels = [
 ]
 
 [[package]]
-name = "omegaconf"
-version = "2.4.0.dev3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pyyaml" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/86/49/6368e41ec04eafc08895f5e56677914314a1bdf084376a7e392eb17905a7/omegaconf-2.4.0.dev3.tar.gz", hash = "sha256:9948b9bfb15074863883bb90c4bfc9f3878af392e77ef5d8c9b01fac834745b1", size = 3440280 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/dc/08/29b30970ce5e22440e2bc1fd929a79de08feb3c6c054bc7e832228fc1a94/omegaconf-2.4.0.dev3-py3-none-any.whl", hash = "sha256:acffa42eab0d9cb09ccead6e80d1dfd20a625e21602353f267f3bc2cd131f7b2", size = 224417 },
-]
-
-[[package]]
 name = "openai"
 version = "1.66.3"
 source = { registry = "https://pypi.org/simple" }
@@ -3138,12 +3126,11 @@ dev = [
     { name = "hatch" },
     { name = "ipykernel" },
     { name = "ipywidgets" },
-    { name = "omegaconf" },
     { name = "openpipe" },
     { name = "panza" },
     { name = "polars" },
     { name = "semver" },
-    { name = "skypilot", extra = ["aws", "cudo", "do", "gcp", "runpod"] },
+    { name = "skypilot-nightly", extra = ["aws", "cudo", "do", "gcp", "runpod"] },
 ]
 
 [package.metadata]
@@ -3173,12 +3160,11 @@ dev = [
     { name = "hatch", specifier = ">=1.14.1" },
     { name = "ipykernel", specifier = ">=6.29.5" },
     { name = "ipywidgets", specifier = ">=8.1.5" },
-    { name = "omegaconf", specifier = ">=2.4.0.dev3" },
     { name = "openpipe", specifier = ">=4.49.0" },
     { name = "panza", git = "https://github.com/corbt/panza.git" },
     { name = "polars", specifier = ">=1.26.0" },
     { name = "semver", specifier = ">=3.0.4" },
-    { name = "skypilot", extras = ["aws", "cudo", "do", "fluidstack", "gcp", "lambda", "paperspace", "runpod"], specifier = ">=0.9.1" },
+    { name = "skypilot-nightly", extras = ["aws", "cudo", "do", "fluidstack", "gcp", "lambda", "paperspace", "runpod"], specifier = ">=1.0.0.dev20250429" },
 ]
 
 [[package]]
@@ -4937,8 +4923,8 @@ wheels = [
 ]
 
 [[package]]
-name = "skypilot"
-version = "0.9.1"
+name = "skypilot-nightly"
+version = "1.0.0.dev20250429"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiofiles" },
@@ -4952,7 +4938,6 @@ dependencies = [
     { name = "jinja2" },
     { name = "jsonschema" },
     { name = "networkx" },
-    { name = "omegaconf" },
     { name = "packaging" },
     { name = "pandas" },
     { name = "pendulum" },
@@ -4971,9 +4956,9 @@ dependencies = [
     { name = "uvicorn", extra = ["standard"] },
     { name = "wheel" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7e/b0/213c1cd97acb16914da6050e234d8ca3b8568c3d67236a750b9c75954d5b/skypilot-0.9.1.tar.gz", hash = "sha256:39d30ae92582d39661541136d8f02f2c4eaa54214fa5d33097eee72f82b4ca58", size = 1773122 }
+sdist = { url = "https://files.pythonhosted.org/packages/cf/8a/57490fb2976d0c259e69e356f77e408fc44535bd0cea45ff2981dffb817a/skypilot_nightly-1.0.0.dev20250429.tar.gz", hash = "sha256:0b5ae0a67e7d427f3e6d7da0039add237e821a4b838276dac4d9d63a848cc98f", size = 1841990 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/30/26/22b8f5beae0ecd35931a0a7520f71b82da4880f1d395394d1b22bc548648/skypilot-0.9.1-py3-none-any.whl", hash = "sha256:a152db6812476f854bf6422420a8550d61cd470598519a27f31fe6e5c6ee3e58", size = 1952478 },
+    { url = "https://files.pythonhosted.org/packages/a6/61/6fdd3aacfa7f6a058068a0ec7625f524d09878e3f122a5938c16c5ee1ba5/skypilot_nightly-1.0.0.dev20250429-py3-none-any.whl", hash = "sha256:7cbb6d736137aba170f2b0821079d669efaa6d425b76dac56f5fc09f7403d54a", size = 2021722 },
 ]
 
 [package.optional-dependencies]

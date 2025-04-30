@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 import sky
 import os
 import semver
+import asyncio
 from dotenv import dotenv_values
 
 from .utils import (
@@ -63,7 +64,13 @@ class SkyPilotAPI(API):
             len(cluster_status) == 0
             or cluster_status[0]["status"] != sky.ClusterStatus.UP
         ):
-            await self._launch_cluster(resources, art_version, env_path)
+            launch_job_id = await self._launch_cluster(resources, art_version, env_path)
+            await asyncio.to_thread(
+                sky.tail_logs,
+                cluster_name=self._cluster_name,
+                job_id=launch_job_id,
+                follow=True,
+            )
         else:
             print(f"Cluster {self._cluster_name} exists, using it...")
 
@@ -81,7 +88,7 @@ class SkyPilotAPI(API):
             art_server_task.set_resources(clusters[0]["handle"].launched_resources)
 
             # run art server task
-            await to_thread_typed(
+            job_id, handler = await to_thread_typed(
                 lambda: sky.stream_and_get(
                     sky.exec(
                         task=art_server_task,
@@ -89,6 +96,7 @@ class SkyPilotAPI(API):
                     )
                 )
             )
+
             print("Task launched, waiting for it to start...")
             await wait_for_art_server_to_start(cluster_name=self._cluster_name)
             print("Art server task started")
@@ -99,6 +107,14 @@ class SkyPilotAPI(API):
         # Manually call the real __init__ now that base_url is ready
         super(SkyPilotAPI, self).__init__(base_url=base_url)
 
+        asyncio.create_task(
+            asyncio.to_thread(
+                sky.tail_logs,
+                cluster_name=self._cluster_name,
+                job_id=job_id,
+                follow=True,
+            )
+        )
         return self
 
     async def _launch_cluster(
@@ -165,11 +181,13 @@ class SkyPilotAPI(API):
         print(task)
 
         try:
-            await to_thread_typed(
+            job_id, handler = await to_thread_typed(
                 lambda: sky.stream_and_get(
                     sky.launch(task=task, cluster_name=self._cluster_name)
                 )
             )
+
+            return job_id
         except Exception as e:
             print(f"Error launching cluster: {e}")
             print()
