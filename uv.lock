@@ -3164,7 +3164,7 @@ dev = [
     { name = "panza", git = "https://github.com/corbt/panza.git" },
     { name = "polars", specifier = ">=1.26.0" },
     { name = "semver", specifier = ">=3.0.4" },
-    { name = "skypilot-nightly", extras = ["aws", "cudo", "do", "fluidstack", "gcp", "lambda", "paperspace", "runpod"], specifier = ">=0.9.2" },
+    { name = "skypilot-nightly", extras = ["aws", "cudo", "do", "fluidstack", "gcp", "lambda", "paperspace", "runpod"], specifier = ">=1.0.0.dev20250430" },
 ]
 
 [[package]]
