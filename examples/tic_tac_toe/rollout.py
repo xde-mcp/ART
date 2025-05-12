@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from pydantic import BaseModel
 from openpipe.client import OpenPipe
 
-from utils import (
+from examples.tic_tac_toe.game_utils import (
     generate_game,
     get_opponent_move,
     apply_agent_move,

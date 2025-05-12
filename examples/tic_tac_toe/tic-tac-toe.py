@@ -13,19 +13,20 @@ load_dotenv()
 random.seed(42)
 
 DESTROY_AFTER_RUN = False
+GENERATE_BENCHMARKS = False
 STEP = 36
+
+parser = argparse.ArgumentParser(description="Train a model to play Tic-Tac-Toe")
+parser.add_argument(
+    "--backend",
+    choices=["skypilot", "local"],
+    default="local",
+    help="Backend to use for training (default: local)",
+)
+args = parser.parse_args()
 
 
 async def main():
-    parser = argparse.ArgumentParser(description="Train a model to play Tic-Tac-Toe")
-    parser.add_argument(
-        "--backend",
-        choices=["skypilot", "local"],
-        default="local",
-        help="Backend to use for training (default: local)",
-    )
-    args = parser.parse_args()
-
     # Avoid import unnecessary backend dependencies
     if args.backend == "skypilot":
         from art.skypilot.backend import SkyPilotBackend
@@ -93,6 +94,45 @@ async def main():
 
     if DESTROY_AFTER_RUN:
         await backend.down()
+
+    if GENERATE_BENCHMARKS:
+        gpt_4o_mini = art.Model(
+            name="gpt-4o-mini",
+            project="tic-tac-toe",
+            inference_model_name="gpt-4o-mini",
+            inference_api_key=os.getenv("OPENAI_API_KEY"),
+            inference_base_url="https://api.openai.com/v1",
+        )
+        await gpt_4o_mini.register(backend)
+
+        gpt_4o = art.Model(
+            name="gpt-4o",
+            project="tic-tac-toe",
+            inference_model_name="gpt-4o",
+            inference_api_key=os.getenv("OPENAI_API_KEY"),
+            inference_base_url="https://api.openai.com/v1",
+        )
+        await gpt_4o.register(backend)
+
+        async def benchmark_comparison_model(comparison_model: art.Model):
+            trajectories = await art.gather_trajectory_groups(
+                (
+                    art.TrajectoryGroup(
+                        rollout(comparison_model, TicTacToeScenario(step=0))
+                        for _ in range(12)
+                    )
+                    for _ in range(1)
+                ),
+                pbar_desc=f"gather {comparison_model.name}",
+                max_exceptions=1,
+            )
+            await comparison_model.log(
+                trajectories,
+                split="val",
+            )
+
+        await benchmark_comparison_model(gpt_4o_mini)
+        await benchmark_comparison_model(gpt_4o)
 
 
 if __name__ == "__main__":
