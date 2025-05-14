@@ -7,7 +7,6 @@ from litellm.caching.caching import LiteLLMCacheType, Cache
 from litellm.types.utils import Choices, ModelResponse
 from art.utils.litellm import convert_litellm_choice_to_openai
 from art.utils import limit_concurrency
-from datetime import datetime
 import textwrap
 from tenacity import retry, stop_after_attempt
 from project_types import PolicyConfig
@@ -15,16 +14,9 @@ from dataset import RedditJoke
 import re
 from score_joke import score_joke
 import math
-import os
-from openpipe import AsyncOpenPipe
+from langfuse.decorators import langfuse_context, observe
 
 litellm.cache = Cache(type=LiteLLMCacheType.DISK)
-
-# Initialize OpenPipe client (ensure OPENPIPE_API_KEY is in your .env)
-if os.getenv("OPENPIPE_API_KEY"):
-    op_client = AsyncOpenPipe()
-else:
-    op_client = None
 
 
 class ProjectMetrics(TypedDict):
@@ -47,34 +39,25 @@ class ProjectTrajectory(Trajectory):
         self,
         model_name: str,
         policy_config: PolicyConfig,
-        op_client: AsyncOpenPipe | None,
-        llm_response: ModelResponse | None,
     ) -> Trajectory:
         super().finish()
         self.reward = calculate_reward(policy_config, self.metrics)
-        if llm_response is not None and policy_config.log_to_openpipe:
-            assert op_client is not None
-            resp = await op_client.report(
-                requested_at=self.start_time.timestamp() * 1000,
-                received_at=datetime.now().timestamp() * 1000,
-                req_payload={
+        if policy_config.log_to_langfuse:
+            langfuse_context.update_current_trace(
+                metadata={
+                    **self.metadata,
                     "model": model_name,
-                    "messages": self.messages()[:-1],
-                    "metadata": {
-                        "type": "roflbot_rollout",
-                        "reward": str(round(self.reward, 2)),
-                        **{
-                            k: str(round(v, 2))
-                            if isinstance(v, (float, int)) and not isinstance(v, bool)
-                            else str(v)
-                            for k, v in self.metrics.items()
-                        },
-                        **{k: str(v) for k, v in self.metadata.items()},
-                    },
-                },
-                resp_payload=llm_response,
-                status_code=200,
+                }
             )
+            langfuse_context.score_current_trace(
+                name="reward",
+                value=self.reward,
+            )
+            for k, v in self.metrics.items():
+                langfuse_context.score_current_trace(
+                    name=k,
+                    value=v,  # type: ignore
+                )
         return self
 
 
@@ -134,14 +117,39 @@ async def determine_if_completion_matches_prefix(joke: str, prefix: str) -> bool
         messages=messages,
         temperature=0,
         caching=True,
+        metadata={
+            "existing_trace_id": langfuse_context.get_current_trace_id(),
+            "parent_observation_id": langfuse_context.get_current_observation_id(),
+        },
     )
 
     return response.choices[0].message.content.strip().lower().startswith("t")  # type: ignore
 
 
-@retry(stop=stop_after_attempt(3))
-@limit_concurrency(10, derive_key=lambda model, scenario, **kwargs: model.name)
 async def rollout(
+    model: art.Model,
+    scenario: RedditJoke,
+) -> Trajectory:
+    assert isinstance(model.config, PolicyConfig)
+    if model.config.log_to_langfuse:
+        return await rollout_with_langfuse(model, scenario)
+    else:
+        return await rollout_implementation(model, scenario)
+
+
+@observe()
+async def rollout_with_langfuse(
+    model: art.Model,
+    scenario: RedditJoke,
+) -> Trajectory:
+    litellm.success_callback = ["langfuse"]
+    litellm.failure_callback = ["langfuse"]
+    return await rollout_implementation(model, scenario)
+
+
+@retry(stop=stop_after_attempt(3))
+@limit_concurrency(50, derive_key=lambda model, scenario, **kwargs: model.name)
+async def rollout_implementation(
     model: art.Model,
     scenario: RedditJoke,
 ) -> Trajectory:
@@ -188,6 +196,10 @@ async def rollout(
             caching=not isinstance(model, art.TrainableModel),
             api_key=model.inference_api_key,
             max_completion_tokens=model.config.max_tokens,
+            metadata={
+                "existing_trace_id": langfuse_context.get_current_trace_id(),
+                "parent_observation_id": langfuse_context.get_current_observation_id(),
+            },
         )
     assert isinstance(llm_response, ModelResponse)
     traj.metrics["prompt_tokens"] = llm_response.usage.prompt_tokens  # type: ignore
@@ -209,7 +221,7 @@ async def rollout(
 
     if content is None:
         traj.metrics["no_content"] = True
-        return await traj.finish(model.name, model.config, op_client, llm_response)
+        return await traj.finish(model.name, model.config)
     else:
         traj.metrics["no_content"] = False
 
@@ -217,10 +229,6 @@ async def rollout(
     joke_continuation = re.search(
         r"<joke_continuation>(.*?)</joke_continuation>", content, re.DOTALL
     )
-
-    # print("thinking", thinking)
-    # print("joke_continuation", joke_continuation)
-    # print("content", content)
 
     if thinking is None:
         traj.metrics["successfully_parsed_thinking"] = False
@@ -230,7 +238,7 @@ async def rollout(
 
     if joke_continuation is None:
         traj.metrics["successfully_parsed_joke"] = False
-        return await traj.finish(model.name, model.config, op_client, llm_response)
+        return await traj.finish(model.name, model.config)
     else:
         traj.metrics["successfully_parsed_joke"] = True
         traj.metrics["joke_length"] = len(joke_continuation.group(1).strip())
@@ -247,7 +255,7 @@ async def rollout(
 
     traj.reward = calculate_reward(model.config, traj.metrics)
 
-    return await traj.finish(model.name, model.config, op_client, llm_response)
+    return await traj.finish(model.name, model.config)
 
 
 if __name__ == "__main__":
@@ -265,9 +273,9 @@ if __name__ == "__main__":
                 name="qwen3-32b",
                 project="roflbot",
                 inference_model_name="openrouter/qwen/qwen3-32b",
-                config=PolicyConfig(log_to_openpipe=True, max_tokens=20000),
+                config=PolicyConfig(log_to_langfuse=False, max_tokens=20000),
             ),
             test_joke,
         )
     )
-    print(yaml.dump(traj.for_logging()))
+    # print(yaml.dump(traj.for_logging()))

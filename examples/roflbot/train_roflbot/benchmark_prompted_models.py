@@ -25,7 +25,7 @@ MODELS_TO_BENCHMARK = [
 ]
 
 TEST_SET_ENTRIES = 100
-LOG_TO_OPENPIPE = False
+LOG_TO_LANGFUSE = False
 
 
 async def main():
@@ -37,7 +37,7 @@ async def main():
             project="roflbot",
             inference_model_name=model_id,
             config=PolicyConfig(
-                log_to_openpipe=LOG_TO_OPENPIPE,
+                log_to_langfuse=LOG_TO_LANGFUSE,
                 max_tokens=16000,
             ),
         )
