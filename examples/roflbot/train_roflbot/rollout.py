@@ -1,13 +1,11 @@
 import art
-from typing import List, Any, TypedDict, NotRequired
+from typing import TypedDict, NotRequired
 from art import Trajectory
 from litellm import acompletion
 import litellm
 from litellm.caching.caching import LiteLLMCacheType, Cache
 from litellm.types.utils import Choices, ModelResponse
-from dataclasses import asdict
 from art.utils.litellm import convert_litellm_choice_to_openai
-from dataclasses import dataclass
 from art.utils import limit_concurrency
 from datetime import datetime
 import textwrap
@@ -19,7 +17,6 @@ from score_joke import score_joke
 import math
 import os
 from openpipe import AsyncOpenPipe
-import time
 
 litellm.cache = Cache(type=LiteLLMCacheType.DISK)
 
@@ -55,11 +52,8 @@ class ProjectTrajectory(Trajectory):
     ) -> Trajectory:
         super().finish()
         self.reward = calculate_reward(policy_config, self.metrics)
-        if (
-            op_client is not None
-            and llm_response is not None
-            and policy_config.log_to_openpipe
-        ):
+        if llm_response is not None and policy_config.log_to_openpipe:
+            assert op_client is not None
             resp = await op_client.report(
                 requested_at=self.start_time.timestamp() * 1000,
                 received_at=datetime.now().timestamp() * 1000,
@@ -68,8 +62,13 @@ class ProjectTrajectory(Trajectory):
                     "messages": self.messages()[:-1],
                     "metadata": {
                         "type": "roflbot_rollout",
-                        "reward": str(self.reward),
-                        **{k: str(v) for k, v in self.metrics.items()},
+                        "reward": str(round(self.reward, 2)),
+                        **{
+                            k: str(round(v, 2))
+                            if isinstance(v, (float, int)) and not isinstance(v, bool)
+                            else str(v)
+                            for k, v in self.metrics.items()
+                        },
                         **{k: str(v) for k, v in self.metadata.items()},
                     },
                 },
@@ -195,6 +194,14 @@ async def rollout(
     traj.metrics["completion_tokens"] = llm_response.usage.completion_tokens  # type: ignore
     choice = llm_response.choices[0]  # type: ignore
     assert isinstance(choice, Choices)
+    if (
+        hasattr(choice.message, "reasoning_content")
+        and choice.message.reasoning_content
+    ):
+        # LiteLLM "helpfully" extracts the reasoning content into a separate field, but our code expects it to be in the content field.
+        choice.message.content = (
+            f"<think>{choice.message.reasoning_content}</think>{choice.message.content}"
+        )
 
     traj.messages_and_choices.append(convert_litellm_choice_to_openai(choice))
 
@@ -206,10 +213,14 @@ async def rollout(
     else:
         traj.metrics["no_content"] = False
 
-    thinking = re.search(r"<think>(.*?)</think>", content)
+    thinking = re.search(r"<think>(.*?)</think>", content, re.DOTALL)
     joke_continuation = re.search(
-        r"<joke_continuation>(.*?)</joke_continuation>", content
+        r"<joke_continuation>(.*?)</joke_continuation>", content, re.DOTALL
     )
+
+    # print("thinking", thinking)
+    # print("joke_continuation", joke_continuation)
+    # print("content", content)
 
     if thinking is None:
         traj.metrics["successfully_parsed_thinking"] = False
@@ -251,12 +262,12 @@ if __name__ == "__main__":
     traj = asyncio.run(
         rollout(
             art.Model(
-                name="gpt-4o",
-                project="email_agent",
-                inference_model_name="gemini/gemini-2.5-pro-preview-03-25",
-                config=PolicyConfig(log_to_openpipe=True),
+                name="qwen3-32b",
+                project="roflbot",
+                inference_model_name="openrouter/qwen/qwen3-32b",
+                config=PolicyConfig(log_to_openpipe=True, max_tokens=20000),
             ),
             test_joke,
         )
     )
-    # print(yaml.dump(traj.for_logging()))
+    print(yaml.dump(traj.for_logging()))

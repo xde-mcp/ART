@@ -18,7 +18,6 @@ models = {
         project="roflbot",
         base_model="Qwen/Qwen2.5-14B-Instruct",
         config=PolicyConfig(
-            max_turns=1,
             max_tokens=8192,
             thinking_char_budget=5000,
             log_to_openpipe=True,
@@ -38,8 +37,26 @@ models = {
         project="roflbot",
         base_model="Qwen/Qwen2.5-32B-Instruct",
         config=PolicyConfig(
-            max_turns=1,
             max_tokens=8192,
+            thinking_char_budget=5000,
+            log_to_openpipe=True,
+            training_config=TrainingConfig(
+                trajectories_per_group=6,
+                groups_per_step=8,
+                learning_rate=1.2e-5,
+                eval_steps=30,
+                val_set_size=100,
+                training_dataset_size=4000,
+                num_epochs=1,
+            ),
+        ),
+    ),
+    "005": art.TrainableModel(
+        name="roflbot-005",
+        project="roflbot",
+        base_model="Qwen/Qwen3-32B",
+        config=PolicyConfig(
+            max_tokens=16000,
             thinking_char_budget=5000,
             log_to_openpipe=True,
             training_config=TrainingConfig(
