@@ -31,7 +31,12 @@ async def run_training(model: art.TrainableModel):
             prefix="roflbot",
             verbose=True,
         )
-    await model.register(backend)
+    await model.register(
+        backend,
+        _openai_client_config={
+            "engine_args": {"speculative_config": '{"method": "suffix"}'}
+        },
+    )
 
     print("Loading training data...")
     train_scenarios: List[RedditJoke] = get_jokes(
