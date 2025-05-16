@@ -9,14 +9,17 @@ class TrainingConfig(BaseModel):
     val_set_size: int = 100
     training_dataset_size: int = 4000
     num_epochs: int = 4
+    gpus: str = "H100-SXM:1"
+    pinned_art_version: str | None = None
+    rollout_concurrency: int = 100
 
 
-class ProjectPolicyConfig(BaseModel):
+class PolicyConfig(BaseModel):
     max_turns: int = 10
     max_tokens: int = 2048
-    log_to_openpipe: bool = False
-    litellm_model_name: str | None = None
+    log_to_langfuse: bool = False
     use_tools: bool = True
     stupid_simple_reward_fn: bool = False
+    max_groups_in_flight: int = 4
 
     training_config: TrainingConfig | None = None

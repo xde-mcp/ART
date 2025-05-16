@@ -72,6 +72,9 @@ models = {
     ),
 }
 
+models["006"] = models["005"].model_copy(deep=True)
+models["006"].name = "roflbot-006"
+
 
 parser = argparse.ArgumentParser(
     description="Train one or more roflbot models (comma separated)."

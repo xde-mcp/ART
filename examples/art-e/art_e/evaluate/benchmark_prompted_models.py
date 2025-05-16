@@ -7,7 +7,7 @@ import polars as pl
 from art.local import LocalBackend
 from dotenv import load_dotenv
 from art_e.data.local_email_db import generate_database
-from art_e.project_types import ProjectPolicyConfig
+from art_e.project_types import PolicyConfig
 from art_e.evaluate.benchmark import benchmark_model
 import os
 
@@ -34,9 +34,8 @@ async def main():
         model = art.Model(
             name=model_name.split("/")[-1],
             project="email_agent",
-            config=ProjectPolicyConfig(
-                litellm_model_name=model_id, use_tools=use_tools
-            ),
+            inference_model_name=model_id,
+            config=PolicyConfig(use_tools=use_tools),
         )
         await model.register(backend)
         models.append(model)

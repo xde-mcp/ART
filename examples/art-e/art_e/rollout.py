@@ -14,27 +14,13 @@ from litellm.types.utils import Choices, ModelResponse, Message
 from dataclasses import asdict
 from art.utils.litellm import convert_litellm_choice_to_openai
 from dataclasses import dataclass
-from art.utils import limit_concurrency
-import os
-from openpipe import AsyncOpenPipe
-from datetime import datetime
-from art_e.project_types import ProjectPolicyConfig
+from langfuse.decorators import langfuse_context, observe  # type: ignore
+from art_e.project_types import PolicyConfig
 import textwrap
 from tenacity import retry, stop_after_attempt
+from panza import limit_concurrency
 
 litellm.cache = Cache(type=LiteLLMCacheType.DISK)
-# litellm._turn_on_debug()
-
-# Initialize OpenPipe client (ensure OPENPIPE_API_KEY is in your .env)
-if os.getenv("OPENPIPE_API_KEY"):
-    op_client = AsyncOpenPipe()
-else:
-    op_client = None
-
-"""
-Steps for implementing the rollout function:
-
-"""
 
 # We remove the inbox parameter before describing the tool for OpenAI because we'll set that value explicitly based on the user we're running on behalf of.
 search_tool = convert_to_openai_tool(search_emails)
@@ -60,12 +46,9 @@ class FinalRubric:
     prompt_tokens: int = 0
     completion_tokens: int = 0
 
-    def to_metrics(self) -> dict[str, float | int]:
-        return {k: int(v) for k, v in asdict(self).items()}
-
 
 def calculate_reward(
-    policy_config: ProjectPolicyConfig, rubric: FinalRubric, traj: Trajectory
+    policy_config: PolicyConfig, rubric: FinalRubric, traj: Trajectory
 ) -> float:
     # As an ablation, let's try the simplest possible reward function: just give
     # 1 point for a correct answer, and 0 for anything else. Otherwise, we'll do something
@@ -180,25 +163,37 @@ async def determine_if_answer_is_correct(answer: str, query: SyntheticQuery) -> 
         temperature=0,
         caching=True,
         max_tokens=2,
+        metadata={
+            "generation_name": "determine_if_answer_is_correct",
+            "existing_trace_id": langfuse_context.get_current_trace_id(),
+            "parent_observation_id": langfuse_context.get_current_observation_id(),
+        },
     )
 
     return response.choices[0].message.content.strip().lower().startswith("t")  # type: ignore
 
 
-# @retry(stop=stop_after_attempt(3))
-@limit_concurrency(10, derive_key=lambda model, scenario, **kwargs: model.name)
+@observe(name="art_e_rollout")
+@limit_concurrency(100)
+@retry(stop=stop_after_attempt(3))
 async def rollout(
     model: art.Model,
     scenario: SyntheticQuery,
 ) -> Trajectory:
-    rollout_start_time = datetime.now()
     rubric = FinalRubric()
     traj = Trajectory(
         messages_and_choices=[],
         reward=0,
         metadata={"email_inbox": scenario.inbox_address, "scenario_id": scenario.id},
     )
-    assert isinstance(model.config, ProjectPolicyConfig)
+    assert isinstance(model.config, PolicyConfig)
+
+    if model.config.log_to_langfuse:
+        litellm.success_callback = ["langfuse"]
+        litellm.failure_callback = ["langfuse"]
+        langfuse_context.update_current_trace(
+            metadata={"email_inbox": scenario.inbox_address, "scenario_id": scenario.id}
+        )
 
     system_prompt = textwrap.dedent(f"""\
         You are an email search agent. You are given a user query and a list of tools you can use to search the user's email. Use the tools to search the user's emails and find the answer to the user's query. You may take up to {model.config.max_turns} turns to find the answer, so if your first seach doesn't find the answer, you can try with different keywords.
@@ -242,13 +237,13 @@ async def rollout(
             rubric.ran_out_of_turns = True
             break
 
-        litellm_model_name = model.config.litellm_model_name
-        if litellm_model_name is None:
-            litellm_model_name = f"hosted_vllm/{model.name}"
+        model_name = model.get_inference_name()
+        if isinstance(model, art.TrainableModel):
+            model_name = f"hosted_vllm/{model_name}"
 
         async with traj.track_duration("llm_completion"):
             llm_response = await acompletion(
-                model=litellm_model_name,
+                model=model_name,
                 base_url=model.inference_base_url,
                 messages=traj.messages(),
                 caching=not model.trainable,
@@ -258,6 +253,11 @@ async def rollout(
                 tool_choice="required"
                 if model.config.use_tools and not model.trainable
                 else None,
+                metadata={
+                    "generation_name": "agent_turn",
+                    "existing_trace_id": langfuse_context.get_current_trace_id(),
+                    "parent_observation_id": langfuse_context.get_current_observation_id(),
+                },
             )  # type: ignore
 
         assert isinstance(llm_response, ModelResponse)
@@ -269,10 +269,7 @@ async def rollout(
         # Our rollout is only set up to handle one tool call at a time, so just ignore any parallel tool calls.
         if choice.message.tool_calls is not None and len(choice.message.tool_calls) > 1:
             choice.message.tool_calls = choice.message.tool_calls[:1]
-        if model.trainable:
-            traj.messages_and_choices.append(convert_litellm_choice_to_openai(choice))
-        else:
-            traj.messages_and_choices.append(choice.message.to_dict())  # type: ignore
+        traj.messages_and_choices.append(convert_litellm_choice_to_openai(choice))
 
         if model.config.use_tools:
             tool_call = (
@@ -379,34 +376,17 @@ async def rollout(
                 rubric.bad_tool_call_name = True
                 break
 
-    reward = calculate_reward(model.config, rubric, traj)
-    traj.reward = reward
-    traj.metrics = rubric.to_metrics()
-    rollout_end_time = datetime.now()  # Record end time
-    # Compute duration in seconds and add to metrics
-    duration_seconds = (rollout_end_time - rollout_start_time).total_seconds()
-    traj.metrics["duration"] = duration_seconds
+    traj.finish()
+    traj.reward = calculate_reward(model.config, rubric, traj)
+    traj.metrics = asdict(rubric)
 
-    if model.config.log_to_openpipe and op_client is not None:
-        try:
-            await op_client.report(
-                requested_at=rollout_start_time.timestamp() * 1000,
-                received_at=rollout_end_time.timestamp() * 1000,
-                req_payload={
-                    "model": model.name,
-                    "messages": traj.messages()[:-1],
-                    "metadata": {
-                        "type": "enron_rollout_final",
-                        "reward": str(traj.reward),
-                        **{k: str(v) for k, v in traj.metrics.items()},
-                        **{k: str(v) for k, v in traj.metadata.items()},
-                    },
-                },
-                resp_payload=llm_response,
-                status_code=200,
-            )
-        except Exception as e:
-            print(f"Error reporting to OpenPipe: {e}")
+    if model.config.log_to_langfuse:
+        langfuse_context.update_current_trace(
+            metadata={**traj.metadata, "model": model.name}
+        )
+        langfuse_context.score_current_trace(name="reward", value=traj.reward)
+        for k, v in traj.metrics.items():
+            langfuse_context.score_current_trace(name=k, value=v)
 
     return traj.finish()
 
@@ -424,9 +404,9 @@ if __name__ == "__main__":
             art.Model(
                 name="gpt-4o",
                 project="email_agent",
-                config=ProjectPolicyConfig(
-                    log_to_openpipe=False,
-                    litellm_model_name="openai/gpt-4o",
+                inference_model_name="openai/gpt-4.1",
+                config=PolicyConfig(
+                    log_to_langfuse=True,
                     use_tools=True,
                 ),
             ),

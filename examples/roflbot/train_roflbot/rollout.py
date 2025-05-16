@@ -6,7 +6,6 @@ import litellm
 from litellm.caching.caching import LiteLLMCacheType, Cache
 from litellm.types.utils import Choices, ModelResponse
 from art.utils.litellm import convert_litellm_choice_to_openai
-from art.utils import limit_concurrency
 import textwrap
 from tenacity import retry, stop_after_attempt
 from project_types import PolicyConfig
@@ -147,8 +146,6 @@ async def rollout_with_langfuse(
     return await rollout_implementation(model, scenario)
 
 
-@retry(stop=stop_after_attempt(3))
-@limit_concurrency(50, derive_key=lambda model, scenario, **kwargs: model.name)
 async def rollout_implementation(
     model: art.Model,
     scenario: RedditJoke,
@@ -200,6 +197,7 @@ async def rollout_implementation(
                 "existing_trace_id": langfuse_context.get_current_trace_id(),
                 "parent_observation_id": langfuse_context.get_current_observation_id(),
             },
+            timeout=60 * 60 * 2,
         )
     assert isinstance(llm_response, ModelResponse)
     traj.metrics["prompt_tokens"] = llm_response.usage.prompt_tokens  # type: ignore
@@ -252,8 +250,6 @@ async def rollout_implementation(
 
     async with traj.track_duration("score_joke"):
         traj.metrics["rm_score"] = await score_joke(scenario.title, joke_content)
-
-    traj.reward = calculate_reward(model.config, traj.metrics)
 
     return await traj.finish(model.name, model.config)
 
