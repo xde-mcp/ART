@@ -264,12 +264,19 @@ def patch_get_lora_tokenizer_async() -> None:
 
     Specifically, Unsloth patches get_lora_tokenizer_async with a non-async function, which causes issues.
     """
-    import vllm.transformers_utils.tokenizer_group as tg
+    import vllm.transformers_utils.tokenizer
+
+    async def _return_nothing(*_, **__) -> None:
+        return None
+
+    vllm.transformers_utils.tokenizer.get_lora_tokenizer_async = _return_nothing  # type: ignore
 
     async def get_self_lora_tokenizer_async(self, *args, **kwargs):
         return self.tokenizer
 
-    tg.TokenizerGroup.get_lora_tokenizer_async = get_self_lora_tokenizer_async  # type: ignore
+    import vllm.transformers_utils.tokenizer_group
+
+    vllm.transformers_utils.tokenizer_group.TokenizerGroup.get_lora_tokenizer_async = get_self_lora_tokenizer_async  # type: ignore
 
 
 def patch_listen_for_disconnect() -> None:
