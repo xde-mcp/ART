@@ -91,13 +91,13 @@ models["017"] = models["008"].model_copy(deep=True)
 models["017"].name = "email-agent-017"
 assert isinstance(models["017"].config, PolicyConfig)
 assert models["017"].config.training_config is not None
-models["017"].config.training_config.pinned_art_version = "0.3.6"
+models["017"].config.training_config.art_location = "0.3.6"
 
 models["018"] = models["008"].model_copy(deep=True)
 models["018"].name = "email-agent-018"
 assert isinstance(models["018"].config, PolicyConfig)
 assert models["018"].config.training_config is not None
-models["018"].config.training_config.pinned_art_version = "0.3.6"
+models["018"].config.training_config.art_location = "0.3.6"
 
 models["019"] = models["008"].model_copy(deep=True)
 models["019"].name = "email-agent-019"
@@ -105,7 +105,17 @@ assert isinstance(models["019"].config, PolicyConfig)
 assert models["019"].config.training_config is not None
 models["019"].config.training_config.rollout_concurrency = 100
 models["019"].config.max_groups_in_flight = 48
-models["019"].config.training_config.pinned_art_version = "0.3.6"
+models["019"].config.training_config.art_location = "0.3.6"
+
+models["020"] = models["008"].model_copy(deep=True)
+models["020"].name = "email-agent-020"
+assert isinstance(models["020"].config, PolicyConfig)
+assert models["020"].config.training_config is not None
+models[
+    "020"
+].config.training_config.art_location = (
+    "git+https://github.com/OpenPipe/ART.git@potential_fix"
+)
 
 parser = argparse.ArgumentParser(
     description="Train one or more art-e models (comma separated)."
@@ -152,22 +162,16 @@ def launch_model(model_key: str):
     training_config = model.config.training_config
 
     setup_script = textwrap.dedent(
-        """
+        f"""
             echo 'Setting up environment...'
             apt install -y nvtop
             curl -LsSf https://astral.sh/uv/install.sh | sh
             source $HOME/.local/bin/env
 
             uv remove openpipe-art
+            uv add {model.config.training_config.art_location}
         """
     )
-
-    if model.config.training_config.pinned_art_version:
-        setup_script += (
-            f"uv add openpipe-art=={model.config.training_config.pinned_art_version}"
-        )
-    else:
-        setup_script += "uv add --editable ~/ART"
 
     model_dict = model.model_dump()
     model_dict["config"] = model.config.model_dump()

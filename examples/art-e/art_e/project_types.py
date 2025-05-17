@@ -10,7 +10,7 @@ class TrainingConfig(BaseModel):
     training_dataset_size: int = 4000
     num_epochs: int = 4
     gpus: str = "H100-SXM:1"
-    pinned_art_version: str | None = None
+    art_location: str = "--editable ~/ART"
     rollout_concurrency: int = 100
 
 
