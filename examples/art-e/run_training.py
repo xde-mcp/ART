@@ -117,6 +117,16 @@ models[
     "git+https://github.com/OpenPipe/ART.git@potential_fix"
 )
 
+models["021"] = models["008"].model_copy(deep=True)
+models["021"].name = "email-agent-021"
+assert isinstance(models["021"].config, PolicyConfig)
+assert models["021"].config.training_config is not None
+models[
+    "021"
+].config.training_config.art_location = (
+    "git+https://github.com/OpenPipe/ART.git@new_vllm_old_unsloth"
+)
+
 parser = argparse.ArgumentParser(
     description="Train one or more art-e models (comma separated)."
 )
