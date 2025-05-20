@@ -14,6 +14,8 @@ Tools = list[ChatCompletionToolParam]
 class TrainConfig(pydantic.BaseModel):
     learning_rate: float = 5e-6
     beta: float = 0.0
+    clip_epsilon_low: float = 0.2
+    clip_epsilon_high: float = 0.28
 
 
 Verbosity = Literal[0, 1, 2]
