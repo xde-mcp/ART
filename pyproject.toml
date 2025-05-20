@@ -12,7 +12,7 @@ dependencies = [
     "torch>=2.5.1",
     "torchao>=0.9.0",
     "unsloth==2025.3.19 ; sys_platform == 'linux'",
-    "unsloth-zoo==2025.3.17 ; sys_platform == 'linux'",
+    "unsloth-zoo @ git+https://github.com/saum7800/unsloth.git@new_vllm_old_unsloth_test ; sys_platform == 'linux'",
     "vllm>=0.8.5",
     "wandb>=0.19.8",
     "peft>=0.14.0",
