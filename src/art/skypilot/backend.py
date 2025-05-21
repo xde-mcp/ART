@@ -1,3 +1,4 @@
+import asyncio
 from typing import TYPE_CHECKING, cast
 import sky
 import os
@@ -32,6 +33,7 @@ class SkyPilotBackend(Backend):
         resources: sky.Resources | None = None,
         art_version: str | None = None,
         env_path: str | None = None,
+        force_restart: bool = False,
     ) -> "SkyPilotBackend":
         self = cls.__new__(cls)
         self._cluster_name = cluster_name
@@ -74,10 +76,21 @@ class SkyPilotBackend(Backend):
         else:
             print(f"Cluster {self._cluster_name} exists, using it...")
 
-        if await is_task_created(
+        art_server_running = await is_task_created(
             cluster_name=self._cluster_name, task_name="art_server"
-        ):
-            print("Art server task already running, using it...")
+        )
+
+        if art_server_running and force_restart:
+            print("force_restart=True; cancelling existing art_server task…")
+            await to_thread_typed(
+                lambda: sky.cancel(cluster_name=self._cluster_name, all=True)
+            )
+            # wait 5 seconds to ensure the server finishes winding down
+            await asyncio.sleep(5)
+            art_server_running = False
+
+        if art_server_running:
+            print("Art server task already running, using it…")
         else:
             art_server_task = sky.Task(name="art_server", run="uv run art")
             resources = await to_thread_typed(
@@ -85,6 +98,12 @@ class SkyPilotBackend(Backend):
                     "handle"
                 ].launched_resources
             )
+
+            # If a local path was provided for art_version, ensure it is mounted so the latest
+            # code is synced to the remote cluster every time we (re)launch the art_server task.
+            if art_version is not None and os.path.exists(art_version):
+                art_server_task.workdir = art_version
+
             art_server_task.set_resources(cast(sky.Resources, resources))
             art_server_task.update_envs(self._envs)
 
@@ -137,11 +156,7 @@ class SkyPilotBackend(Backend):
                 art_installation_command = f"uv pip install openpipe-art=={art_version}"
             elif os.path.exists(art_version):
                 # copy the contents of the art_path onto the new machine
-                task.set_file_mounts(
-                    {
-                        "~/sky_workdir": art_version,
-                    }
-                )
+                task.workdir = art_version
                 art_installation_command = "uv sync"
             else:
                 raise ValueError(
