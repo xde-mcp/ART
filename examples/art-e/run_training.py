@@ -117,15 +117,99 @@ models[
     "git+https://github.com/OpenPipe/ART.git@potential_fix"
 )
 
-models["021"] = models["008"].model_copy(deep=True)
-models["021"].name = "email-agent-021"
-assert isinstance(models["021"].config, PolicyConfig)
-assert models["021"].config.training_config is not None
+models["022"] = models["008"].model_copy(deep=True)
+models["022"].name = "email-agent-022"
+assert isinstance(models["022"].config, PolicyConfig)
+assert models["022"].config.training_config is not None
 models[
-    "021"
+    "022"
 ].config.training_config.art_location = (
     "git+https://github.com/OpenPipe/ART.git@new_vllm_old_unsloth"
 )
+
+models["023"] = models["008"].model_copy(deep=True)
+models["023"].name = "email-agent-023"
+assert isinstance(models["023"].config, PolicyConfig)
+assert models["023"].config.training_config is not None
+models[
+    "023"
+].config.training_config.art_location = (
+    "git+https://github.com/OpenPipe/ART.git@old_vllm_new_unsloth"
+)
+
+# for this one, potential fix returned None for both definitions of _get_async_lora_tokenizer and returned self.tokenizer for the class fn
+models["024"] = models["008"].model_copy(deep=True)
+models["024"].name = "email-agent-024"
+assert isinstance(models["024"].config, PolicyConfig)
+assert models["024"].config.training_config is not None
+models[
+    "024"
+].config.training_config.art_location = (
+    "git+https://github.com/OpenPipe/ART.git@potential_fix"
+)
+
+# for this one, old vllm is 0.8.4, which is the last version before which they changed the TokenizerGroup organization. not sure if it has anything to do with this but still
+models["025"] = models["008"].model_copy(deep=True)
+models["025"].name = "email-agent-025"
+assert isinstance(models["025"].config, PolicyConfig)
+assert models["025"].config.training_config is not None
+models[
+    "025"
+].config.training_config.art_location = (
+    "git+https://github.com/OpenPipe/ART.git@old_vllm_new_unsloth"
+)
+
+models["026"] = models["008"].model_copy(deep=True)
+models["026"].name = "email-agent-026"
+assert isinstance(models["026"].config, PolicyConfig)
+assert models["026"].config.training_config is not None
+models[
+    "026"
+].config.training_config.art_location = (
+    "git+https://github.com/OpenPipe/ART.git@vllm_0_8_3_new_unsloth"
+)
+
+models["027"] = models["008"].model_copy(deep=True)
+models["027"].name = "email-agent-027"
+assert isinstance(models["027"].config, PolicyConfig)
+assert models["027"].config.training_config is not None
+models[
+    "027"
+].config.training_config.art_location = (
+    "git+https://github.com/OpenPipe/ART.git@vllm_0_8_1_new_unsloth"
+)
+
+models["028"] = models["008"].model_copy(deep=True)
+models["028"].name = "email-agent-028"
+assert isinstance(models["028"].config, PolicyConfig)
+assert models["028"].config.training_config is not None
+models[
+    "028"
+].config.training_config.art_location = (
+    "git+https://github.com/OpenPipe/ART.git@vllm_0_8_0_new_unsloth"
+)
+
+models["029"] = models["008"].model_copy(deep=True)
+models["029"].name = "email-agent-029"
+assert isinstance(models["029"].config, PolicyConfig)
+assert models["029"].config.training_config is not None
+models[
+    "029"
+].config.training_config.art_location = (
+    "git+https://github.com/OpenPipe/ART.git@vllm_0_7_3_new_unsloth"
+)
+
+models["030"] = models["008"].model_copy(deep=True)
+models["030"].name = "email-agent-030"
+assert isinstance(models["030"].config, PolicyConfig)
+assert models["030"].config.training_config is not None
+models[
+    "030"
+].config.training_config.art_location = (
+    "git+https://github.com/OpenPipe/ART.git@main"
+)
+
+
 
 parser = argparse.ArgumentParser(
     description="Train one or more art-e models (comma separated)."

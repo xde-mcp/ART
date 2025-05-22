@@ -1,0 +1,24 @@
+[project]
+name = "debug-art"
+version = "0.1.0"
+description = "debug-art"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "openpipe-art",
+    "skypilot[runpod]>=0.9",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["debug_art*"]
+
+[tool.uv.sources]
+debug-art = { workspace = true }
+openpipe-art = { path = "../../", editable = true }
+
+[dependency-groups]
+dev = ["debug-art"]
