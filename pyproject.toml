@@ -13,7 +13,7 @@ dependencies = [
     "torchao>=0.9.0",
     "unsloth==2025.5.1 ; sys_platform == 'linux'",
     "unsloth-zoo==2025.5.1 ; sys_platform == 'linux'",
-    "vllm @ git+https://github.com/vllm-project/vllm.git@8d6cf89526ff983b7eb74aad3903138004ae95cd",
+    "vllm",
     "wandb>=0.19.8",
     "peft>=0.14.0",
     "typer>=0.15.2",
@@ -61,3 +61,8 @@ prerelease = "allow"
 
 [tool.uv.sources]
 panza = { git = "https://github.com/corbt/panza.git" }
+vllm = { index = "vllm081rc1" }
+
+[[tool.uv.index]]
+name = "vllm081rc1"
+url = "https://wheels.vllm.ai/8d6cf89526ff983b7eb74aad3903138004ae95cd"
