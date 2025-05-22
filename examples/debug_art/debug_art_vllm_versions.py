@@ -21,10 +21,15 @@ configs["0.8.0-tool-calls"] = {
 
 configs["ef640440791a461a181e6d497965701462c166b3-tool-calls"] = {
     "art_location": "openpipe-art",
-    "run_script": "uv run logprob_check_tool_calls.py",
+    "run_script": "python logprob_check_tool_calls.py",
     "vllm_commit": "ef640440791a461a181e6d497965701462c166b3",
 }
 
+configs["128bf7528370d792099c66f301c6c5deef8f4110-tool-calls"] = {
+    "art_location": "openpipe-art",
+    "run_script": "python logprob_check_tool_calls.py",
+    "vllm_commit": "128bf7528370d792099c66f301c6c5deef8f4110",
+}
 
 parser = argparse.ArgumentParser(
     description="Train one or more art-e models (comma separated)."
@@ -84,7 +89,7 @@ def launch_model(config_str: str):
             source $HOME/.local/bin/env
 
             uv remove openpipe-art
-            uv add {config["art_location"]}
+            uv pip install -e ~/ART
         """
     )
 
