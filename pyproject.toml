@@ -65,4 +65,4 @@ vllm = { index = "vllm081rc1" }
 
 [[tool.uv.index]]
 name = "vllm081rc1"
-url = "https://wheels.vllm.ai/66e16a038e9fe8bf04e133858621cd9803e7145b"
+url = "https://wheels.vllm.ai/ef640440791a461a181e6d497965701462c166b3"
