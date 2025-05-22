@@ -1,5 +1,7 @@
 # Usage: uv run debug_art.py --configs=0.7.3
 import argparse
+import os
+import re
 import sky
 import textwrap
 from dotenv import load_dotenv, dotenv_values
@@ -12,14 +14,14 @@ load_dotenv()
 configs = {}
 
 configs["0.8.0-tool-calls"] = {
-    "art_location": "git+https://github.com/OpenPipe/ART.git@vllm_0_8_0_new_unsloth",
-    "run_script": "source .venv/bin/activate && python logprob_check_tool_calls.py",
+    "art_location": "openpipe-art",
+    "run_script": "uv run logprob_check_tool_calls.py",
     "vllm_commit": "v0.8.0",
 }
 
 configs["ef640440791a461a181e6d497965701462c166b3-tool-calls"] = {
-    "art_location": "git+https://github.com/OpenPipe/ART.git@vllm_0_8_0_new_unsloth",
-    "run_script": "source .venv/bin/activate && python logprob_check_tool_calls.py",
+    "art_location": "openpipe-art",
+    "run_script": "uv run logprob_check_tool_calls.py",
     "vllm_commit": "ef640440791a461a181e6d497965701462c166b3",
 }
 
@@ -43,6 +45,33 @@ if unknown:
         f"Unknown config requested: {', '.join(unknown)}. Valid configs: {', '.join(configs.keys())}"
     )
 
+def _update_pyproject(vllm_commit: str, art_location: str = ".") -> None:
+    """
+    Replace the existing vllm wheels URL in pyproject.toml with one that ends
+    in the supplied commit/tag string.
+
+    Args:
+        vllm_commit: e.g. "ef640440791a461a181e6d497965701462c166b3"
+        art_location: directory that contains pyproject.toml
+    """
+    pyproject = os.path.join(art_location, "pyproject.toml")
+    if not os.path.exists(pyproject):        # fall back to repo root
+        raise RuntimeError("pyproject.toml not found")
+
+    with open(pyproject, "r") as f:
+        text = f.read()
+
+    # Match ANY current wheels.vllm.ai fragment and replace it
+    new_url = f"https://wheels.vllm.ai/{vllm_commit}"
+    text, n = re.subn(r"https://wheels\.vllm\.ai/[^\s\"']+", new_url, text, count=1)
+
+    if n == 0:
+        raise RuntimeError("vllm wheels URL not found in pyproject.toml")
+
+    with open(pyproject, "w") as f:
+        f.write(text)
+    print(f"✅  Updated {pyproject} → {new_url}")
+
 def launch_model(config_str: str):
     config = configs[config_str]
     print(f"Launching {config} on SkyPilot…")
@@ -56,11 +85,10 @@ def launch_model(config_str: str):
 
             uv remove openpipe-art
             uv add {config["art_location"]}
-            uv remove vllm
-            uv pip install vllm --extra-index-url https://wheels.vllm.ai/{config["vllm_commit"]}
         """
     )
-    print(setup_script)
+
+    _update_pyproject(config["vllm_commit"], "../..")
 
     run_script = config["run_script"]
 
