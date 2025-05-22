@@ -13,7 +13,7 @@ dependencies = [
     "torchao>=0.9.0",
     "unsloth==2025.5.1 ; sys_platform == 'linux'",
     "unsloth-zoo==2025.5.1 ; sys_platform == 'linux'",
-    "vllm>=0.8.5",
+    "vllm",
     "wandb>=0.19.8",
     "peft>=0.14.0",
     "typer>=0.15.2",
@@ -29,6 +29,7 @@ dependencies = [
 
 [project.scripts]
 art = "art.cli:app"
+stop-server = "art.skypilot.stop_server:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -56,6 +57,12 @@ override-dependencies = [
     "bitsandbytes; sys_platform == 'linux'",
     "xformers; sys_platform == 'linux'",
 ]
+prerelease = "allow"
 
 [tool.uv.sources]
 panza = { git = "https://github.com/corbt/panza.git" }
+vllm = { index = "vllm081rc1" }
+
+[[tool.uv.index]]
+name = "vllm081rc1"
+url = "https://wheels.vllm.ai/ef640440791a461a181e6d497965701462c166b3"
