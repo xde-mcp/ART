@@ -209,6 +209,35 @@ models[
     "git+https://github.com/OpenPipe/ART.git@main"
 )
 
+models["032"] = models["008"].model_copy(deep=True)
+models["032"].name = "email-agent-032"
+assert isinstance(models["032"].config, PolicyConfig)
+assert models["032"].config.training_config is not None
+models[
+    "032"
+].config.training_config.art_location = (
+    "git+https://github.com/OpenPipe/ART.git@vllm_0_8_1_new_unsloth"
+)
+models["032"]._internal_config = {
+    "engine_args": {
+        "generation_config": "vllm",
+    }
+}
+
+models["033"] = models["008"].model_copy(deep=True)
+models["033"].name = "email-agent-033"
+assert isinstance(models["033"].config, PolicyConfig)
+assert models["033"].config.training_config is not None
+models[
+    "033"
+].config.training_config.art_location = (
+    "git+https://github.com/OpenPipe/ART.git@potential_fix"
+)
+models["033"]._internal_config = {
+    "engine_args": {
+        "generation_config": "vllm",
+    }
+}
 
 
 parser = argparse.ArgumentParser(

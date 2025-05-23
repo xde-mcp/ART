@@ -30,6 +30,11 @@ async def main():
         name="logprob-check-14b",
         project="logprob_check",
         base_model="Qwen/Qwen2.5-14B-Instruct",
+        _internal_config={
+            "engine_args": {
+                "generation_config": "vllm",
+            }
+        }
     )
 
     with LocalBackend() as backend:

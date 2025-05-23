@@ -31,6 +31,60 @@ configs["128bf7528370d792099c66f301c6c5deef8f4110-tool-calls"] = {
     "vllm_commit": "128bf7528370d792099c66f301c6c5deef8f4110",
 }
 
+configs["432d6dad15e74ba2d5f2f97f9693706b0930b2f0-tool-calls"] = {
+    "art_location": "openpipe-art",
+    "run_script": "python logprob_check_tool_calls.py",
+    "vllm_commit": "432d6dad15e74ba2d5f2f97f9693706b0930b2f0",
+}
+
+configs["a21076ed3a4077e79afe0a3b422f89f9a920154d-tool-calls"] = {
+    "art_location": "openpipe-art",
+    "run_script": "python logprob_check_tool_calls.py",
+    "vllm_commit": "a21076ed3a4077e79afe0a3b422f89f9a920154d",
+}
+
+configs["0b7f06b447e513dabfb87f490713516943c7c371-tool-calls"] = {
+    "art_location": "openpipe-art",
+    "run_script": "python logprob_check_tool_calls.py",
+    "vllm_commit": "0b7f06b447e513dabfb87f490713516943c7c371",
+}
+
+configs["b8b0ccbd2dd4325a916dd5c2735d3320da1600ad-tool-calls"] = {
+    "art_location": "openpipe-art",
+    "run_script": "python logprob_check_tool_calls.py",
+    "vllm_commit": "b8b0ccbd2dd4325a916dd5c2735d3320da1600ad",
+}
+
+configs["333681408feabb97193880303b23f6571ba39045-tool-calls"] = {
+    "art_location": "openpipe-art",
+    "run_script": "python logprob_check_tool_calls.py",
+    "vllm_commit": "333681408feabb97193880303b23f6571ba39045",
+}
+
+configs["47512b3200156cc0db4a62791d2f7fefcaecb6ad-tool-calls"] = {
+    "art_location": "openpipe-art",
+    "run_script": "python logprob_check_tool_calls.py",
+    "vllm_commit": "47512b3200156cc0db4a62791d2f7fefcaecb6ad",
+}
+
+configs["9f3bc0f58c431404f02372e22b4050460e2be448-tool-calls"] = {
+    "art_location": "openpipe-art",
+    "run_script": "python logprob_check_tool_calls.py",
+    "vllm_commit": "9f3bc0f58c431404f02372e22b4050460e2be448",
+}
+
+configs["3b9c6c69476fa29bc3c719a431564579a48e8b17-tool-calls"] = {
+    "art_location": "openpipe-art",
+    "run_script": "python logprob_check_tool_calls.py",
+    "vllm_commit": "3b9c6c69476fa29bc3c719a431564579a48e8b17",
+}
+
+configs["4aae667668e59509ab152b08c5eb617b8ae1187a-tool-calls"] = {
+    "art_location": "openpipe-art",
+    "run_script": "python logprob_check_tool_calls.py",
+    "vllm_commit": "4aae667668e59509ab152b08c5eb617b8ae1187a",
+}
+
 parser = argparse.ArgumentParser(
     description="Train one or more art-e models (comma separated)."
 )
@@ -39,6 +93,13 @@ parser.add_argument(
     type=str,
     required=True,
     help="The configs to use (e.g. 0.7.3,0.8.0).",
+)
+parser.add_argument(
+    "--cluster-name",
+    type=str,
+    required=False,
+    default="saumya-art-debug-cluster",
+    help="The cluster name to use.",
 )
 args = parser.parse_args()
 
@@ -88,8 +149,8 @@ def launch_model(config_str: str):
             curl -LsSf https://astral.sh/uv/install.sh | sh
             source $HOME/.local/bin/env
 
-            uv remove openpipe-art
-            uv pip install -e ~/ART
+            uv pip uninstall openpipe-art
+            uv pip install -e ~/ART --force-reinstall
         """
     )
 
@@ -111,7 +172,7 @@ def launch_model(config_str: str):
 
     # Generate cluster name
     # cluster_name = f"saumya-art-debug-{config_str}"
-    cluster_name = "saumya-art-debug-cluster"
+    cluster_name = args.cluster_name
     print(f"Launching task on cluster: {cluster_name}")
 
     print("Checking for existing cluster and jobs…")

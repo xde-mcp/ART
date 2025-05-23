@@ -15,6 +15,7 @@ load_dotenv()
 
 
 async def run_training(model: art.TrainableModel):
+    print(f"Model internal config: {model._internal_config}")
     generate_database()
 
     assert isinstance(model.config, PolicyConfig)
@@ -99,6 +100,8 @@ if __name__ == "__main__":
     print("Model JSON: ", args.model_json)
 
     model_dict = json.loads(args.model_json)
-    model = art.TrainableModel(**model_dict)
+    model = art.TrainableModel(**model_dict, _internal_config={"engine_args": {
+        "generation_config": "vllm",
+    }})
     model.config = PolicyConfig(**model_dict["config"])
     asyncio.run(run_training(model))
