@@ -47,9 +47,15 @@ def run(host: str = "0.0.0.0", port: int = 7999) -> None:
     app.get("/healthcheck")(lambda: {"status": "ok"})
     app.post("/close")(backend.close)
     app.post("/register")(backend.register)
-    app.post("/_prepare_backend_for_training")(backend._prepare_backend_for_training)
     app.post("/_get_step")(backend._get_step)
     app.post("/_delete_checkpoints")(backend._delete_checkpoints)
+
+    @app.post("/_prepare_backend_for_training")
+    async def _prepare_backend_for_training(
+        model: TrainableModel,
+        config: dev.OpenAIServerConfig | None = Body(None),
+    ):
+        return await backend._prepare_backend_for_training(model, config)
 
     @app.post("/_log")
     async def _log(
@@ -65,10 +71,11 @@ def run(host: str = "0.0.0.0", port: int = 7999) -> None:
         trajectory_groups: list[TrajectoryGroup],
         config: TrainConfig,
         dev_config: dev.TrainConfig,
+        verbose: bool = Body(False),
     ) -> StreamingResponse:
         async def stream() -> AsyncIterator[str]:
             async for result in backend._train_model(
-                model, trajectory_groups, config, dev_config
+                model, trajectory_groups, config, dev_config, verbose
             ):
                 yield json.dumps(result) + "\n"
 
