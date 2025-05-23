@@ -46,6 +46,11 @@ configs["0.8.0-rc1-tool-calls"] = {
     "run_script": "uv run logprob_check_tool_calls.py",
 }
 
+configs["0.8.5-tool-calls"] = {
+    "art_location": "git+https://github.com/OpenPipe/ART.git@potential_fix",
+    "run_script": "uv run logprob_check_tool_calls.py",
+}
+
 parser = argparse.ArgumentParser(
     description="Train one or more art-e models (comma separated)."
 )
