@@ -208,10 +208,11 @@ class SkyPilotBackend(Backend):
             )
 
             await to_thread_typed(
-                sky.tail_logs,
-                cluster_name=self._cluster_name,
-                job_id=job_id,
-                follow=True,
+                lambda: sky.tail_logs(
+                    cluster_name=self._cluster_name,
+                    job_id=job_id,
+                    follow=True,
+                )
             )
 
         except Exception as e:
