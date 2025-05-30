@@ -10,3 +10,4 @@ unsloth_compiled_cache/
 wandb/
 docs/node_modules/
 dist/
+data/

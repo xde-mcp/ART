@@ -6,9 +6,9 @@
 
 <a href="https://colab.research.google.com/github/openpipe/art/blob/main/examples/2048/2048.ipynb"><img src="https://github.com/openpipe/art/raw/main/assets/Train_pill.png" height="48"></a>
 <a href="https://discord.gg/zbBHRUpwf4"><img src="https://github.com/openpipe/art/raw/main/assets/Discord_pill.png" height="48"></a>
-<a href="https://openpipe.ai/blog/art-trainer-a-new-rl-trainer-for-agents"><img src="https://github.com/openpipe/art/raw/main/assets/Launch_pill.png" height="48"></a>
+<a href="https://openpipe.ai/blog/art-e-mail-agent"><img src="https://github.com/openpipe/art/raw/main/assets/ART_E_pill.png" height="48"></a>
 
-### Train free-range RL agents with minimal code changes and maximal performance!
+### Train GRPO-powered RL agents for real-world tasks!
 
 ![](https://github.com/openpipe/art/raw/main/assets/Header_separator.png)
 
@@ -16,13 +16,22 @@
 
 # Agent Reinforcement Trainer (ART)
 
-ART is an open-source reinforcement training library for improving LLM performance in agentic workflows. Unlike most RL libraries, ART allows you to execute agent runs **in your existing codebase** while offloading all the complexity of the RL training loop to the ART backend. Read about the [ training loop](#training-loop-overview). Then try out one of the notebooks below!
+ART is an open-source reinforcement training library for improving LLM performance in agentic workflows. ART utilizes the powerful GRPO reinforcement learning algorithm to train models from their own experiences. Unlike most RL libraries, ART allows you to execute agent runs **in your existing codebase** while offloading all the complexity of the RL training loop to the ART backend. Read about the [ training loop](#training-loop-overview). Then try out one of the notebooks below!
 
 ## 📒 Notebooks
 
-| Agent Task | Example Notebook                                                                                                | Description                     | Comparative Performance |
-| ---------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------- | ----------------------- |
-| **2048**   | [🏋️ Train your agent](https://colab.research.google.com/github/openpipe/art/blob/main/examples/2048/2048.ipynb) | Qwen 2.5 3B learns to play 2048 | [Link coming soon]      |
+| Agent Task        | Example Notebook                                                                                                             | Description                               | Comparative Performance                                                                                                                                                                                                                      |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **2048**          | [🏋️ Train agent](https://colab.research.google.com/github/openpipe/art/blob/main/examples/2048/2048.ipynb)                   | Qwen 2.5 3B learns to play 2048           | <img src="/assets/benchmarks/2048/accuracy-training-progress.svg" height="72"> [benchmarks](/examples/2048/benchmark_2048.ipynb)                            |
+| **Temporal Clue** | [🏋️ Train agent](https://colab.research.google.com/github/openpipe/art/blob/main/examples/temporal_clue/temporal-clue.ipynb) | Qwen 2.5 7B learns to solve Temporal Clue | [Link coming soon]                                                                                                                                                                                                                           |
+| **Tic Tac Toe**   | [🏋️ Train agent](https://colab.research.google.com/github/openpipe/art/blob/main/examples/tic_tac_toe/tic-tac-toe.ipynb)     | Qwen 2.5 3B learns to play Tic Tac Toe    | <img src="/assets/benchmarks/tic-tac-toe-local/accuracy-training-progress.svg" height="72"> [benchmarks](/examples/tic_tac_toe/benchmark_tic_tac_toe.ipynb) |
+| **Codenames**     | [🏋️ Train agent](https://colab.research.google.com/github/openpipe/art/blob/main/examples/codenames/Codenames_RL.ipynb)     | Qwen 2.5 3B learns to play Codenames    | <img src="/assets/benchmarks/codenames/win_rate_over_time.png" height="72"> [benchmarks](/examples/codenames/Codenames_RL.ipynb) |
+
+## 🤖 ART•E Agent
+
+Curious about how to use ART for a real-world task? Check out the [ART•E Agent](https://openpipe.ai/blog/art-e-mail-agent) blog post, where we detail how we trained Qwen 2.5 14B to beat o3 at email retrieval!
+
+<img src="https://github.com/openpipe/art/raw/main/assets/ART_E_graphs.png" width="700">
 
 ## 🔁 Training Loop Overview
 
@@ -43,17 +52,30 @@ ART's functionality is divided into a **client** and a **server**. The OpenAI-co
 
 This training loop runs until a specified number of inference and training iterations have completed.
 
-## Supported Models
+## 🧩 Supported Models
 
 ART should work with most vLLM/HuggingFace-transformers compatible causal language models, or at least the ones supported by [Unsloth](https://docs.unsloth.ai/get-started/all-our-models). Gemma 3 does not appear to be supported for the time being. If any other model isn't working for you, please let us know on [Discord](https://discord.gg/zbBHRUpwf4) or open an issue on [GitHub](https://github.com/openpipe/art/issues)!
 
-## ⚠️ Disclaimer
-
-ART is currently in alpha and has only been tested on a few projects in the wild! We're working hard to make it work for everyone, but if you run into any issues, please let us know on [Discord](https://discord.gg/zbBHRUpwf4) or open an issue on [GitHub](https://github.com/openpipe/art/issues)!
-
 ## 🤝 Contributing
 
-ART is in very active development, and contributions are most welcome! Please see the [CONTRIBUTING.md](CONTRIBUTING.md) file for more information.
+ART is in active development, and contributions are most welcome! Please see the [CONTRIBUTING.md](CONTRIBUTING.md) file for more information.
+
+## 📖 Citation
+
+```bibtex
+@misc{hilton2025art,
+  author = {Brad Hilton and Kyle Corbitt and David Corbitt and Saumya Gandhi and Angky William and Bohdan Kovalenskyi and Andie Jones},
+  title = {ART: Agent Reinforcement Trainer},
+  year = {2025},
+  publisher = {GitHub},
+  journal = {GitHub repository},
+  howpublished = {\url{https://github.com/openpipe/art}}
+}
+```
+
+## ⚖️ License
+
+This repository's source code is available under the [Apache-2.0 License](LICENSE).
 
 ## 🙏 Credits
 
