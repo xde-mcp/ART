@@ -160,7 +160,9 @@ def record_metrics(context: "GatherContext", trajectory: Trajectory) -> None:
         ) / len(logprobs)
     context.metric_sums["reward"] += trajectory.reward  # type: ignore
     context.metric_divisors["reward"] += 1
-    context.metric_sums.update(trajectory.metrics)
+    # Convert boolean values to floats before adding to metric_sums
+    for metric, value in trajectory.metrics.items():
+        context.metric_sums[metric] += float(value)
     context.metric_divisors.update(trajectory.metrics.keys())
 
 

@@ -90,8 +90,9 @@ def load_benchmarked_models(
                     ]
                     if len(trajectories_with_metric) == 0:
                         continue
+                    # Convert boolean values to floats before averaging
                     average = sum(
-                        trajectory.metrics[metric]
+                        float(trajectory.metrics[metric])
                         for trajectory in trajectories_with_metric
                     ) / len(trajectories_with_metric)
                     group_averages.append(average)
