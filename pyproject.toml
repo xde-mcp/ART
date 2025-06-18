@@ -14,7 +14,7 @@ dependencies = [
     "torchao>=0.9.0",
     "unsloth==2025.5.1 ; sys_platform == 'linux'",
     "unsloth-zoo==2025.5.1 ; sys_platform == 'linux'",
-    "vllm==0.8.5.post1",
+    "vllm==0.9.0.1",
     "wandb>=0.19.8",
     "weave>=0.51.51",
     "peft>=0.14.0",
@@ -27,6 +27,7 @@ dependencies = [
     "hf-xet>=1.1.0",
     "panza",
     "semver>=3.0.4",
+    "arctic_inference[vllm] @ git+https://github.com/OpenPipe/ArcticInference.git@v0.0.8 ; sys_platform == 'linux'",
 ]
 
 [project.optional-dependencies]
