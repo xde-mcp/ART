@@ -87,6 +87,7 @@ class EngineArgs(TypedDict, total=False):
     guided_decoding_backend: str
     logits_processor_pattern: str | None
     # Speculative decoding configuration.
+    speculative_config: dict[str, Any] | None
     speculative_model: str | None
     speculative_model_quantization: str | None
     speculative_draft_tensor_parallel_size: int | None
@@ -125,3 +126,8 @@ class EngineArgs(TypedDict, total=False):
     additional_config: dict[str, Any] | None
 
     disable_log_requests: bool
+
+    # arctic-inference
+    ulysses_sequence_parallel_size: int | None
+    enable_shift_parallel: bool | None
+    shift_parallel_threshold: int | None

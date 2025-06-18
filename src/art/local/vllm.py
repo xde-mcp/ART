@@ -15,8 +15,11 @@ from vllm.lora.request import LoRARequest
 from vllm.logger import _DATE_FORMAT, _FORMAT
 from vllm.utils import FlexibleArgumentParser
 from vllm.worker.multi_step_model_runner import MultiStepModelRunner
+from vllm.plugins import load_general_plugins
 
 from ..dev.openai_server import OpenAIServerConfig
+
+load_general_plugins()
 
 
 async def openai_server_task(
@@ -274,7 +277,9 @@ def patch_get_lora_tokenizer_async() -> None:
     vllm.transformers_utils.tokenizer_group.get_lora_tokenizer_async = (  # type: ignore
         _return_nothing
     )
-    vllm.transformers_utils.tokenizer_group.TokenizerGroup.get_lora_tokenizer_async = get_self_lora_tokenizer_async  # type: ignore
+    vllm.transformers_utils.tokenizer_group.TokenizerGroup.get_lora_tokenizer_async = (
+        get_self_lora_tokenizer_async  # type: ignore
+    )
 
 
 def patch_listen_for_disconnect() -> None:

@@ -3,8 +3,13 @@ import random
 import asyncio
 import argparse
 from dotenv import load_dotenv
+from vllm.plugins import load_general_plugins
+
+load_general_plugins()
 
 import art
+from art.utils.deploy_model import LoRADeploymentProvider
+
 from rollout import rollout, TicTacToeScenario
 
 
@@ -46,6 +51,22 @@ async def main():
         project="tic-tac-toe",
         base_model="meta-llama/Meta-Llama-3.1-8B-Instruct",
     )
+    # taken from https://github.com/snowflakedb/ArcticInference?tab=readme-ov-file#offline
+    model._internal_config = art.dev.InternalModelConfig(
+        engine_args=art.dev.EngineArgs(
+            quantization="fp8",
+            tensor_parallel_size=1,
+            ulysses_sequence_parallel_size=2,
+            enable_shift_parallel=True,
+            speculative_config={
+                "method": "arctic",
+                "model": "Snowflake/Arctic-LSTM-Speculator-Llama-3.1-8B-Instruct",
+                "num_speculative_tokens": 3,
+                "enable_suffix_decoding": True,
+                "disable_by_batch_size": 64,
+            },
+        )
+    )
 
     if PULL_FROM_S3:
         print("pulling from s3")
@@ -72,7 +93,7 @@ async def main():
     if DEPLOY_MODEL:
         print("deploying")
         deployment_result = await backend._experimental_deploy(
-            deploy_to="together",
+            deploy_to=LoRADeploymentProvider.TOGETHER,
             model=model,
             step=STEP,
             verbose=True,
@@ -97,8 +118,11 @@ async def main():
 
         print(traj)
 
-    if DESTROY_AFTER_RUN:
-        await backend.down()
+    if DESTROY_AFTER_RUN and args.backend == "skypilot":
+        from art.skypilot.backend import SkyPilotBackend
+
+        if isinstance(backend, SkyPilotBackend):
+            await backend.down()
 
     if GENERATE_BENCHMARKS:
         gpt_4o_mini = art.Model(
