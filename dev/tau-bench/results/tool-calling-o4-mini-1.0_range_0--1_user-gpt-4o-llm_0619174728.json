@@ -1,0 +1,12 @@
+[
+  {
+    "task_id": 1,
+    "reward": 0.0,
+    "info": {
+      "error": "cannot schedule new futures after shutdown",
+      "traceback": "Traceback (most recent call last):\n  File \"/Users/saumya/ART/dev/tau-bench/tau_bench/run.py\", line 78, in _run\n    res = agent.solve(\n          ^^^^^^^^^^^^\n  File \"/Users/saumya/ART/dev/tau-bench/tau_bench/agents/tool_calling_agent.py\", line 40, in solve\n    res = completion(\n          ^^^^^^^^^^^\n  File \"/Users/saumya/miniconda3/lib/python3.12/site-packages/litellm/utils.py\", line 1247, in wrapper\n    raise e\n  File \"/Users/saumya/miniconda3/lib/python3.12/site-packages/litellm/utils.py\", line 1178, in wrapper\n    executor.submit(\n  File \"/Users/saumya/miniconda3/lib/python3.12/concurrent/futures/thread.py\", line 170, in submit\n    raise RuntimeError('cannot schedule new futures after shutdown')\nRuntimeError: cannot schedule new futures after shutdown\n"
+    },
+    "traj": [],
+    "trial": 0
+  }
+]

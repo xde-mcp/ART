@@ -1,4 +1,5 @@
 # Copyright Sierra
+import warnings
 
 import os
 import json
@@ -16,6 +17,16 @@ from tau_bench.types import EnvRunResult, RunConfig
 from litellm import provider_list
 from tau_bench.envs.user import UserStrategy
 
+from langfuse import Langfuse
+from dotenv import load_dotenv
+load_dotenv()
+
+warnings.filterwarnings(
+    "ignore",
+    message="Pydantic serializer warnings:.*",
+    category=UserWarning,
+)
+
 
 def run(config: RunConfig) -> List[EnvRunResult]:
     assert config.env in ["retail", "airline"], "Only retail and airline envs are supported"
@@ -25,6 +36,11 @@ def run(config: RunConfig) -> List[EnvRunResult]:
     assert config.task_split in ["train", "test", "dev"], "Invalid task split"
     assert config.user_strategy in [item.value for item in UserStrategy], "Invalid user strategy"
 
+    langfuse = Langfuse(
+        secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
+        public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
+        host=os.getenv("LANGFUSE_HOST"),
+    )
     random.seed(config.seed)
     time_str = datetime.now().strftime("%m%d%H%M%S")
     ckpt_path = f"{config.log_dir}/{config.agent_strategy}-{config.model.split('/')[-1]}-{config.temperature}_range_{config.start_index}-{config.end_index}_user-{config.user_model}-{config.user_strategy}_{time_str}.json"
@@ -62,6 +78,24 @@ def run(config: RunConfig) -> List[EnvRunResult]:
             idxs = list(range(config.start_index, end_index))
         if config.shuffle:
             random.shuffle(idxs)
+        
+        # --- 2. helper -------
+        def log_trace_to_langfuse(
+            env_result: EnvRunResult,
+            task_idx: int,
+            cfg: RunConfig
+        ) -> None:
+            """
+            Push one full conversation to Langfuse.
+            """
+            # 2-a create / update the trace
+            trace = langfuse.trace(
+                name=f"{cfg.env}-task-{env_result.task_id}-{env_result.trial}",
+                input=env_result.info,
+                output=env_result.traj,
+            )
+            # 2-c attach numeric reward
+            trace.score(name="reward", value=env_result.reward)
 
         def _run(idx: int) -> EnvRunResult:
             isolated_env = get_env(
@@ -94,6 +128,7 @@ def run(config: RunConfig) -> List[EnvRunResult]:
                     traj=[],
                     trial=i,
                 )
+            log_trace_to_langfuse(result, idx, config)
             print(
                 "✅" if result.reward == 1 else "❌",
                 f"task_id={idx}",
@@ -118,6 +153,7 @@ def run(config: RunConfig) -> List[EnvRunResult]:
     with open(ckpt_path, "w") as f:
         json.dump([result.model_dump() for result in results], f, indent=2)
         print(f"\n📄 Results saved to {ckpt_path}\n")
+    langfuse.flush()
     return results
 
 
