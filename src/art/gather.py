@@ -184,9 +184,24 @@ class GatherContext:
         if self.max_metrics is not None:
             included_metrics = list(self.metric_sums.keys())[: self.max_metrics]
         for metric in included_metrics:
-            sum = self.metric_sums[metric]
+            sum_value = self.metric_sums[metric]
             divisor = max(1, self.metric_divisors[metric])
-            postfix[metric] = sum / divisor
+            avg_value = sum_value / divisor
+            
+            # Check if this metric appears to be boolean-like
+            # (values close to 0 or 1, indicating it's likely a rate/percentage metric)
+            if self._is_boolean_metric(metric, avg_value):
+                # Format as percentage for better readability
+                if avg_value >= 0.995:
+                    postfix[metric] = "100%"
+                elif avg_value <= 0.005:
+                    postfix[metric] = "0%"
+                else:
+                    postfix[metric] = f"{avg_value:.1%}"
+            else:
+                # For non-boolean metrics, keep the original formatting
+                postfix[metric] = avg_value
+        
         # move token metrics to the end
         for key in (
             "prompt_tokens",
@@ -196,6 +211,34 @@ class GatherContext:
             if key in postfix:
                 postfix[key] = postfix.pop(key)
         self.pbar.set_postfix(postfix)
+    
+    def _is_boolean_metric(self, metric_name: str, avg_value: float) -> bool:
+        """
+        Determine if a metric should be displayed as a boolean/percentage.
+        
+        This heuristic identifies metrics that are likely boolean-based by:
+        1. Checking common boolean metric names
+        2. Checking if the average value is between 0 and 1 (inclusive)
+        """
+        # Common boolean metric patterns
+        boolean_patterns = [
+            "win", "loss", "invalid", "error", "success", "fail", "correct", "wrong",
+            "match", "hit", "miss", "valid", "timeout", "exception"
+        ]
+        
+        # Check if metric name contains boolean patterns
+        metric_lower = metric_name.lower()
+        has_boolean_pattern = any(pattern in metric_lower for pattern in boolean_patterns)
+        
+        # Check if value is in [0, 1] range (typical for rates/percentages)
+        is_rate_like = 0 <= avg_value <= 1
+        
+        # For now, be conservative and only format as percentage if:
+        # 1. It has a boolean pattern in the name, OR
+        # 2. It's clearly a rate (between 0 and 1) AND not a token count metric
+        is_token_metric = any(token in metric_lower for token in ["token", "prompt", "completion"])
+        
+        return (has_boolean_pattern or (is_rate_like and not is_token_metric))
 
     def too_many_exceptions(self) -> bool:
         if (
