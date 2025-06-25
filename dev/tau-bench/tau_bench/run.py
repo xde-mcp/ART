@@ -18,8 +18,6 @@ from litellm import provider_list
 from tau_bench.envs.user import UserStrategy
 
 from langfuse import Langfuse
-from dotenv import load_dotenv
-load_dotenv()
 
 warnings.filterwarnings(
     "ignore",
