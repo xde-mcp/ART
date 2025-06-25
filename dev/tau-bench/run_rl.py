@@ -27,12 +27,12 @@ load_dotenv()
 class TauBenchTrainingConfig(BaseModel):
     """Training configuration for ART RL on tau-bench tasks"""
     trajectories_per_group: int = 6
-    groups_per_step: int = 8
+    groups_per_step: int = 10
     learning_rate: float = 1.2e-5
-    eval_steps: int = 30
-    val_set_size: int = 100
-    training_dataset_size: int = 1000
-    num_epochs: int = 1
+    eval_steps: int = 10
+    val_set_size: int = 85
+    training_dataset_size: int = 30
+    num_epochs: int = 50
 
 
 class TauBenchPolicyConfig(BaseModel):
@@ -246,7 +246,7 @@ async def evaluate_model(
         user_strategy=config.user_strategy,
         user_model=config.user_model,
         user_provider=config.user_model_provider,
-        task_split="dev",  # Use dev split for evaluation
+        task_split=config.task_split,
     )
     
     total_reward = 0.0
@@ -314,7 +314,7 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
             # Evaluation
             if global_step % training_config.eval_steps == 0:
                 print(f"\n--- Evaluating at Step {global_step} ---")
-                await evaluate_model(model, config, num_eval_tasks=min(50, len(val_task_indices)))
+                await evaluate_model(model, config, num_eval_tasks=len(val_task_indices))
                 await model.delete_checkpoints()
             
             # Generate trajectory groups
