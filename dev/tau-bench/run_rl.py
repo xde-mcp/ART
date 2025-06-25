@@ -19,33 +19,11 @@ from tau_bench.agents.base import Agent
 from tau_bench.run import agent_factory
 from litellm import provider_list
 from tau_bench.envs.user import UserStrategy
+from tau_bench.agents.tool_calling_agent import ToolCallingRLAgent
+from tau_bench.types import TauBenchPolicyConfig, TauBenchTrainingConfig
 
 # Load environment variables
 load_dotenv()
-
-
-class TauBenchTrainingConfig(BaseModel):
-    """Training configuration for ART RL on tau-bench tasks"""
-    trajectories_per_group: int = 6
-    groups_per_step: int = 10
-    learning_rate: float = 1.2e-5
-    eval_steps: int = 10
-    val_set_size: int = 85
-    training_dataset_size: int = 30
-    num_epochs: int = 50
-
-
-class TauBenchPolicyConfig(BaseModel):
-    """Policy configuration for tau-bench agent"""
-    max_turns: int = 20
-    max_tokens: int = 2048
-    
-    # Training configuration
-    training_config: TauBenchTrainingConfig | None = None
-    
-    # tau-bench specific configs
-    run_config: RunConfig
-
 
 async def rollout_tau_bench_task(
     model: art.Model[TauBenchPolicyConfig],
@@ -55,6 +33,7 @@ async def rollout_tau_bench_task(
     Generate a trajectory for a single tau-bench task using the given model.
     This adapts the tau-bench evaluation loop for RL trajectory generation.
     """
+    print(f"Rolling out task {task_index}")
     config = model.config.run_config
     
     # Get isolated environment for this task
@@ -68,26 +47,14 @@ async def rollout_tau_bench_task(
     )
     
     # Create agent with the trainable model
-    # For RL training, we need to override the model parameters
     agent = agent_factory(
         tools_info=env.tools_info,
         wiki=env.wiki,
         config=config,
     )
-    
-    # Override the agent's model if we're using a trainable model
-    # Note: This will need to be adapted based on the specific agent implementation
-    if model.trainable:
-        try:
-            if hasattr(agent, 'model'):
-                setattr(agent, 'model', f"hosted_vllm/{model.name}")
-            if hasattr(agent, 'client'):
-                client = getattr(agent, 'client')
-                if hasattr(client, 'base_url'):
-                    setattr(client, 'base_url', model.inference_base_url)
-                    setattr(client, 'api_key', model.inference_api_key)
-        except Exception as e:
-            print(f"Warning: Could not override agent model parameters: {e}")
+
+    if not isinstance(agent, ToolCallingRLAgent):
+        raise ValueError("Agent must be a ToolCallingRLAgent")
     
     # Create trajectory object
     traj = art.Trajectory(
@@ -107,16 +74,14 @@ async def rollout_tau_bench_task(
         traj.reward = result.reward
         traj.metadata.update(result.info)
         
-        # Convert messages to the format expected by ART
-        for msg in result.messages:
-            traj.messages_and_choices.append(msg)
-            
+        traj.messages_and_choices = agent.create_messages_and_choices(result.messages)
     except Exception as e:
         print(f"Error in rollout for task {task_index}: {e}")
         traj.reward = 0.0
         traj.metadata["error"] = str(e)
     
     traj.finish()
+    print(f"Finished rolling out task {task_index}")
     return traj
 
 
@@ -157,8 +122,8 @@ def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]
     parser.add_argument(
         "--agent-strategy",
         type=str,
-        default="tool-calling",
-        choices=["tool-calling", "act", "react", "few-shot"],
+        default="tool-calling-rl",
+        choices=["tool-calling-rl"],
     )
     parser.add_argument(
         "--temperature",
@@ -183,7 +148,6 @@ def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]
     parser.add_argument("--few-shot-displays-path", type=str, help="Path to a jsonlines file containing few shot displays")
     
     # RL-specific arguments
-    parser.add_argument("--model-name", type=str, required=True, help="Name for the trainable model")
     parser.add_argument("--base-model", type=str, default="Qwen/Qwen2.5-14B-Instruct", help="Base model for training")
     parser.add_argument("--trajectories-per-group", type=int, default=6, help="Number of trajectories per group")
     parser.add_argument("--groups-per-step", type=int, default=8, help="Number of groups per training step")
@@ -251,14 +215,18 @@ async def evaluate_model(
     
     total_reward = 0.0
     eval_tasks = min(num_eval_tasks, len(env.tasks))
+
+    trajectories = await art.gather_trajectories(
+        (
+            rollout_tau_bench_task(model, i)
+            for i in range(eval_tasks)
+        )
+    )
+    await model.log(trajectories=trajectories, split="val")
     
-    for i in range(eval_tasks):
-        try:
-            traj = await rollout_tau_bench_task(model, i)
-            total_reward += traj.reward
-            print(f"Eval task {i}: reward={traj.reward}")
-        except Exception as e:
-            print(f"Error evaluating task {i}: {e}")
+    for traj in trajectories:
+        total_reward += traj.reward
+        print(f"Eval task {traj.metadata['task_index']}: reward={traj.reward}")
     
     avg_reward = total_reward / eval_tasks
     print(f"Average evaluation reward: {avg_reward}")
@@ -276,6 +244,8 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
     with LocalBackend() as backend:
         # Setup model with backend
         await model.register(backend)
+        config.api_key = model.inference_api_key
+        config.base_url = model.inference_base_url
         
         print("Loading training tasks...")
         # Get environment to access tasks
@@ -363,7 +333,7 @@ def main():
     
     # Create trainable model
     model = art.TrainableModel(
-        name=args.model_name,
+        name=args.model,
         project="tau_bench_rl",
         base_model=args.base_model,
         config=TauBenchPolicyConfig(

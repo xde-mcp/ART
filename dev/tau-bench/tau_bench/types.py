@@ -3,6 +3,8 @@
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional, Union
 
+import art
+
 RESPOND_ACTION_NAME = "respond"
 RESPOND_ACTION_FIELD_NAME = "content"
 
@@ -88,3 +90,26 @@ class RunConfig(BaseModel):
     shuffle: int = 0
     user_strategy: str = "llm"
     few_shot_displays_path: Optional[str] = None
+    # art related configs
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
+
+class TauBenchTrainingConfig(BaseModel):
+    """Training configuration for ART RL on tau-bench tasks"""
+    trajectories_per_group: int = 6
+    groups_per_step: int = 10
+    learning_rate: float = 1.2e-5
+    eval_steps: int = 10
+    val_set_size: int = 85
+    training_dataset_size: int = 30
+    num_epochs: int = 50
+
+
+class TauBenchPolicyConfig(BaseModel):
+    """Policy configuration for tau-bench agent"""
+    
+    # Training configuration
+    training_config: TauBenchTrainingConfig | None = None
+    
+    # tau-bench specific configs
+    run_config: RunConfig

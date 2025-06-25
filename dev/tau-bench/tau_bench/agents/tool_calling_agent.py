@@ -4,10 +4,10 @@ import json
 from litellm import completion
 from typing import List, Optional, Dict, Any
 
+import art
 from tau_bench.agents.base import Agent
 from tau_bench.envs.base import Env
-from tau_bench.types import SolveResult, Action, RESPOND_ACTION_NAME
-
+from tau_bench.types import SolveResult, Action, RESPOND_ACTION_NAME, TauBenchPolicyConfig
 
 class ToolCallingAgent(Agent):
     def __init__(
@@ -17,6 +17,8 @@ class ToolCallingAgent(Agent):
         model: str,
         provider: str,
         temperature: float = 0.0,
+        *args,
+        **kwargs,
     ):
         self.tools_info = tools_info
         self.wiki = wiki
@@ -24,6 +26,15 @@ class ToolCallingAgent(Agent):
         self.provider = provider
         self.temperature = temperature
 
+    def llm_completion(self, messages: List[Dict[str, Any]]):
+        return completion(
+            messages=messages,
+            model=self.model,
+            custom_llm_provider=self.provider,
+            tools=self.tools_info,
+            temperature=self.temperature,
+        )
+    
     def solve(
         self, env: Env, task_index: Optional[int] = None, max_num_steps: int = 30
     ) -> SolveResult:
@@ -37,15 +48,9 @@ class ToolCallingAgent(Agent):
             {"role": "user", "content": obs},
         ]
         for _ in range(max_num_steps):
-            res = completion(
-                messages=messages,
-                model=self.model,
-                custom_llm_provider=self.provider,
-                tools=self.tools_info,
-                temperature=self.temperature,
-            )
+            res = self.llm_completion(messages)
             next_message = res.choices[0].message.model_dump()
-            total_cost += res._hidden_params["response_cost"]
+            total_cost += (res._hidden_params.get("response_cost") or 0.0)
             action = message_to_action(next_message)
             env_response = env.step(action)
             reward = env_response.reward
@@ -79,6 +84,38 @@ class ToolCallingAgent(Agent):
             total_cost=total_cost,
         )
 
+class ToolCallingRLAgent(ToolCallingAgent):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.api_key = kwargs.get("api_key")
+        self.base_url = kwargs.get("base_url")
+        self.choices = []
+    
+    def llm_completion(self, messages: List[Dict[str, Any]]):
+        response = completion(
+            messages=messages,
+            model=self.model,
+            custom_llm_provider=self.provider,
+            api_key=self.api_key,
+            base_url=self.base_url,
+            tools=self.tools_info,
+            temperature=self.temperature,
+            max_tokens=1024,
+            logprobs=True,
+        )
+        self.choices.append(response.choices[0]) # type: ignore
+        return response
+    
+    def create_messages_and_choices(self, messages: List[Dict[str, Any]]):
+        messages_and_choices = []
+        choice_idx = 0
+        for message in messages:
+            if message["role"] == "assistant":
+                messages_and_choices.append(self.choices[choice_idx])
+                choice_idx += 1
+            else:
+                messages_and_choices.append(message)
+        return messages_and_choices
 
 def message_to_action(
     message: Dict[str, Any],

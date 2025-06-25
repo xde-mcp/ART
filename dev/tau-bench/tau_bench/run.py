@@ -11,11 +11,13 @@ from typing import List, Dict, Any
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
+import art
 from tau_bench.envs import get_env
 from tau_bench.agents.base import Agent
 from tau_bench.types import EnvRunResult, RunConfig
 from litellm import provider_list
 from tau_bench.envs.user import UserStrategy
+from tau_bench.types import TauBenchPolicyConfig
 
 from langfuse import Langfuse
 
@@ -158,7 +160,19 @@ def run(config: RunConfig) -> List[EnvRunResult]:
 def agent_factory(
     tools_info: List[Dict[str, Any]], wiki, config: RunConfig
 ) -> Agent:
-    if config.agent_strategy == "tool-calling":
+    if config.agent_strategy == "tool-calling-rl":
+        from tau_bench.agents.tool_calling_agent import ToolCallingRLAgent
+
+        return ToolCallingRLAgent(
+            tools_info=tools_info,
+            wiki=wiki,
+            model=config.model,
+            provider=config.model_provider,
+            temperature=config.temperature,
+            api_key=config.api_key,
+            base_url=config.base_url,
+        )
+    elif config.agent_strategy == "tool-calling":
         # native tool calling
         from tau_bench.agents.tool_calling_agent import ToolCallingAgent
 
