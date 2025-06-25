@@ -19,13 +19,14 @@ from tau_bench.types import TauBenchPolicyConfig, TauBenchTrainingConfig
 # Load environment variables
 load_dotenv()
 
-async def rollout_tau_bench_task(
+def rollout_tau_bench_task(
     model: art.Model[TauBenchPolicyConfig],
     task_index: int,
 ) -> art.Trajectory:
     """
     Generate a trajectory for a single tau-bench task using the given model.
     This adapts the tau-bench evaluation loop for RL trajectory generation.
+    Now synchronous to match the tau-bench architecture.
     """
     print(f"Rolling out task {task_index}")
     config = model.config.run_config
@@ -58,7 +59,7 @@ async def rollout_tau_bench_task(
     )
     
     try:
-        # Run the agent on the task
+        # Run the agent on the task (synchronous call)
         result = agent.solve(
             env=env,
             task_index=task_index,
@@ -77,6 +78,17 @@ async def rollout_tau_bench_task(
     traj.finish()
     print(f"Finished rolling out task {task_index}")
     return traj
+
+
+async def async_rollout_tau_bench_task(
+    model: art.Model[TauBenchPolicyConfig],
+    task_index: int,
+) -> art.Trajectory:
+    """
+    Async wrapper for rollout_tau_bench_task using asyncio.to_thread().
+    This allows the sync tau-bench infrastructure to work with the async ART framework.
+    """
+    return await asyncio.to_thread(rollout_tau_bench_task, model, task_index)
 
 
 def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]:
@@ -212,7 +224,7 @@ async def evaluate_model(
 
     trajectories = await art.gather_trajectories(
         (
-            rollout_tau_bench_task(model, i)
+            async_rollout_tau_bench_task(model, i)
             for i in range(eval_tasks)
         )
     )
@@ -287,7 +299,7 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                 (
                     art.TrajectoryGroup(
                         (
-                            rollout_tau_bench_task(model, task_index)
+                            async_rollout_tau_bench_task(model, task_index)
                             for _ in range(training_config.trajectories_per_group)
                         )
                     )
