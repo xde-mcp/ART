@@ -2,20 +2,14 @@
 
 import argparse
 import asyncio
-import json
-import os
-from typing import List, Dict, Any
-from datetime import datetime
 from dotenv import load_dotenv
 
 import art
 from art.local import LocalBackend
 from art.utils import iterate_dataset
-from pydantic import BaseModel
 
 from tau_bench.types import RunConfig
 from tau_bench.envs import get_env
-from tau_bench.agents.base import Agent
 from tau_bench.run import agent_factory
 from litellm import provider_list
 from tau_bench.envs.user import UserStrategy
