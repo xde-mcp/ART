@@ -1,7 +1,7 @@
 {
   "name": "ART",
   "description": "Train LLMs to be better agents using RL",
-  "theme": "maple",
+  "theme": "mint",
   "logo": {
     "light": "/images/site-assets/logo/light.svg",
     "dark": "/images/site-assets/logo/dark.svg"
@@ -21,29 +21,57 @@
   },
   "anchors": [],
   "navigation": {
-    "pages": [
+    "tabs": [
       {
-        "group": "Getting Started",
+        "tab": "Home",
         "pages": [
-          "getting-started/introduction",
-          "getting-started/overview",
-          "getting-started/notebooks",
-          "getting-started/quick-start"
+          "home/welcome"
         ]
       },
       {
-        "group": "Fundamentals",
+        "tab": "Documentation",
         "pages": [
-          "fundamentals/training-loop",
-          "fundamentals/art-client",
-          "fundamentals/art-server"
+          {
+            "group": "Getting Started",
+            "pages": [
+              "documentation/getting-started/introduction",
+              "documentation/getting-started/overview",
+              "documentation/getting-started/notebooks",
+              "documentation/getting-started/quick-start"
+            ]
+          },
+          {
+            "group": "Tutorials",
+            "pages": [
+              "documentation/tutorials/summarizer"
+            ]
+          },
+          {
+            "group": "Fundamentals",
+            "pages": [
+              "documentation/fundamentals/training-loop",
+              "documentation/fundamentals/art-client",
+              "documentation/fundamentals/art-server"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "FAQ",
+        "pages": [
+          {
+            "group": "FAQ",
+            "pages": [
+              "faq/faq"
+            ]
+          }
         ]
       }
     ]
   },
   "topbarLinks": [],
   "footerSocials": {
-    "twitter": "https://twitter.com/OpenPipeAI",
+    "x": "https://twitter.com/OpenPipeAI",
     "linkedin": "https://www.linkedin.com/company/openpipe/about/",
     "bluesky": "https://bsky.app/profile/openpipe.bsky.social",
     "github": "https://github.com/openpipe/ART"
