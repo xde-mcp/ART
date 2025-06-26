@@ -15,7 +15,7 @@ models = {
     "001": {
         "base_model": "Qwen/Qwen2.5-14B-Instruct", 
         "env": "retail",
-        "model": "tau-bench-rl-001-test-1",
+        "model": "tau-bench-rl-001",
         "model_provider": "hosted_vllm",
         "user_model": "gpt-4o",
         "user_model_provider": "openai",
@@ -110,6 +110,7 @@ def launch_model(model_key: str):
 
     run_script = textwrap.dedent(f"""
         # Run the RL training
+        uv add "accelerate==1.7.0"
         uv run run_rl.py {' '.join(run_args)}
     """)
 

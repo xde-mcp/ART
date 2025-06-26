@@ -1,13 +1,13 @@
 # Copyright Sierra
 
 import json
-from litellm import completion
+from litellm import Choices, completion
 from typing import List, Optional, Dict, Any
 
-import art
+from art.utils.litellm import convert_litellm_choice_to_openai
 from tau_bench.agents.base import Agent
 from tau_bench.envs.base import Env
-from tau_bench.types import SolveResult, Action, RESPOND_ACTION_NAME, TauBenchPolicyConfig
+from tau_bench.types import SolveResult, Action, RESPOND_ACTION_NAME
 
 class ToolCallingAgent(Agent):
     def __init__(
@@ -103,7 +103,9 @@ class ToolCallingRLAgent(ToolCallingAgent):
             max_tokens=1024,
             logprobs=True,
         )
-        self.choices.append(response.choices[0]) # type: ignore
+        choice = response.choices[0] # type: ignore
+        assert isinstance(choice, Choices)
+        self.choices.append(convert_litellm_choice_to_openai(choice))
         return response
     
     def create_messages_and_choices(self, messages: List[Dict[str, Any]]):
