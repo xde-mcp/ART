@@ -130,6 +130,8 @@ def rollout_tau_bench_task(
         traj.metrics = {
             "total_steps": result.info["total_steps"],
             "final_prompt_tokens": result.info["final_prompt_tokens"],
+            "avg_completion_tokens": result.info["avg_completion_tokens"],
+            "max_completion_tokens": result.info["max_completion_tokens"],
         }
         
         traj.messages_and_choices = agent.create_messages_and_choices(result.messages)

@@ -51,9 +51,13 @@ class ToolCallingAgent(Agent):
             {"role": "user", "content": obs},
         ]
         final_prompt_tokens = 0
+        avg_completion_tokens = 0
+        max_completion_tokens = 0
         for curr_step_number in range(max_num_steps):
             res = self.llm_completion(messages)
             final_prompt_tokens = res.usage.prompt_tokens # type: ignore
+            avg_completion_tokens += res.usage.completion_tokens # type: ignore
+            max_completion_tokens = max(max_completion_tokens, res.usage.completion_tokens) # type: ignore
             next_message = res.choices[0].message.model_dump() # type: ignore
             total_cost += (res._hidden_params.get("response_cost") or 0.0)
             action = message_to_action(next_message)
@@ -83,6 +87,8 @@ class ToolCallingAgent(Agent):
             if env_response.done:
                 break
         info["total_steps"] = curr_step_number + 1
+        info["avg_completion_tokens"] = avg_completion_tokens / info["total_steps"]
+        info["max_completion_tokens"] = max_completion_tokens
         info["final_prompt_tokens"] = final_prompt_tokens
         return SolveResult(
             reward=reward,
