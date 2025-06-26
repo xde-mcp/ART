@@ -32,12 +32,13 @@ models = {
         "training_dataset_size": 30,
         "num_epochs": 50,
         "reward_type": "real",
+        "max_num_steps": 30,
     }
 }
 
 # # Retail environment variants
 models["002"] = models["001"].copy()
-models["002"]["model"] = "tau-bench-rl-002"
+models["002"]["model"] = "tau-bench-rl-002-final"
 models["002"]["reward_type"] = "general_rm"
 
 parser = argparse.ArgumentParser(
@@ -106,6 +107,7 @@ def launch_model(model_key: str):
         f"--training-dataset-size {model_config['training_dataset_size']}",
         f"--num-epochs {model_config['num_epochs']}",
         f"--reward-type {model_config['reward_type']}",
+        f"--max-num-steps {model_config['max_num_steps']}",
     ]
 
     run_script = textwrap.dedent(f"""

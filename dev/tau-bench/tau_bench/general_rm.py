@@ -87,7 +87,7 @@ async def create_general_rm_trajectory_groups(group: art.TrajectoryGroup, config
             if tool_calls and len(tool_calls) > 0:
                 tool_call_str = ""
                 for tool_call in tool_calls:
-                    tool_call_str += f"TOOL CALL: {tool_call.function.name}: {tool_call.function.arguments}\n"
+                    tool_call_str += f"TOOL CALL: {tool_call['function']['name']}: {tool_call['function']['arguments']}\n"
                 user_prompt += f"{role.upper()}: {tool_call_str}\n"
             else:
                 user_prompt += f"{role.upper()}: {content}\n"

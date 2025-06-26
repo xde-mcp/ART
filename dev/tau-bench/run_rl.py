@@ -19,6 +19,7 @@ from tau_bench.agents.tool_calling_agent import ToolCallingRLAgent
 from tau_bench.types import TauBenchPolicyConfig, TauBenchTrainingConfig
 from tau_bench.general_rm import create_general_rm_trajectory_groups
 from langfuse import Langfuse
+from tqdm.asyncio import tqdm_asyncio
 
 # Load environment variables
 load_dotenv(override=True)
@@ -119,6 +120,7 @@ def rollout_tau_bench_task(
         result = agent.solve(
             env=env,
             task_index=task_index,
+            max_num_steps=config.max_num_steps,
         )
         
         # Convert result to trajectory format
@@ -229,6 +231,7 @@ def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]
     parser.add_argument("--num-epochs", type=int, default=1, help="Number of training epochs")
     parser.add_argument("--reward-type", type=str, default="real", help="Reward type")
     parser.add_argument("--general-rm-model", type=str, default="o3", help="Model to use for general RM. ignored if reward type is not general_rm")
+    parser.add_argument("--max-num-steps", type=int, default=30, help="Maximum number of steps per rollout")
     
     args = parser.parse_args()
     print(args)
@@ -254,7 +257,8 @@ def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]
         user_strategy=args.user_strategy,
         few_shot_displays_path=args.few_shot_displays_path,
         reward_type=args.reward_type,
-        general_rm_model=args.general_rm_model
+        general_rm_model=args.general_rm_model,
+        max_num_steps=args.max_num_steps
     )
     
     # Create training config
@@ -377,10 +381,15 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                 )
             )
             if config.reward_type == "general_rm":
-                updated_groups = await asyncio.gather(*[
-                    create_general_rm_trajectory_groups(group, config)
-                    for group in groups
-                ])
+                print("Creating general RM trajectory groups...")
+                updated_groups = await tqdm_asyncio.gather(
+                    *[
+                        create_general_rm_trajectory_groups(group, config)
+                        for group in groups
+                    ],
+                    desc="Creating general RM trajectory groups",
+                    total=len(groups),
+                )
                 groups = updated_groups
             
             # Training step
