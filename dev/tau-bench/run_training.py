@@ -41,6 +41,11 @@ models["002"] = models["001"].copy()
 models["002"]["model"] = "tau-bench-rl-002-final"
 models["002"]["reward_type"] = "general_rm"
 
+models["003"] = models["001"].copy()
+models["003"]["model"] = "tau-bench-rl-003-final"
+models["003"]["reward_type"] = "general_rm"
+models["003"]["learning_rate"] = 5e-6
+
 parser = argparse.ArgumentParser(
     description="Train one or more tau-bench RL models (comma separated)."
 )

@@ -1,7 +1,8 @@
-# Copyright Sierra
+# Copyright OpenPipe
 
 import argparse
 import asyncio
+import concurrent.futures
 import os
 from typing import Any, Dict, List
 from dotenv import load_dotenv
@@ -126,6 +127,12 @@ async def rollout_tau_bench_task(
         # Convert result to trajectory format
         traj.reward = result.reward
         traj.metadata.update(result.info)
+        traj.metrics = {
+            "total_steps": result.info["total_steps"],
+            "final_prompt_tokens": result.info["final_prompt_tokens"],
+            "avg_completion_tokens": result.info["avg_completion_tokens"],
+            "max_completion_tokens": result.info["max_completion_tokens"],
+        }
         
         traj.messages_and_choices = agent.create_messages_and_choices(result.messages)
     except Exception as e:
@@ -315,6 +322,10 @@ async def evaluate_model(
 
 async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
     """Main training loop adapted from art-e example"""
+    loop = asyncio.get_event_loop()
+    big_pool = concurrent.futures.ThreadPoolExecutor(max_workers=50)
+    loop.set_default_executor(big_pool)
+
     config = model.config.run_config
     training_config = model.config.training_config
     

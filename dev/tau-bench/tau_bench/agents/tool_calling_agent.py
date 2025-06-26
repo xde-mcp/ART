@@ -2,6 +2,7 @@
 
 import json
 from litellm import Choices, acompletion
+from litellm.types.utils import ModelResponse
 from typing import List, Optional, Dict, Any
 
 from art.utils.litellm import convert_litellm_choice_to_openai
@@ -26,14 +27,16 @@ class ToolCallingAgent(Agent):
         self.provider = provider
         self.temperature = temperature
 
-    async def llm_completion(self, messages: List[Dict[str, Any]]):
-        return await acompletion(
+    async def llm_completion(self, messages: List[Dict[str, Any]]) -> ModelResponse:
+        completion_obj = await acompletion(
             messages=messages,
             model=self.model,
             custom_llm_provider=self.provider,
             tools=self.tools_info,
             temperature=self.temperature,
         )
+        assert isinstance(completion_obj, ModelResponse)
+        return completion_obj
     
     async def solve(
         self, env: Env, task_index: Optional[int] = None, max_num_steps: int = 30
@@ -47,9 +50,15 @@ class ToolCallingAgent(Agent):
             {"role": "system", "content": self.wiki},
             {"role": "user", "content": obs},
         ]
-        for _ in range(max_num_steps):
+        final_prompt_tokens = 0
+        avg_completion_tokens = 0
+        max_completion_tokens = 0
+        for curr_step_number in range(max_num_steps):
             res = await self.llm_completion(messages)
-            next_message = res.choices[0].message.model_dump()
+            final_prompt_tokens = res.usage.prompt_tokens # type: ignore
+            avg_completion_tokens += res.usage.completion_tokens # type: ignore
+            max_completion_tokens = max(max_completion_tokens, res.usage.completion_tokens) # type: ignore
+            next_message = res.choices[0].message.model_dump() # type: ignore
             total_cost += (res._hidden_params.get("response_cost") or 0.0)
             action = message_to_action(next_message)
             env_response = await env.step(action)
@@ -77,6 +86,10 @@ class ToolCallingAgent(Agent):
                 )
             if env_response.done:
                 break
+        info["total_steps"] = curr_step_number + 1
+        info["avg_completion_tokens"] = avg_completion_tokens / info["total_steps"]
+        info["max_completion_tokens"] = max_completion_tokens
+        info["final_prompt_tokens"] = final_prompt_tokens
         return SolveResult(
             reward=reward,
             info=info,
