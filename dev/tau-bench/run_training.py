@@ -15,7 +15,7 @@ models = {
     "001": {
         "base_model": "Qwen/Qwen2.5-14B-Instruct", 
         "env": "retail",
-        "model": "tau-bench-rl-001",
+        "model": "tau-bench-rl-001-final",
         "model_provider": "hosted_vllm",
         "user_model": "gpt-4o",
         "user_model_provider": "openai",
@@ -31,15 +31,14 @@ models = {
         "val_set_size": 85,
         "training_dataset_size": 30,
         "num_epochs": 50,
+        "reward_type": "real",
     }
 }
 
 # # Retail environment variants
-# models["002"] = models["001"].copy()
-# models["002"]["model_name"] = "tau-bench-rl-002"
-# models["002"]["trajectories_per_group"] = 4
-# models["002"]["groups_per_step"] = 12
-# models["002"]["num_epochs"] = 2
+models["002"] = models["001"].copy()
+models["002"]["model"] = "tau-bench-rl-002"
+models["002"]["reward_type"] = "general_rm"
 
 parser = argparse.ArgumentParser(
     description="Train one or more tau-bench RL models (comma separated)."
@@ -106,6 +105,7 @@ def launch_model(model_key: str):
         f"--val-set-size {model_config['val_set_size']}",
         f"--training-dataset-size {model_config['training_dataset_size']}",
         f"--num-epochs {model_config['num_epochs']}",
+        f"--reward-type {model_config['reward_type']}",
     ]
 
     run_script = textwrap.dedent(f"""

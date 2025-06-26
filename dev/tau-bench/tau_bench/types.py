@@ -93,6 +93,8 @@ class RunConfig(BaseModel):
     # art related configs
     api_key: Optional[str] = None
     base_url: Optional[str] = None
+    reward_type: str = "real"
+    general_rm_model: str = "o3"
 
 class TauBenchTrainingConfig(BaseModel):
     """Training configuration for ART RL on tau-bench tasks"""

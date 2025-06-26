@@ -17,6 +17,7 @@ from litellm import provider_list
 from tau_bench.envs.user import UserStrategy
 from tau_bench.agents.tool_calling_agent import ToolCallingRLAgent
 from tau_bench.types import TauBenchPolicyConfig, TauBenchTrainingConfig
+from tau_bench.general_rm import create_general_rm_trajectory_groups
 from langfuse import Langfuse
 
 # Load environment variables
@@ -78,7 +79,7 @@ def rollout_tau_bench_task(
     This adapts the tau-bench evaluation loop for RL trajectory generation.
     Now synchronous to match the tau-bench architecture.
     """
-    print(f"Rolling out task {task_index} (step {step}, phase {phase})")
+    # print(f"Rolling out task {task_index} (step {step}, phase {phase})")
     config = model.config.run_config
     
     # Get isolated environment for this task
@@ -138,7 +139,7 @@ def rollout_tau_bench_task(
     except Exception as e:
         print(f"Error logging trajectory to langfuse: {e}")
     
-    print(f"Finished rolling out task {task_index} (reward: {traj.reward})")
+    # print(f"Finished rolling out task {task_index} (reward: {traj.reward})")
     return traj
 
 
@@ -226,6 +227,8 @@ def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]
     parser.add_argument("--val-set-size", type=int, default=100, help="Validation set size")
     parser.add_argument("--training-dataset-size", type=int, default=1000, help="Training dataset size")
     parser.add_argument("--num-epochs", type=int, default=1, help="Number of training epochs")
+    parser.add_argument("--reward-type", type=str, default="real", help="Reward type")
+    parser.add_argument("--general-rm-model", type=str, default="o3", help="Model to use for general RM. ignored if reward type is not general_rm")
     
     args = parser.parse_args()
     print(args)
@@ -250,6 +253,8 @@ def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]
         shuffle=args.shuffle,
         user_strategy=args.user_strategy,
         few_shot_displays_path=args.few_shot_displays_path,
+        reward_type=args.reward_type,
+        general_rm_model=args.general_rm_model
     )
     
     # Create training config
@@ -371,6 +376,12 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                     for task_index in batch
                 )
             )
+            if config.reward_type == "general_rm":
+                updated_groups = await asyncio.gather(*[
+                    create_general_rm_trajectory_groups(group, config)
+                    for group in groups
+                ])
+                groups = updated_groups
             
             # Training step
             print(f"Training on {len(groups)} trajectory groups...")
@@ -418,6 +429,7 @@ def main():
     print(f"Base model: {model.base_model}")
     print(f"Environment: {run_config.env}")
     print(f"Task split: {run_config.task_split}")
+    print(f"Reward type: {run_config.reward_type}")
     
     # Run training
     asyncio.run(train(model))
