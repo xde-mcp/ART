@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import os
+from typing import Any, Dict, List
 from dotenv import load_dotenv
 
 import art
@@ -19,18 +20,26 @@ from tau_bench.types import TauBenchPolicyConfig, TauBenchTrainingConfig
 from langfuse import Langfuse
 
 # Load environment variables
-load_dotenv()
+load_dotenv(override=True)
 
 def log_trajectory_to_langfuse(
-    langfuse: Langfuse,
     traj: art.Trajectory,
-    task_idx: int,
-    step: int,
-    phase: str = "train"
+    messages: List[Dict[str, Any]]
 ) -> None:
     """
     Push one trajectory to Langfuse with task_idx and step for comparison.
     """
+    # Initialize langfuse
+    langfuse = Langfuse(
+        secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
+        public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
+        host=os.getenv("LANGFUSE_HOST"),
+    )
+    phase = traj.metadata.get("phase", "unknown")
+    step = traj.metadata.get("training_step", 0)
+    task_idx = traj.metadata.get("task_index", 0)
+    env = traj.metadata.get("env", "unknown")
+    
     trace_name = f"rl-{phase}-step-{step}-task-{task_idx}"
     
     # Create trace with trajectory data
@@ -43,11 +52,7 @@ def log_trajectory_to_langfuse(
             "metadata": traj.metadata
         },
         output={
-            "messages": [
-                {"role": choice.role, "content": choice.content} 
-                for msg_and_choice in traj.messages_and_choices 
-                for choice in msg_and_choice.choices
-            ] if traj.messages_and_choices else [],
+            "messages": messages,
             "reward": traj.reward,
             "metadata": traj.metadata
         },
@@ -55,20 +60,16 @@ def log_trajectory_to_langfuse(
             "task_idx": task_idx,
             "training_step": step,
             "phase": phase,
-            "env": traj.metadata.get("env", "unknown")
+            "env": env
         }
     )
     
     # Add reward as a score
     trace.score(name="reward", value=traj.reward)
-    
-    # Add step as a score for easy filtering
-    trace.score(name="training_step", value=step)
 
 def rollout_tau_bench_task(
     model: art.Model[TauBenchPolicyConfig],
     task_index: int,
-    langfuse: Langfuse = None,
     step: int = 0,
     phase: str = "train",
 ) -> art.Trajectory:
@@ -131,9 +132,11 @@ def rollout_tau_bench_task(
     
     traj.finish()
     
-    # Log to langfuse if provided
-    if langfuse:
-        log_trajectory_to_langfuse(langfuse, traj, task_index, step, phase)
+    # Log to langfuse
+    try:
+        log_trajectory_to_langfuse(traj, result.messages)
+    except Exception as e:
+        print(f"Error logging trajectory to langfuse: {e}")
     
     print(f"Finished rolling out task {task_index} (reward: {traj.reward})")
     return traj
@@ -142,7 +145,6 @@ def rollout_tau_bench_task(
 async def async_rollout_tau_bench_task(
     model: art.Model[TauBenchPolicyConfig],
     task_index: int,
-    langfuse: Langfuse = None,
     step: int = 0,
     phase: str = "train",
 ) -> art.Trajectory:
@@ -150,7 +152,7 @@ async def async_rollout_tau_bench_task(
     Async wrapper for rollout_tau_bench_task using asyncio.to_thread().
     This allows the sync tau-bench infrastructure to work with the async ART framework.
     """
-    return await asyncio.to_thread(rollout_tau_bench_task, model, task_index, langfuse, step, phase)
+    return await asyncio.to_thread(rollout_tau_bench_task, model, task_index, step, phase)
 
 
 def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]:
@@ -267,7 +269,6 @@ def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]
 async def evaluate_model(
     model: art.TrainableModel[TauBenchPolicyConfig],
     config: RunConfig,
-    langfuse: Langfuse,
     step: int,
     num_eval_tasks: int = 50
 ) -> float:
@@ -288,7 +289,7 @@ async def evaluate_model(
 
     trajectories = await art.gather_trajectories(
         (
-            async_rollout_tau_bench_task(model, i, langfuse, step, "eval")
+            async_rollout_tau_bench_task(model, i, step, "val")
             for i in range(eval_tasks)
         )
     )
@@ -303,7 +304,7 @@ async def evaluate_model(
     return avg_reward
 
 
-async def train(model: art.TrainableModel[TauBenchPolicyConfig], langfuse: Langfuse):
+async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
     """Main training loop adapted from art-e example"""
     config = model.config.run_config
     training_config = model.config.training_config
@@ -354,7 +355,7 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig], langfuse: Langf
             # Evaluation
             if global_step % training_config.eval_steps == 0:
                 print(f"\n--- Evaluating at Step {global_step} ---")
-                await evaluate_model(model, config, langfuse, global_step, num_eval_tasks=len(val_task_indices))
+                await evaluate_model(model, config, global_step, num_eval_tasks=len(val_task_indices))
                 await model.delete_checkpoints()
             
             # Generate trajectory groups
@@ -363,7 +364,7 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig], langfuse: Langf
                 (
                     art.TrajectoryGroup(
                         (
-                            async_rollout_tau_bench_task(model, task_index, langfuse, global_step, "train")
+                            async_rollout_tau_bench_task(model, task_index, global_step, "train")
                             for _ in range(training_config.trajectories_per_group)
                         )
                     )
@@ -392,7 +393,7 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig], langfuse: Langf
         # Final evaluation
         print("\n--- Final Evaluation ---")
         final_step = await model.get_step()
-        final_reward = await evaluate_model(model, config, langfuse, final_step, num_eval_tasks=len(val_task_indices))
+        final_reward = await evaluate_model(model, config, final_step, num_eval_tasks=len(val_task_indices))
         print(f"Final average reward: {final_reward}")
         
         print("Training completed!")
@@ -401,13 +402,6 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig], langfuse: Langf
 def main():
     """Main function"""
     run_config, training_config, args = parse_args()
-    
-    # Initialize langfuse
-    langfuse = Langfuse(
-        secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
-        public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
-        host=os.getenv("LANGFUSE_HOST"),
-    )
     
     # Create trainable model
     model = art.TrainableModel(
@@ -425,13 +419,8 @@ def main():
     print(f"Environment: {run_config.env}")
     print(f"Task split: {run_config.task_split}")
     
-    try:
-        # Run training
-        asyncio.run(train(model, langfuse))
-    finally:
-        # Ensure langfuse flushes all traces
-        langfuse.flush()
-        print("Langfuse traces flushed.")
+    # Run training
+    asyncio.run(train(model))
 
 
 if __name__ == "__main__":
