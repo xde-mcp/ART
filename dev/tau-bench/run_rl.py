@@ -69,7 +69,7 @@ def log_trajectory_to_langfuse(
     # Add reward as a score
     trace.score(name="reward", value=traj.reward)
 
-def rollout_tau_bench_task(
+async def rollout_tau_bench_task(
     model: art.Model[TauBenchPolicyConfig],
     task_index: int,
     step: int = 0,
@@ -78,7 +78,7 @@ def rollout_tau_bench_task(
     """
     Generate a trajectory for a single tau-bench task using the given model.
     This adapts the tau-bench evaluation loop for RL trajectory generation.
-    Now synchronous to match the tau-bench architecture.
+    Now truly async.
     """
     # print(f"Rolling out task {task_index} (step {step}, phase {phase})")
     config = model.config.run_config
@@ -116,8 +116,8 @@ def rollout_tau_bench_task(
     )
     
     try:
-        # Run the agent on the task (synchronous call)
-        result = agent.solve(
+        # Run the agent on the task (now async call)
+        result = await agent.solve(
             env=env,
             task_index=task_index,
             max_num_steps=config.max_num_steps,
@@ -145,6 +145,7 @@ def rollout_tau_bench_task(
     return traj
 
 
+# Remove the async wrapper since rollout_tau_bench_task is now truly async
 async def async_rollout_tau_bench_task(
     model: art.Model[TauBenchPolicyConfig],
     task_index: int,
@@ -152,10 +153,9 @@ async def async_rollout_tau_bench_task(
     phase: str = "train",
 ) -> art.Trajectory:
     """
-    Async wrapper for rollout_tau_bench_task using asyncio.to_thread().
-    This allows the sync tau-bench infrastructure to work with the async ART framework.
+    Direct alias for rollout_tau_bench_task since it's now truly async.
     """
-    return await asyncio.to_thread(rollout_tau_bench_task, model, task_index, step, phase)
+    return await rollout_tau_bench_task(model, task_index, step, phase)
 
 
 def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]:

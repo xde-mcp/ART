@@ -1,7 +1,7 @@
 # Copyright Sierra
 
 import json
-from litellm import completion
+from litellm import acompletion
 
 from tau_bench.agents.base import Agent
 from tau_bench.envs.base import Env
@@ -34,10 +34,10 @@ class ChatReActAgent(Agent):
         self.use_reasoning = use_reasoning
         self.tools_info = tools_info
 
-    def generate_next_step(
+    async def generate_next_step(
         self, messages: List[Dict[str, Any]]
     ) -> Tuple[Dict[str, Any], Action, float]:
-        res = completion(
+        res = await acompletion(
             model=self.model,
             custom_llm_provider=self.provider,
             messages=messages,
@@ -58,10 +58,10 @@ class ChatReActAgent(Agent):
         action = Action(name=action_parsed["name"], kwargs=action_parsed["arguments"])
         return message.model_dump(), action, res._hidden_params["response_cost"]
 
-    def solve(
+    async def solve(
         self, env: Env, task_index: Optional[int] = None, max_num_steps: int = 30
     ) -> SolveResult:
-        response = env.reset(task_index=task_index)
+        response = await env.reset(task_index=task_index)
         reward = 0.0
         messages: List[Dict[str, Any]] = [
             {"role": "system", "content": self.prompt},
@@ -70,8 +70,8 @@ class ChatReActAgent(Agent):
         total_cost = 0.0
         info = {}
         for _ in range(max_num_steps):
-            message, action, cost = self.generate_next_step(messages)
-            response = env.step(action)
+            message, action, cost = await self.generate_next_step(messages)
+            response = await env.step(action)
             obs = response.observation
             reward = response.reward
             info = {**info, **response.info.model_dump()}
