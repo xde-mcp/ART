@@ -75,26 +75,26 @@ class Env(object):
         )
         self.actions: List[Action] = []
 
-    def reset(self, task_index: Optional[int] = None) -> EnvResetResponse:
+    async def reset(self, task_index: Optional[int] = None) -> EnvResetResponse:
         if task_index is None:
             task_index = random.randint(0, len(self.tasks))
         self.task_index = task_index
         self.data = self.data_load_func()
         self.task = self.tasks[task_index]
         self.actions = []
-        initial_observation = self.user.reset(instruction=self.task.instruction)
+        initial_observation = await self.user.reset(instruction=self.task.instruction)
         return EnvResetResponse(
             observation=initial_observation, info=EnvInfo(task=self.task, source="user")
         )
 
-    def step(self, action: Action) -> EnvResponse:
+    async def step(self, action: Action) -> EnvResponse:
         self.actions.append(action)
 
         info = EnvInfo(task=self.task)
         reward = 0
         done = False
         if action.name == RESPOND_ACTION_NAME:
-            observation = self.user.step(action.kwargs["content"])
+            observation = await self.user.step(action.kwargs["content"])
             info.source = "user"
             done = "###STOP###" in observation
         elif action.name in self.tools_map:
@@ -112,7 +112,7 @@ class Env(object):
             info.source = action.name
 
         if done:
-            reward_res = self.calculate_reward()
+            reward_res = await self.calculate_reward()
             reward = reward_res.reward
             info.reward_info = reward_res
             info.user_cost = self.user.get_total_cost()
@@ -121,7 +121,7 @@ class Env(object):
     def get_data_hash(self) -> str:
         return consistent_hash(to_hashable(self.data))
 
-    def calculate_reward(self) -> RewardResult:
+    async def calculate_reward(self) -> RewardResult:
         data_hash = self.get_data_hash()
         reward = 1.0
         actions = [
@@ -133,7 +133,7 @@ class Env(object):
         self.data = self.data_load_func()
         for action in self.task.actions:
             if action.name not in self.terminate_tools:
-                self.step(action)
+                await self.step(action)
         gt_data_hash = self.get_data_hash()
         info = RewardActionInfo(
             r_actions=data_hash == gt_data_hash, gt_data_hash=gt_data_hash

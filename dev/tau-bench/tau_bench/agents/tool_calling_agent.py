@@ -1,8 +1,8 @@
 # Copyright Sierra
 
 import json
-from litellm import Choices, completion
-from litellm.types.utils import ModelResponse, Usage
+from litellm import Choices, acompletion
+from litellm.types.utils import ModelResponse
 from typing import List, Optional, Dict, Any
 
 from art.utils.litellm import convert_litellm_choice_to_openai
@@ -27,8 +27,8 @@ class ToolCallingAgent(Agent):
         self.provider = provider
         self.temperature = temperature
 
-    def llm_completion(self, messages: List[Dict[str, Any]]) -> ModelResponse:
-        completion_obj = completion(
+    async def llm_completion(self, messages: List[Dict[str, Any]]) -> ModelResponse:
+        completion_obj = await acompletion(
             messages=messages,
             model=self.model,
             custom_llm_provider=self.provider,
@@ -38,11 +38,11 @@ class ToolCallingAgent(Agent):
         assert isinstance(completion_obj, ModelResponse)
         return completion_obj
     
-    def solve(
+    async def solve(
         self, env: Env, task_index: Optional[int] = None, max_num_steps: int = 30
     ) -> SolveResult:
         total_cost = 0.0
-        env_reset_res = env.reset(task_index=task_index)
+        env_reset_res = await env.reset(task_index=task_index)
         obs = env_reset_res.observation
         info = env_reset_res.info.model_dump()
         reward = 0.0
@@ -54,14 +54,14 @@ class ToolCallingAgent(Agent):
         avg_completion_tokens = 0
         max_completion_tokens = 0
         for curr_step_number in range(max_num_steps):
-            res = self.llm_completion(messages)
+            res = await self.llm_completion(messages)
             final_prompt_tokens = res.usage.prompt_tokens # type: ignore
             avg_completion_tokens += res.usage.completion_tokens # type: ignore
             max_completion_tokens = max(max_completion_tokens, res.usage.completion_tokens) # type: ignore
             next_message = res.choices[0].message.model_dump() # type: ignore
             total_cost += (res._hidden_params.get("response_cost") or 0.0)
             action = message_to_action(next_message)
-            env_response = env.step(action)
+            env_response = await env.step(action)
             reward = env_response.reward
             info = {**info, **env_response.info.model_dump()}
             if action.name != RESPOND_ACTION_NAME:
@@ -104,8 +104,8 @@ class ToolCallingRLAgent(ToolCallingAgent):
         self.base_url = kwargs.get("base_url")
         self.choices = []
     
-    def llm_completion(self, messages: List[Dict[str, Any]]):
-        response = completion(
+    async def llm_completion(self, messages: List[Dict[str, Any]]):
+        response = await acompletion(
             messages=messages,
             model=self.model,
             custom_llm_provider=self.provider,
