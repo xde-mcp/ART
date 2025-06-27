@@ -121,4 +121,22 @@ async def update_openpipe_log(traj: art.Trajectory):
     )
     print(f"update_log_metadata_response: {update_log_metadata_response}")
     await op_client.base_client._client_wrapper.httpx_client.aclose()
-    
+
+async def update_steps_for_openpipe_logs(trajectory_groups: List[art.TrajectoryGroup], global_step: int):
+    op_client = AsyncOpenPipe(api_key=os.environ["OPENPIPE_API_KEY"])
+    for trajectory_group in trajectory_groups:
+        for trajectory in trajectory_group:
+            completion_id = trajectory.metadata["completion_id"]
+            await op_client.update_log_metadata(
+                filters=[
+                    UpdateLogTagsRequestFiltersItem(
+                        field="completionId",
+                        equals=completion_id, # type: ignore
+                    ),
+                ],
+                metadata={
+                    "training_step": str(global_step),
+                },
+            )
+    print(f"Updated {len(trajectory_groups)} trajectory groups with step {global_step}")
+    await op_client.base_client._client_wrapper.httpx_client.aclose()

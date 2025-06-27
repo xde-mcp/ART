@@ -350,6 +350,8 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                         total=len(trajectory_groups),
                     )
                     trajectory_groups = updated_groups
+
+                await update_steps_for_openpipe_logs(trajectory_groups)
                 # Training step
                 print(f"Training on {len(trajectory_groups)} trajectory groups...")
                 await model.train(
