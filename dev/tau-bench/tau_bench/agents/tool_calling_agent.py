@@ -86,6 +86,8 @@ class ToolCallingAgent(Agent):
                 )
             if env_response.done:
                 break
+            if final_prompt_tokens > 20000:
+                break
         info["total_steps"] = curr_step_number + 1
         info["avg_completion_tokens"] = avg_completion_tokens / info["total_steps"]
         info["max_completion_tokens"] = max_completion_tokens

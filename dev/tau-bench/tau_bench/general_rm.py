@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Tuple
 from openai.types.chat.chat_completion import Choice
 from openai import AsyncOpenAI
+from tau_bench.rl_utils import update_openpipe_log
 
 class RolloutScore(BaseModel):
     """
@@ -105,6 +106,11 @@ async def create_general_rm_trajectory_groups(group: art.TrajectoryGroup, config
         new_trajectory = copy.deepcopy(trajectory)
         new_trajectory.metrics["outcome_correct"] = new_trajectory.reward
         new_trajectory.reward = response.rollout_scores[idx].score
+        new_trajectory.metadata["judge_explanation"] = response.rollout_scores[idx].explanation
+        try:
+            await update_openpipe_log(new_trajectory)
+        except Exception as e:
+            print(f"Error updating openpipe log: {e}")
         new_trajectories.append(new_trajectory)
     
     return art.TrajectoryGroup(new_trajectories)

@@ -3,9 +3,8 @@
 import argparse
 import asyncio
 import concurrent.futures
-import os
 import random
-from typing import Any, Dict, List
+from typing import List
 from dotenv import load_dotenv
 
 import art
@@ -20,56 +19,11 @@ from tau_bench.envs.user import UserStrategy
 from tau_bench.agents.tool_calling_agent import ToolCallingRLAgent
 from tau_bench.types import TauBenchPolicyConfig, TauBenchTrainingConfig
 from tau_bench.general_rm import create_general_rm_trajectory_groups
-from langfuse import Langfuse
+from tau_bench.rl_utils import log_trajectory_to_openpipe
 from tqdm.asyncio import tqdm_asyncio
 
 # Load environment variables
 load_dotenv(override=True)
-
-def log_trajectory_to_langfuse(
-    traj: art.Trajectory,
-    messages: List[Dict[str, Any]]
-) -> None:
-    """
-    Push one trajectory to Langfuse with task_idx and step for comparison.
-    """
-    # Initialize langfuse
-    langfuse = Langfuse(
-        secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
-        public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
-        host=os.getenv("LANGFUSE_HOST"),
-    )
-    phase = traj.metadata.get("phase", "unknown")
-    step = traj.metadata.get("training_step", 0)
-    task_idx = traj.metadata.get("task_index", 0)
-    env = traj.metadata.get("env", "unknown")
-    
-    trace_name = f"rl-{phase}-step-{step}-task-{task_idx}"
-    
-    # Create trace with trajectory data
-    trace = langfuse.trace(
-        name=trace_name,
-        input={
-            "task_idx": task_idx,
-            "step": step,
-            "phase": phase,
-            "metadata": traj.metadata
-        },
-        output={
-            "messages": messages,
-            "reward": traj.reward,
-            "metadata": traj.metadata
-        },
-        metadata={
-            "task_idx": task_idx,
-            "training_step": step,
-            "phase": phase,
-            "env": env
-        }
-    )
-    
-    # Add reward as a score
-    trace.score(name="reward", value=traj.reward)
 
 async def rollout_tau_bench_task(
     model: art.Model[TauBenchPolicyConfig],
@@ -110,10 +64,12 @@ async def rollout_tau_bench_task(
         messages_and_choices=[],
         reward=0,
         metadata={
-            "task_index": task_index, 
+            "task_index": str(task_index), 
             "env": config.env,
-            "training_step": step,
-            "phase": phase
+            "training_step": str(step),
+            "phase": phase,
+            "model": model.name,
+            "reward_type": config.reward_type,
         }
     )
     
@@ -127,14 +83,18 @@ async def rollout_tau_bench_task(
         
         # Convert result to trajectory format
         traj.reward = result.reward
-        traj.metadata.update(result.info)
         traj.metrics = {
             "total_steps": result.info["total_steps"],
             "final_prompt_tokens": result.info["final_prompt_tokens"],
             "avg_completion_tokens": result.info["avg_completion_tokens"],
             "max_completion_tokens": result.info["max_completion_tokens"],
+            "outcome_correct": traj.reward,
         }
-        
+        traj.metadata.update(result.info)
+        traj.metadata["reward"] = "pending_general_rm" if config.reward_type == "general_rm" else traj.reward
+        traj.metadata["outcome_correct"] = traj.reward
+
+
         traj.messages_and_choices = agent.create_messages_and_choices(result.messages)
     except Exception as e:
         print(f"Error in rollout for task {task_index}: {e}")
@@ -143,11 +103,11 @@ async def rollout_tau_bench_task(
     
     traj.finish()
     
-    # Log to langfuse
+    # Log to langfuse/openpipe
     try:
-        log_trajectory_to_langfuse(traj, result.messages)
+        await log_trajectory_to_openpipe(traj, result.messages)
     except Exception as e:
-        print(f"Error logging trajectory to langfuse: {e}")
+        print(f"Error logging trajectory to openpipe: {e}")
     
     # print(f"Finished rolling out task {task_index} (reward: {traj.reward})")
     return traj
@@ -355,6 +315,7 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
         print(f"Validation on {len(val_task_indices)} tasks")
 
         if training_config.train_mode == "async_rl":
+            global_step = 0
             train_task_indices_async_rl = []
             for _ in range(training_config.num_epochs):
                 train_task_indices_async_rl.extend(random.sample(train_task_indices, len(train_task_indices)))
@@ -373,10 +334,10 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                 max_concurrent_batches=3,
                 skip_batches=await model.get_step(),
             ):
-                # if await model.get_step() % training_config.eval_steps == 0:
-                #     print(f"\n--- Evaluating at Step {await model.get_step()} ---")
-                #     await evaluate_model(model, config, await model.get_step(), num_eval_tasks=len(val_task_indices))
-                #     await model.delete_checkpoints()
+                if global_step % training_config.eval_steps == 0:
+                    print(f"\n--- Evaluating at Step {global_step} ---")
+                    await evaluate_model(model, config, global_step, val_task_indices)
+                    # await model.delete_checkpoints()
                 
                 if config.reward_type == "general_rm":
                     print("Creating general RM trajectory groups...")
@@ -397,6 +358,7 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                         learning_rate=training_config.learning_rate
                     ),
                 )
+                global_step += 1
         else:
             # Training iterator
             train_iterator = iterate_dataset(
