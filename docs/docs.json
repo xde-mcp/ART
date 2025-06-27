@@ -1,7 +1,7 @@
 {
   "name": "ART",
   "description": "Train LLMs to be better agents using RL",
-  "theme": "mint",
+  "theme": "linden",
   "logo": {
     "light": "/images/site-assets/logo/light.svg",
     "dark": "/images/site-assets/logo/dark.svg"
@@ -22,80 +22,46 @@
     "name": "Subscribe",
     "url": "https://openpipe.ai"
   },
+  "navbar": {
+    "links": [
+      {
+        "label": "Discord",
+        "href": "https://discord.gg/zbBHRUpwf4"
+      },
+      {
+        "label": "Blog",
+        "href": "https://openpipe.ai/blog"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "GitHub",
+      "href": "https://github.com/openpipe/ART"
+    }
+  },
   "navigation": {
-    "global": {
-      "anchors": [
-        {
-          "anchor": "GitHub",
-          "icon": "github",
-          "href": "https://github.com/openpipe/ART"
-        },
-        {
-          "anchor": "Community",
-          "icon": "discord",
-          "href": "https://discord.gg/zbBHRUpwf4"
-        },
-        {
-          "anchor": "Blog",
-          "icon": "newspaper",
-          "href": "https://openpipe.ai/blog"
-        }
-      ]
-    },
-    "tabs": [
+    "groups": [
       {
-        "tab": "Documentation",
+        "group": "Get Started",
         "pages": [
-          {
-            "group": "Get Started",
-            "pages": [
-              "documentation/getting-started/about",
-              "documentation/getting-started/notebooks",
-              "documentation/getting-started/quick-start"
-            ]
-          },
-          {
-            "group": "Fundamentals",
-            "pages": [
-              "documentation/fundamentals/training-loop",
-              "documentation/fundamentals/art-client",
-              "documentation/fundamentals/art-server"
-            ]
-          }
+          "getting-started/about",
+          "getting-started/notebooks",
+          "getting-started/quick-start",
+          "getting-started/faq"
         ]
       },
       {
-        "tab": "Tutorials & Notebooks",
+        "group": "Fundamentals",
         "pages": [
-          {
-            "group": "Tutorials",
-            "pages": [
-              "examples/tutorials/summarizer"
-            ]
-          },
-          {
-            "group": "Notebooks",
-            "pages": [
-              "examples/notebooks/2048"
-            ]
-          }
+          "fundamentals/training-loop",
+          "fundamentals/art-client",
+          "fundamentals/art-server"
         ]
       },
       {
-        "tab": "FAQ",
+        "group": "Tutorials",
         "pages": [
-          {
-            "group": "FAQ",
-            "pages": [
-              "faq/faq"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "Changelog",
-        "pages": [
-          "changelog/changelog"
+          "tutorials/summarizer"
         ]
       }
     ]

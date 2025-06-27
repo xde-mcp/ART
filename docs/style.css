@@ -1,0 +1,11 @@
+table th,
+table td {
+  vertical-align: top !important;
+  line-height: 1.5;
+}
+
+/* Hide the "Powered by Mintlify" credit link everywhere */
+a[href^="https://mintlify.com/preview-request"]
+{
+  display: none !important;
+}
