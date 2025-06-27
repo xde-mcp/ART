@@ -33,6 +33,7 @@ models = {
         "num_epochs": 50,
         "reward_type": "real",
         "max_num_steps": 30,
+        "train_mode": "sync_rl",
     }
 }
 
@@ -51,6 +52,10 @@ models["004"]["model"] = "tau-bench-rl-004-final"
 models["004"]["reward_type"] = "general_rm"
 models["004"]["learning_rate"] = 5e-6
 models["004"]["max_num_steps"] = 14
+
+models["005"] = models["003"].copy()
+models["005"]["model"] = "tau-bench-rl-005-final"
+models["005"]["train_mode"] = "async_rl"
 
 parser = argparse.ArgumentParser(
     description="Train one or more tau-bench RL models (comma separated)."
@@ -119,6 +124,7 @@ def launch_model(model_key: str):
         f"--num-epochs {model_config['num_epochs']}",
         f"--reward-type {model_config['reward_type']}",
         f"--max-num-steps {model_config['max_num_steps']}",
+        f"--train-mode {model_config['train_mode']}",
     ]
 
     run_script = textwrap.dedent(f"""

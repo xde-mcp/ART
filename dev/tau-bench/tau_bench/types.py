@@ -105,6 +105,7 @@ class TauBenchTrainingConfig(BaseModel):
     val_set_size: int = 85
     training_dataset_size: int = 30
     num_epochs: int = 50
+    train_mode: str = "sync_rl"
 
 
 class TauBenchPolicyConfig(BaseModel):
