@@ -289,27 +289,17 @@ async def evaluate_model(
     model: art.TrainableModel[TauBenchPolicyConfig],
     config: RunConfig,
     step: int,
-    num_eval_tasks: int = 50
+    val_task_indices: List[int]
 ) -> float:
     """Evaluate the model on a subset of tasks"""
-    print(f"Evaluating model on {num_eval_tasks} tasks...")
-    
-    # Get environment for evaluation
-    env = get_env(
-        config.env,
-        user_strategy=config.user_strategy,
-        user_model=config.user_model,
-        user_provider=config.user_model_provider,
-        task_split=config.task_split,
-    )
+    print(f"Evaluating model on {len(val_task_indices)} tasks...")
     
     total_reward = 0.0
-    eval_tasks = min(num_eval_tasks, len(env.tasks))
 
     trajectories = await art.gather_trajectories(
         (
-            async_rollout_tau_bench_task(model, i, step, "val")
-            for i in range(eval_tasks)
+            async_rollout_tau_bench_task(model, val_task_index, step, "val")
+            for val_task_index in val_task_indices
         )
     )
     await model.log(trajectories=trajectories, split="val")
@@ -318,7 +308,7 @@ async def evaluate_model(
         total_reward += traj.reward
         print(f"Eval task {traj.metadata['task_index']}: reward={traj.reward}")
     
-    avg_reward = total_reward / eval_tasks
+    avg_reward = total_reward / len(val_task_indices)
     print(f"Average evaluation reward: {avg_reward}")
     return avg_reward
 
@@ -422,7 +412,7 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                 # Evaluation
                 if global_step % training_config.eval_steps == 0:
                     print(f"\n--- Evaluating at Step {global_step} ---")
-                    await evaluate_model(model, config, global_step, num_eval_tasks=len(val_task_indices))
+                    await evaluate_model(model, config, global_step, val_task_indices)
                     await model.delete_checkpoints()
                 
                 # Generate trajectory groups
@@ -471,7 +461,7 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
         # Final evaluation
         print("\n--- Final Evaluation ---")
         final_step = await model.get_step()
-        final_reward = await evaluate_model(model, config, final_step, num_eval_tasks=len(val_task_indices))
+        final_reward = await evaluate_model(model, config, final_step, val_task_indices)
         print(f"Final average reward: {final_reward}")
         
         print("Training completed!")

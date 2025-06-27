@@ -56,6 +56,7 @@ models["004"]["max_num_steps"] = 14
 models["005"] = models["003"].copy()
 models["005"]["model"] = "tau-bench-rl-005-final"
 models["005"]["train_mode"] = "async_rl"
+models["005"]["groups_per_step"] = 5
 
 parser = argparse.ArgumentParser(
     description="Train one or more tau-bench RL models (comma separated)."
