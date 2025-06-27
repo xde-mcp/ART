@@ -12,6 +12,9 @@
     "light": "#FF5733",
     "dark": "#FF5733"
   },
+  "styling": {
+    "eyebrows": "section"
+  },
   "modeToggle": {
     "default": "light"
   },
@@ -19,31 +22,36 @@
     "name": "Subscribe",
     "url": "https://openpipe.ai"
   },
-  "anchors": [],
   "navigation": {
+    "global": {
+      "anchors": [
+        {
+          "anchor": "GitHub",
+          "icon": "github",
+          "href": "https://github.com/openpipe/ART"
+        },
+        {
+          "anchor": "Community",
+          "icon": "discord",
+          "href": "https://discord.gg/zbBHRUpwf4"
+        },
+        {
+          "anchor": "Blog",
+          "icon": "newspaper",
+          "href": "https://openpipe.ai/blog"
+        }
+      ]
+    },
     "tabs": [
-      {
-        "tab": "Home",
-        "pages": [
-          "home/welcome"
-        ]
-      },
       {
         "tab": "Documentation",
         "pages": [
           {
-            "group": "Getting Started",
+            "group": "Get Started",
             "pages": [
-              "documentation/getting-started/introduction",
-              "documentation/getting-started/overview",
+              "documentation/getting-started/about",
               "documentation/getting-started/notebooks",
               "documentation/getting-started/quick-start"
-            ]
-          },
-          {
-            "group": "Tutorials",
-            "pages": [
-              "documentation/tutorials/summarizer"
             ]
           },
           {
@@ -57,6 +65,23 @@
         ]
       },
       {
+        "tab": "Tutorials & Notebooks",
+        "pages": [
+          {
+            "group": "Tutorials",
+            "pages": [
+              "examples/tutorials/summarizer"
+            ]
+          },
+          {
+            "group": "Notebooks",
+            "pages": [
+              "examples/notebooks/2048"
+            ]
+          }
+        ]
+      },
+      {
         "tab": "FAQ",
         "pages": [
           {
@@ -65,6 +90,12 @@
               "faq/faq"
             ]
           }
+        ]
+      },
+      {
+        "tab": "Changelog",
+        "pages": [
+          "changelog/changelog"
         ]
       }
     ]
