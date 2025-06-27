@@ -19,7 +19,7 @@ from tau_bench.envs.user import UserStrategy
 from tau_bench.agents.tool_calling_agent import ToolCallingRLAgent
 from tau_bench.types import TauBenchPolicyConfig, TauBenchTrainingConfig
 from tau_bench.general_rm import create_general_rm_trajectory_groups
-from tau_bench.rl_utils import log_trajectory_to_openpipe
+from tau_bench.rl_utils import log_trajectory_to_openpipe, update_steps_for_openpipe_logs
 from tqdm.asyncio import tqdm_asyncio
 
 # Load environment variables
@@ -351,7 +351,7 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                     )
                     trajectory_groups = updated_groups
 
-                await update_steps_for_openpipe_logs(trajectory_groups)
+                await update_steps_for_openpipe_logs(trajectory_groups, global_step)
                 # Training step
                 print(f"Training on {len(trajectory_groups)} trajectory groups...")
                 await model.train(

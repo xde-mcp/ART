@@ -54,12 +54,12 @@ models["004"]["learning_rate"] = 5e-6
 models["004"]["max_num_steps"] = 14
 
 models["005"] = models["003"].copy()
-models["005"]["model"] = "tau-bench-rl-005-final-3"
+models["005"]["model"] = "tau-bench-rl-005-final-4"
 models["005"]["train_mode"] = "async_rl"
 models["005"]["val_set_size"] = 30
 
 models["006"] = models["001"].copy()
-models["006"]["model"] = "tau-bench-rl-006-final-3"
+models["006"]["model"] = "tau-bench-rl-006-final-4"
 models["006"]["train_mode"] = "async_rl"
 models["006"]["learning_rate"] = 5e-6
 models["006"]["val_set_size"] = 30
