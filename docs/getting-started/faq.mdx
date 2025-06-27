@@ -9,12 +9,17 @@ icon: "block-question"
   allows for easy training of LLM-based agents using GRPO (as well as PPO and
   other techniques in the future). It's focused on best-in-class training
   efficiency ergonomic agentic multi-turn support.
+
+ART uses GRPO (a reinforcement learning technique published by DeepSeek in 2024) is used to train LLMs (large language models) to more reliably follow instructions provided in their system and user messages. By allowing an LLM to make multiple attempts at accomplishing a task and scoring each rollout’s performance, we shift the LLM’s weights to make it more likely to perform the way it did in its best runs while teaching it to avoid its worst behavior.
+
 </Accordion>
 
 <Accordion title="How does ART work under the hood?">
   This flow chart shows a highly simplified flow of how ART optimizes your agent. Your code is responsible for actually running the agent in the environment it will operate in, as well as scoring the trajectory (deciding whether the agent did a good job or not). ART is then able to take those trajectories and scores and use them to iteratively train your agent and improve performance.
 
 <Frame>![](/images/faq/art-loop.webp)</Frame>
+
+Over the course of many training steps, the model learns what strategies help it succeed at its task, and which strategies are unhelpful. Through this process, small models like Llama 3.1 8B and and Qwen 3 8B can learn to outperform much larger and more expensive models like o3 and sonnet-4. Aberrations in model performance identified during QA or in production can be instantly fixed by adding a similar training example to the training set. The resulting model is small, fast, and best-in-class at its task. It can be run on any cloud, including locally within a VPC.
 
 </Accordion>
 

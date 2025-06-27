@@ -1,7 +1,7 @@
 {
   "name": "ART",
   "description": "Train LLMs to be better agents using RL",
-  "theme": "linden",
+  "theme": "mint",
   "logo": {
     "light": "/images/site-assets/logo/light.svg",
     "dark": "/images/site-assets/logo/dark.svg"
@@ -45,8 +45,9 @@
         "group": "Get Started",
         "pages": [
           "getting-started/about",
-          "getting-started/notebooks",
           "getting-started/quick-start",
+          "getting-started/installation-setup",
+          "getting-started/notebooks",
           "getting-started/faq"
         ]
       },
@@ -62,6 +63,13 @@
         "group": "Tutorials",
         "pages": [
           "tutorials/summarizer"
+        ]
+      },
+      {
+        "group": "Resources",
+        "pages": [
+          "getting-started/models",
+          "resources/glossary"
         ]
       }
     ]
