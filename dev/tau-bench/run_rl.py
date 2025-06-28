@@ -201,6 +201,7 @@ def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]
     parser.add_argument("--general-rm-model", type=str, default="o3", help="Model to use for general RM. ignored if reward type is not general_rm")
     parser.add_argument("--max-num-steps", type=int, default=30, help="Maximum number of steps per rollout")
     parser.add_argument("--train-mode", type=str, default="sync_rl", choices=["sync_rl", "async_rl"], help="Training mode")
+    parser.add_argument("--skip-eval", type=bool, default=False, help="Skip evaluation")
     
     args = parser.parse_args()
     print(args)
@@ -227,7 +228,8 @@ def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]
         few_shot_displays_path=args.few_shot_displays_path,
         reward_type=args.reward_type,
         general_rm_model=args.general_rm_model,
-        max_num_steps=args.max_num_steps
+        max_num_steps=args.max_num_steps,
+        skip_eval=args.skip_eval,
     )
     
     # Create training config
@@ -334,7 +336,7 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                 max_concurrent_batches=3,
                 skip_batches=await model.get_step(),
             ):
-                if global_step % training_config.eval_steps == 0:
+                if global_step % training_config.eval_steps == 0 and not config.skip_eval:
                     print(f"\n--- Evaluating at Step {global_step} ---")
                     await evaluate_model(model, config, global_step, val_task_indices)
                     # await model.delete_checkpoints()
@@ -378,7 +380,7 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                 print(f"\n--- Training Step {global_step} (Epoch {epoch}, Step {epoch_step}) ---")
                 
                 # Evaluation
-                if global_step % training_config.eval_steps == 0:
+                if global_step % training_config.eval_steps == 0 and not config.skip_eval:
                     print(f"\n--- Evaluating at Step {global_step} ---")
                     await evaluate_model(model, config, global_step, val_task_indices)
                     await model.delete_checkpoints()

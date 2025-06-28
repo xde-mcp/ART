@@ -34,6 +34,7 @@ models = {
         "reward_type": "real",
         "max_num_steps": 30,
         "train_mode": "sync_rl",
+        "skip_eval": False,
     }
 }
 
@@ -67,6 +68,18 @@ models["006"]["val_set_size"] = 30
 models["007"] = models["005"].copy()
 models["007"]["model"] = "tau-bench-rl-007"
 models["007"]["base_model"] = "Qwen/Qwen2.5-32B-Instruct"
+
+models["008"] = models["001"].copy()
+models["008"]["model"] = "tau-bench-rl-debug-1"
+models["008"]["base_model"] = "Qwen/Qwen2.5-7B-Instruct"
+models["008"]["learning_rate"] = 5e-6
+models["008"]["trajectories_per_group"] = 3
+models["008"]["groups_per_step"] = 3
+models["008"]["val_set_size"] = 4
+models["008"]["training_dataset_size"] = 6
+models["008"]["train_mode"] = "async_rl"
+models["008"]["reward_type"] = "general_rm"
+models["008"]["skip_eval"] = True
 
 parser = argparse.ArgumentParser(
     description="Train one or more tau-bench RL models (comma separated)."
@@ -136,6 +149,7 @@ def launch_model(model_key: str):
         f"--reward-type {model_config['reward_type']}",
         f"--max-num-steps {model_config['max_num_steps']}",
         f"--train-mode {model_config['train_mode']}",
+        f"--skip-eval {model_config['skip_eval']}",
     ]
 
     run_script = textwrap.dedent(f"""

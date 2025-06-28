@@ -96,6 +96,8 @@ class RunConfig(BaseModel):
     reward_type: str = "real"
     general_rm_model: str = "o3"
     max_num_steps: int = 30
+    skip_eval: bool = False
+
 class TauBenchTrainingConfig(BaseModel):
     """Training configuration for ART RL on tau-bench tasks"""
     trajectories_per_group: int = 6

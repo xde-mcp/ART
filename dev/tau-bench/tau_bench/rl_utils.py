@@ -70,7 +70,7 @@ def create_response_payload() -> dict[str, Any]:
         "model": "dummy-model",
         "choices": [{
             "index": 0,
-            "message": "dummy-message",
+            "message": {"content": "Dummy Response", "role": "assistant"},
             "finish_reason": "stop"
         }],
         "usage": {
