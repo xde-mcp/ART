@@ -19,7 +19,7 @@ Total cost: <b>$22</b>
 
 </Info>
 
-## Step 1: Clone the starter repo
+## Step 1: Clone the starter repo and install dependencies
 
 To get started, clone [Summary-RL](https://github.com/OpenPipe/Summary-RL/), which contains the following pieces of our RL pipeline:
 
@@ -27,66 +27,103 @@ To get started, clone [Summary-RL](https://github.com/OpenPipe/Summary-RL/), whi
 - The reward function
 - Some training examples
 
-## Step 2: Install dependencies and set up environment variables
+Once the repository is cloned, install dependencies. If you haven't already, install `uv` by following the instructions [here](https://docs.astral.sh/uv/getting-started/installation/).
 
-Follow steps 1-3 in the [Getting Started](https://github.com/OpenPipe/Summary-RL/?tab=readme-ov-file#getting-started) section to set up your local laptop for training. We highly recommend at least setting your `WANDB_API_KEY` to track agent performance over time, though it is not necessary to train your model. If you plan to benchmark your model or host it after training, you'll also need to set your AWS access keys (instructions linked in [step 3](https://github.com/OpenPipe/Summary-RL/?tab=readme-ov-file#3-set-up-optional-environment-variables-found-in-envexample)).
+Then install the project dependencies by running `uv sync`.
 
-## Step 1: Create Your OpenPipe Account
+### 2. Install SkyPilot/RunPod
 
-If you don't already have one, create an account with OpenPipe at https://app.openpipe.ai/. You can sign up with GitHub, so you don't need to remember an extra password.
+We'll be using `SkyPilotBackend` to manage the GPU that your model will be trained on. In order for the backend to work, you'll need to have SkyPilot installed on your machine and provide it with the credentials to spin up machines on at least one infra provider.
 
-## Step 2: Find Your Project API Key
+We recommend using RunPod because of their ease of use, but any infra provider that SkyPilot [supports](https://docs.skypilot.co/en/latest/overview.html#bringing-your-infra) will work.
 
-In order to capture your calls and fine-tune a model on them, we need an API key to authenticate you and determine which project to store your logs under.
+Follow RunPod's **Getting Started** guide [here](https://docs.runpod.io/integrations/skypilot/). You'll have to provide a credit card to use RunPod, but you'll only pay for the time your GPUs are running.
 
-<Note>
-  When you created your account, a project was automatically configured for you
-  as well. Find its API key at https://app.openpipe.ai/settings.
-</Note>
+### 3. Set up optional environment variables found in `.env.example`.
 
-## Step 3: Record Training Data (Optional)
+In a new `.env` file at the root of the repository, set the following optional environment variables:
 
-If you don't have any training data, you can record it by integrating the OpenPipe SDK or using the OpenPipe Proxy. If you already have a dataset, you can skip this step!
+- `WANDB_API_KEY` - Enables metric logging to Weights & Biases.
+- `OPENPIPE_API_KEY` - Enables chat completion logging to OpenPipe.
+- `OPENAI_API_KEY` - Will be necessary for later comparison benchmarks, but not used for training.
 
-<CardGroup cols={2}>
-  <Card
-    title="Installing the SDK"
-    icon="code"
-    iconType="duotone"
-    href="/getting-started/openpipe-sdk"
-  ></Card>
-  <Card
-    title="Using the OpenPipe Proxy"
-    icon="layer-group"
-    href="/features/request-logs/logging-requests#proxy"
-  ></Card>
-</CardGroup>
+To enable model and logging backup to S3, you'll also need to provide AWS credentials. These are necessary for generating the benchmarks found in the `benchmarks` directory, but not for training itself. If you don't already have AWS credentials with create/read/write permissions for s3 buckets, follow the instructions [here](CONFIGURING_AWS.md).
 
-## Step 4: Prepare a Dataset
+- `AWS_ACCESS_KEY_ID` - Your AWS access key ID, which should have create/read/write permissions for s3 buckets.
+- `AWS_SECRET_ACCESS_KEY` - Your matching secret access key.
+- `AWS_REGION` - The region of the S3 bucket.
+- `BACKUP_BUCKET` - The name of the S3 bucket in which to store model checkpoints and logging data. Can be a new bucket or an existing one.
 
-Datasets are the core of OpenPipe. They store your training data, and allow you to fine-tune and evaluate models on it. To learn more about datasets, check out the [Datasets](/features/datasets/overview) page.
+### 4. Run the training script
 
-Datasets can be populated in two ways:
+```bash
+uv run python src/summarizer/train.py
+```
 
-1. [Uploading external data](/features/datasets/uploading-data)
-2. [Importing request logs](/features/datasets/importing-logs)
+The following steps execute when a training run on a new cluster begins:
 
-If you already have a dataset, we recommend uploading it as a starting point. Otherwise, make sure you set up request logging in step 3!
+- **Spin up a cluster with 1 H100 GPU.**
+  - This usually takes about 10 minutes, but RunPod occasionally has network throughput issues that can cause the cluster to take up to 30 minutes to spin up. Once the cluster is provisioned, it can be used for subsequent training runs without going through this process again.
+- **Register the model with ART.**
+  - This usually takes less than 5 minutes, though it can require up to 30 minutes if RunPod experiences network issues.
+- **Download the model checkpoint from S3.**
+  - Usually takes a few seconds.
+- **Train the model for a specified number of steps.**
+  - Training itself should be pretty quick (each step takes less than a minute), but the total training time will depend on how many steps you run for. During training, the model checkpoint is saved to S3 after each step.
+- **Upload the final model checkpoint to S3.**
+  - This usually takes a few seconds.
 
-## Step 5: Fine Tune a Model
+### 5. Shutting down the cluster
 
-Once your dataset has been created and populated, you can fine-tune models on it. Follow the [fine-tuning quickstart](/features/fine-tuning/quick-start) guide to kick off your first fine-tuning run.
+When you're done training and running benchmarks, you can shut down the cluster in two ways:
 
-<Frame>![](/images/features/fine-tuning/fine-tune-modal.png)</Frame>
+Through the CLI:
 
-We recommend training several models of varying sizes and configurations to determine the best one for your use case. If you have questions on this step, please reach out to us at [support@openpipe.ai](mailto:support@openpipe.ai)!
+```bash
+uv run sky down <cluster-name>
+```
 
-## Step 6: Evaluate Your Model
+or through code:
 
-Once your model (or models) have been fine-tuned, you can evaluate them. To learn more about evaluating models, check out the [Evaluations](/features/evaluations/overview) page.
+```python
+DESTROY_AFTER_RUN = True
 
-## Step 7: Deploy Your Model
+if DESTROY_AFTER_RUN:
+    await backend.down()
+```
 
-By default, your model will be automatically hosted on OpenPipe's cloud infrastructure. Additionally, you can export and deploy any of our open-weight models on your own cloud.
+However, since spinning up clusters is a time-intensive process, we recommend keeping clusters alive until you're sure you won't be using them in the near future.
 
-Good luck! If you have any questions, don't hesitate to reach out!
+### Running Benchmarks
+
+The `benchmark_models.py` script will compare the performance of the trained model to `gpt-4o`, `gpt-4.1`, `o4-mini`, and `gemini-2.5-pro-preview`.
+
+Before running the benchmark script, make sure you've provided a valid `OPENROUTER_API_KEY` and the AWS credentials detailed in step 3. These credentials are necessary for the script to upload the benchmark results to S3.
+
+```bash
+uv run python benchmarks/benchmark_models.py
+```
+
+This script will:
+
+- Run each benchmarked model through each document in the validation set.
+- Record the percentage of questions that each model's summary allowed Gemini 2.5 Flash to answer correctly.
+- Upload the results to S3.
+
+Once the benchmark generation script has finished running, you can view the results and generate visual charts by navigating to `benchmarks/display_benchmarks.ipynb` and running the cells. After running all the cells, you should see something like the following:
+
+<img
+  src="https://github.com/OpenPipe/Summary-RL/raw/main/assets/benchmarks/summarize/percentage-training-progress.svg"
+  alt="Benchmark Percentage of Questions Answered Comparison"
+  width="500"
+/>
+
+_The percentage of questions that each model's summary allowed Gemini 2.5 Flash to answer correctly at each training step. By step 5 of this training run, the trained model outperforms every other model._
+
+<img
+  src="https://github.com/OpenPipe/Summary-RL/raw/main/assets/benchmarks/summarize/percentage-comparison.svg"
+  alt="Benchmark Percentage of Questions Answered Comparison"
+  width="500"
+/>
+
+_A side-by-side comparison of the percentage of questions that each model's summary allowed Gemini 2.5 Flash to answer correctly. The trained model began with a percentage of 12%, but by the final step, it was able to generate summaries that allowed Gemini 2.5 Flash to answer 24% of the questions correctly._
