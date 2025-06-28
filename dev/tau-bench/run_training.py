@@ -64,6 +64,10 @@ models["006"]["train_mode"] = "async_rl"
 models["006"]["learning_rate"] = 5e-6
 models["006"]["val_set_size"] = 30
 
+models["007"] = models["005"].copy()
+models["007"]["model"] = "tau-bench-rl-007"
+models["007"]["base_model"] = "Qwen/Qwen2.5-32B-Instruct"
+
 parser = argparse.ArgumentParser(
     description="Train one or more tau-bench RL models (comma separated)."
 )

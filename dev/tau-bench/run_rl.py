@@ -351,7 +351,11 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                     )
                     trajectory_groups = updated_groups
 
-                await update_steps_for_openpipe_logs(trajectory_groups, global_step)
+                try:
+                    await update_steps_for_openpipe_logs(trajectory_groups, global_step)
+                except Exception as e:
+                    print(f"Error updating steps for openpipe logs: {e}")
+
                 # Training step
                 print(f"Training on {len(trajectory_groups)} trajectory groups...")
                 await model.train(

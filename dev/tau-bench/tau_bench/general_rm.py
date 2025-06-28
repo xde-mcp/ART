@@ -72,46 +72,49 @@ async def create_openai_response(prompt: str, judge_model: str = "o3") -> Rollou
         return response.choices[0].message.parsed
 
 async def create_general_rm_trajectory_groups(group: art.TrajectoryGroup, config: RunConfig) -> art.TrajectoryGroup:
-    user_prompt = GENERAL_RM_PROMPT
+    try:
+        user_prompt = GENERAL_RM_PROMPT
 
-    system_message, remaining_messages = create_and_split_messages(group.trajectories[0].messages_and_choices)
-    user_prompt +=f"Here is the system prompt that was provided at the beginning of each of the rollouts:\n--- START OF SYSTEM PROMPT ---\n{system_message}\n--- END OF SYSTEM PROMPT ---\nHere are the rollouts to evaluate:"
-    for idx, trajectory in enumerate(group.trajectories):
-        user_prompt += f"\n\n--- ROLLOUT {idx} ---\n"
-        _, messages = create_and_split_messages(trajectory.messages_and_choices)    
-        # Format conversation
-        for msg in messages:
-            role = msg.get("role", "unknown")
-            content = msg.get("content", "")
-            tool_calls = msg.get("tool_calls", [])
+        system_message, remaining_messages = create_and_split_messages(group.trajectories[0].messages_and_choices)
+        user_prompt +=f"Here is the system prompt that was provided at the beginning of each of the rollouts:\n--- START OF SYSTEM PROMPT ---\n{system_message}\n--- END OF SYSTEM PROMPT ---\nHere are the rollouts to evaluate:"
+        for idx, trajectory in enumerate(group.trajectories):
+            user_prompt += f"\n\n--- ROLLOUT {idx} ---\n"
+            _, messages = create_and_split_messages(trajectory.messages_and_choices)    
+            # Format conversation
+            for msg in messages:
+                role = msg.get("role", "unknown")
+                content = msg.get("content", "")
+                tool_calls = msg.get("tool_calls", [])
+                
+                if tool_calls and len(tool_calls) > 0:
+                    tool_call_str = ""
+                    for tool_call in tool_calls:
+                        tool_call_str += f"TOOL CALL: {tool_call['function']['name']}: {tool_call['function']['arguments']}\n"
+                    user_prompt += f"{role.upper()}: {tool_call_str}\n"
+                else:
+                    user_prompt += f"{role.upper()}: {content}\n"
             
-            if tool_calls and len(tool_calls) > 0:
-                tool_call_str = ""
-                for tool_call in tool_calls:
-                    tool_call_str += f"TOOL CALL: {tool_call['function']['name']}: {tool_call['function']['arguments']}\n"
-                user_prompt += f"{role.upper()}: {tool_call_str}\n"
-            else:
-                user_prompt += f"{role.upper()}: {content}\n"
+        if config.general_rm_model.startswith("o3"):
+            response = await create_openai_response(user_prompt, config.general_rm_model)
+        else:
+            raise ValueError(f"General RM model {config.general_rm_model} not supported")
         
-    if config.general_rm_model.startswith("o3"):
-        response = await create_openai_response(user_prompt, config.general_rm_model)
-    else:
-        raise ValueError(f"General RM model {config.general_rm_model} not supported")
-    
-    assert response is not None
-    assert len(response.rollout_scores) == len(group.trajectories)
-    
-    new_trajectories = []
-    for idx, trajectory in enumerate(group.trajectories):
-        new_trajectory = copy.deepcopy(trajectory)
-        new_trajectory.metrics["outcome_correct"] = new_trajectory.reward
-        new_trajectory.reward = response.rollout_scores[idx].score
-        new_trajectory.metadata["judge_explanation"] = response.rollout_scores[idx].explanation
-        try:
-            await update_openpipe_log(new_trajectory)
-        except Exception as e:
-            print(f"Error updating openpipe log: {e}")
-        new_trajectories.append(new_trajectory)
-    
-    return art.TrajectoryGroup(new_trajectories)
-    
+        assert response is not None
+        assert len(response.rollout_scores) == len(group.trajectories)
+        
+        new_trajectories = []
+        for idx, trajectory in enumerate(group.trajectories):
+            new_trajectory = copy.deepcopy(trajectory)
+            new_trajectory.metrics["outcome_correct"] = new_trajectory.reward
+            new_trajectory.reward = response.rollout_scores[idx].score
+            new_trajectory.metadata["judge_explanation"] = response.rollout_scores[idx].explanation
+            try:
+                await update_openpipe_log(new_trajectory)
+            except Exception as e:
+                print(f"Error updating openpipe log: {e}")
+            new_trajectories.append(new_trajectory)
+        
+        return art.TrajectoryGroup(new_trajectories)
+    except Exception as e:
+        print(f"Error creating general RM trajectory groups: {e}")
+        return group
