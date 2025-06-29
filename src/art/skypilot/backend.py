@@ -148,7 +148,9 @@ class SkyPilotBackend(Backend):
             try:
                 art_version = version("openpipe-art")
             except PackageNotFoundError:
-                art_version = None
+                raise ValueError(
+                    "No version of openpipe-art installed in project. Please provide an art_version."
+                )
 
         art_version_is_semver = False
         # check if art_version is valid semver
