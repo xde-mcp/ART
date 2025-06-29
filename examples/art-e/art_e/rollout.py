@@ -318,7 +318,7 @@ async def rollout(
         # Our rollout is only set up to handle one tool call at a time, so just ignore any parallel tool calls.
         if choice.message.tool_calls is not None and len(choice.message.tool_calls) > 1:
             choice.message.tool_calls = choice.message.tool_calls[:1]
-        traj.messages_and_choices.append(choice.message)  # type: ignore
+        traj.messages_and_choices.append(convert_litellm_choice_to_openai(choice))  # type: ignore
 
         if choice.message.tool_calls is None:
             rubric.bad_tool_call_name = True

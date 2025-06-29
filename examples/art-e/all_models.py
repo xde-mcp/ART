@@ -147,5 +147,5 @@ for _seed in [1, 2, 3]:
 models["211"] = models["206"].model_copy(deep=True)
 models["211"].name = "email-agent-211"
 
-models["212"] = models["206"].model_copy(deep=True)
-models["212"].name = "email-agent-212-6"
+models["212"] = models["008"].model_copy(deep=True)
+models["212"].name = "email-agent-212-8"

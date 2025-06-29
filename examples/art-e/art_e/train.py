@@ -14,13 +14,10 @@ from art_e.judge_group import judge_group
 from art_e.rollout import ProjectTrajectory
 import os
 import statistics
-import tenacity
 
 load_dotenv()
 
 
-# Retry up to 5 times if the training fails, usually happens because vllm dies
-@tenacity.retry(stop=tenacity.stop_after_attempt(5))
 async def train(model: art.TrainableModel[ProjectPolicyConfig]):
     generate_database()
 
