@@ -27,7 +27,6 @@ from rich import print
 
 litellm.cache = Cache(type=LiteLLMCacheType.DISK)
 litellm.drop_params = True
-# litellm._turn_on_debug()
 logging.getLogger("weave.trace.op").setLevel(logging.WARNING)
 
 
@@ -169,7 +168,6 @@ Return your judgement as **pure JSON** (no markdown) with this exact schema:
     ]
 
     response = await acompletion(
-        # model="gemini/gemini-2.5-flash",
         model="openai/gpt-4.1",
         messages=messages,
         caching=True,
@@ -193,8 +191,7 @@ class ProjectTrajectory(Trajectory):
 
 
 @retry(stop=stop_after_attempt(3))
-@weave.op(tracing_sample_rate=0.05)  # type: ignore
-# @weave.op()  # type: ignore
+# @weave.op(tracing_sample_rate=0.05)  # type: ignore
 async def rollout(
     model: art.Model[ProjectPolicyConfig],
     scenario: SyntheticQuery,
