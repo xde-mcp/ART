@@ -98,4 +98,5 @@ class TorchtuneArgs(TypedDict, total=False):
     model_type: Required[TorchtuneModelType]
     tensor_parallel_dim: int
     context_parallel_dim: int
+    enable_activation_offloading: bool
     async_weight_syncing: bool

@@ -183,6 +183,7 @@ class TorchtuneService:
             f"output_dir={self.output_dir}",
             "metric_logger._component_=torchtune.training.metric_logging.StdoutLogger",
             "metric_logger.log_dir=null",
+            f"enable_activation_offloading={torchtune_args.get('enable_activation_offloading', False)}",
         ]
         return await asyncio.subprocess.create_subprocess_exec(
             *program_and_args,
