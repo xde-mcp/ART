@@ -1,5 +1,6 @@
-table.full-width th,
-table.full-width td {
+/* Styles for tables wrapped in a .full-width container */
+.full-width table th,
+.full-width table td {
   vertical-align: top !important;
   line-height: 1.5;
   /* Horizontal borders */
@@ -17,21 +18,25 @@ a[href^="https://mintlify.com/preview-request"]
   display: none !important;
 }
 
-table.full-width {
+.full-width {
+  margin-top: -16px;
+}
+
+.full-width table {
   width: 100%;
   border-collapse: collapse;
   table-layout: auto;
 }
 
-.prose.overflow-x-auto table.full-width {
+.prose.overflow-x-auto .full-width table {
   display: table !important;
   width: 100% !important;
   min-width: 100%;
 }
 
 /* Remove border on the far left of the table */
-table.full-width th:first-child,
-table.full-width td:first-child {
+.full-width table th:first-child,
+.full-width table td:first-child {
   border-left: none;
   padding-left: 8px !important;
 }
