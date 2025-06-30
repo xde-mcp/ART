@@ -5,22 +5,22 @@ description: "Train open source models on ART."
 icon: "robot"
 ---
 
+## Recommended Models
+
+- [Qwen 2.5 14B Instruct](https://huggingface.co/Qwen/Qwen2.5-14B-Instruct)
+  - Good balance of performance and size
+- [Qwen 2.5 7B Instruct](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct)
+  - Less capable than 14B, but smaller and faster
+- [Qwen 2.5 32B Instruct](https://huggingface.co/Qwen/Qwen2.5-32B-Instruct)
+  - More capable than 14B, but larger and slower
+
+## More Models
+
 <Info>
-  If you aren't sure which model to start with, we recommend using one of the
-  [Qwen 2.5
-  models](https://huggingface.co/collections/Qwen/qwen25-66e81a666513e518adb90d9e).
-  For a good balance of performance and size, start with [Qwen 2.5 14B
-  Instruct](https://huggingface.co/Qwen/Qwen2.5-14B-Instruct).
+  If you're curious about a model that is not listed below, ask in the Discord
+  [#support](https://discord.com/channels/1359674493949448375/1359674622965973185)
+  channel.
 </Info>
-
-ART supports a wide variety of base models, with two constraining factors:
-
-1. For single-device fine-tuning, the base model (along with some reasonable amount of context) must be able to fit on a H100 in a quantized state.
-2. ART's dependencies (including Unsloth and vLLM) must support the model.
-
-ART currently supports instruct-tuned models from the following providers. If you're curious about a model that is not listed below, ask in the Discord [#support](https://discord.com/channels/1359674493949448375/1359674622965973185) channel.
-
-## Models
 
 <Tabs>
   <Tab title="Gemma">
