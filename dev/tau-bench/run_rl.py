@@ -201,7 +201,7 @@ def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]
     parser.add_argument("--general-rm-model", type=str, default="o3", help="Model to use for general RM. ignored if reward type is not general_rm")
     parser.add_argument("--max-num-steps", type=int, default=30, help="Maximum number of steps per rollout")
     parser.add_argument("--train-mode", type=str, default="sync_rl", choices=["sync_rl", "async_rl"], help="Training mode")
-    parser.add_argument("--skip-eval", type=bool, default=False, help="Skip evaluation")
+    parser.add_argument("--skip-eval", action="store_true", default=False, help="Skip evaluation")
     
     args = parser.parse_args()
     print(args)
@@ -221,7 +221,7 @@ def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]
         end_index=args.end_index,
         task_ids=args.task_ids,
         log_dir=args.log_dir,
-        max_concurrency=1,  # RL training is sequential
+        max_concurrency=50,
         seed=args.seed,
         shuffle=args.shuffle,
         user_strategy=args.user_strategy,
