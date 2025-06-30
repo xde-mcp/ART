@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 
 class SyntheticQuery(BaseModel):
@@ -10,6 +10,7 @@ class SyntheticQuery(BaseModel):
     how_realistic: float
     inbox_address: str
     query_date: str
+    split: Literal["train", "test"]
 
 
 class Email(BaseModel):

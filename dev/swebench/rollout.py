@@ -1,5 +1,8 @@
+from aiolimiter import AsyncLimiter
 import art
 import asyncio
+from grpclib.exceptions import StreamTerminatedError
+from http.client import RemoteDisconnected
 import json
 from langfuse.decorators import observe
 import modal
@@ -7,7 +10,7 @@ from pathlib import Path
 from pydantic import BaseModel
 import requests
 from requests import adapters as requests_adapters
-from requests.exceptions import ConnectTimeout, SSLError
+from requests.exceptions import ConnectTimeout, ConnectionError, SSLError
 from sweagent.agent.agents import DefaultAgent, DefaultAgentConfig
 from sweagent.run.hooks.abstract import RunHook
 from sweagent.run.run_replay import RunReplay
@@ -16,14 +19,17 @@ from sweagent.types import AgentRunResult
 from swebench.harness.modal_eval.run_evaluation_modal import app, run_instance_modal
 from swebench.harness.test_spec.test_spec import make_test_spec
 from swerex.deployment.modal import ModalDeployment
-from swerex.exceptions import CommandTimeoutError
+from swerex.exceptions import CommandTimeoutError, SwerexException
 from typing import Any, Literal, overload
+from urllib3.exceptions import ProtocolError
 
 from config import get_config
 from eval import eval_instance
 from logs import setup_agent_logger
 from instances import Instance
 from run import run
+
+limiter = AsyncLimiter(max_rate=5, time_period=1)
 
 
 class ModelConfig(BaseModel):
@@ -61,7 +67,7 @@ async def rollout(
 @observe(capture_input=False, capture_output=False)
 @art.retry(
     max_attempts=2,
-    exceptions=(modal.exception.SandboxTimeoutError,),
+    exceptions=(modal.exception.SandboxTimeoutError, StreamTerminatedError),
 )
 async def rollout(
     model: art.Model[ModelConfig],
@@ -106,26 +112,23 @@ async def rollout(
             RewardRunHook(instance, trajectory, run_single, reward_power)
         )
     try:
-        await run(run_single.run, run_in_thread)
-    except modal.exception.RemoteError as e:
+        async with limiter:
+            await run(run_single.run, run_in_thread)
+    except modal.exception.RemoteError as error:
         print(instance["instance_id"])
-        print(e)
-    except ConnectionError as e:
-        print(e)
-    except ConnectTimeout as e:
-        print(e)
-    except CommandTimeoutError as e:
-        print(e)
-    except RuntimeError as e:
-        if not "Container process terminated" in str(e):
-            raise e
-        print(e)
-    except SSLError as ssl_error:
-        print(ssl_error)
-    except TimeoutError as e:
-        if not "Runtime did not start within" in str(e):
-            raise e
-        print(e)
+        print(error)
+    except (
+        ProtocolError,
+        RemoteDisconnected,
+        ConnectionError,
+        ConnectTimeout,
+        CommandTimeoutError,
+        SSLError,
+        RuntimeError,
+        TimeoutError,
+        SwerexException,
+    ) as error:
+        print(error)
     finally:
         try:
             if isinstance(run_single.env.deployment, ModalDeployment):

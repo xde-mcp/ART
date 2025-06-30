@@ -35,13 +35,28 @@ def get_filtered_swe_smith_instances_df() -> pl.DataFrame:
         .filter(
             ~pl.col("repo")
             .cast(pl.Utf8)
+            .str.to_lowercase()
             .is_in(
                 [
-                    "swesmith/facebookresearch__hydra.0f03eb60",
-                    "swesmith/jawah__charset_normalizer.1fdd6463",
-                    "swesmith/marshmallow-code__marshmallow.9716fc62",
-                    "swesmith/mido__mido.a0158ff9",
-                    "swesmith/pydantic__pydantic.acb0f10f",
+                    f"swesmith/{repo}"
+                    for repo in [
+                        "encode__starlette.db5063c2",
+                        "facebookresearch__hydra.0f03eb60",
+                        "facelessuser__soupsieve.a8080d97",
+                        "graphql-python__graphene.82903263",
+                        "jawah__charset_normalizer.1fdd6463",
+                        "jd__tenacity.0d40e76f",
+                        "knio__dominate.9082227e",
+                        "marshmallow-code__marshmallow.9716fc62",
+                        "mido__mido.a0158ff9",
+                        "pallets__markupsafe.620c06c9",
+                        "pydantic__pydantic.acb0f10f",
+                        "pylint-dev__astroid.b114f6b5",
+                        "pyupio__safety.7654596b",
+                        "tornadoweb__tornado.d5ac65c1",
+                        "tox-dev__pipdeptree.c31b6418",
+                        "un33k__python-slugify.872b3750",
+                    ]
                 ]
             )
         )

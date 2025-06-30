@@ -2,13 +2,14 @@
 import polars as pl
 import matplotlib.pyplot as plt
 import seaborn as sns
+from typing import Sequence
 
 
 def training_progress_chart(
     df: pl.DataFrame,
     split: str,
     metric_name: str,
-    models: list[str | tuple[str, str]] | None = None,
+    models: Sequence[str | tuple[str, str]] | None = None,
     title: str | None = None,
     x_label: str | None = None,
     y_label: str | None = None,
@@ -303,7 +304,7 @@ def comparison_models_bar_chart(
     df: pl.DataFrame,
     split: str,
     metric_name: str,
-    models: list[str | tuple[str, str]] | None = None,
+    models: Sequence[str | tuple[str, str]] | None = None,
     title: str | None = None,
     y_label: str | None = None,
     perfect_score: float | None = None,

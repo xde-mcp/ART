@@ -83,7 +83,7 @@ def get_compute_loss_fn(trainer: "GRPOTrainer") -> Callable[..., torch.Tensor]:
             seq_len % chunk_size == 0
         ), f"Sequence length ({seq_len}) must be evenly divisible by chunk size ({chunk_size})"
         os.environ["UNSLOTH_RETURN_HIDDEN_STATES"] = "1"
-        new_logprobs = calculate_logprobs(
+        new_logprobs, entropies = calculate_logprobs(
             autocast_dtype,
             trainer,
             inputs["tokens"],
@@ -94,7 +94,7 @@ def get_compute_loss_fn(trainer: "GRPOTrainer") -> Callable[..., torch.Tensor]:
             reference_logprobs=False,
         )
         if config.beta > 0.0:
-            ref_logprobs = calculate_logprobs(
+            ref_logprobs, _ = calculate_logprobs(
                 autocast_dtype,
                 trainer,
                 inputs["tokens"],
@@ -143,9 +143,14 @@ def get_compute_loss_fn(trainer: "GRPOTrainer") -> Callable[..., torch.Tensor]:
         kl_div = kl_div * weights * assistant_mask
         mean_policy_loss = policy_loss.sum() / (assistant_mask.sum() + 1e-6)
         mean_kl = kl_div.sum() / (assistant_mask.sum() + 1e-6)
+        
+        # Compute mean entropy for the current step
+        shifted_entropies = shift_tensor(entropies, 0.0)
+        mean_entropy = (shifted_entropies * weights * assistant_mask).sum() / (assistant_mask.sum() + 1e-6)
 
         trainer._metrics["learning_rate"].append(config.learning_rate)
         trainer._metrics["policy_loss"].append(mean_policy_loss.item())
+        trainer._metrics["entropy"].append(mean_entropy.item())
         if config.beta > 0.0:
             trainer._metrics["kl_div"].append(mean_kl.item())
         return mean_policy_loss + config.beta * mean_kl
@@ -182,21 +187,7 @@ def calculate_attn_bias(
     parent_ids: torch.Tensor,
     autocast_dtype: torch.dtype,
 ) -> torch.Tensor:
-    causal_mask = (
-        torch.tril(
-            torch.ones(
-                seq_len,
-                seq_len,
-                dtype=torch.bool,
-                device=device,
-            )
-        )
-        .unsqueeze(0)
-        .expand(batch_size, seq_len, seq_len)
-    )
-    group_mask = group_ids.unsqueeze(2) == group_ids.unsqueeze(1)
-    parent_mask = parent_ids.unsqueeze(2) == group_ids.unsqueeze(1)
-    mask = causal_mask & (group_mask | parent_mask)
+    mask = calculate_mask(batch_size, seq_len, device, group_ids, parent_ids)
     # Use the same dtype as autocast to save memory and avoid dtype conversions
     attn_bias = torch.where(
         mask,
@@ -215,6 +206,31 @@ def calculate_attn_bias(
     return attn_bias
 
 
+def calculate_mask(
+    batch_size: int,
+    seq_len: int,
+    device: torch.device,
+    group_ids: torch.Tensor,
+    parent_ids: torch.Tensor,
+) -> torch.Tensor:
+    causal_mask = (
+        torch.tril(
+            torch.ones(
+                seq_len,
+                seq_len,
+                dtype=torch.bool,
+                device=device,
+            )
+        )
+        .unsqueeze(0)
+        .expand(batch_size, seq_len, seq_len)
+    )
+    group_mask = group_ids.unsqueeze(2) == group_ids.unsqueeze(1)
+    parent_mask = parent_ids.unsqueeze(2) == group_ids.unsqueeze(1)
+    mask = causal_mask & (group_mask | parent_mask)
+    return mask
+
+
 def calculate_logprobs(
     autocast_dtype: torch.dtype,
     trainer: "GRPOTrainer",
@@ -224,7 +240,7 @@ def calculate_logprobs(
     lm_head_t: torch.Tensor,
     chunk_size: int,
     reference_logprobs: bool,
-) -> torch.Tensor:  # Returns shape [B, S]
+) -> tuple[torch.Tensor, torch.Tensor]:  # Returns (log_probs, entropy) both shape [B, S]
     with (
         torch.amp.autocast_mode.autocast(device_type="cuda", dtype=autocast_dtype),
         torch.inference_mode() if reference_logprobs else nullcontext(),
@@ -247,10 +263,15 @@ def _calculate_logprobs(
     hidden_states: torch.Tensor,  # Shape [B, S, H]
     next_input_ids: torch.Tensor,  # Shape [B, S]
     chunk_size: int,
-) -> torch.Tensor:  # Returns shape [B, S]
+) -> tuple[torch.Tensor, torch.Tensor]:  # Returns (log_probs, entropy) both shape [B, S]
     batch_size, seq_len, _ = hidden_states.shape
     # Output shape is [B, S]
     log_probs = torch.empty(
+        (batch_size, seq_len),
+        dtype=hidden_states.dtype,
+        device=hidden_states.device,
+    )
+    entropy = torch.empty(
         (batch_size, seq_len),
         dtype=hidden_states.dtype,
         device=hidden_states.device,
@@ -270,15 +291,25 @@ def _calculate_logprobs(
         )  # [B, chunk_size]
         chunk_logsumexp = torch.logsumexp(chunk_logits, dim=-1)  # [B, chunk_size]
         log_probs[:, i : i + chunk_size] = chunk_selected_logits - chunk_logsumexp
+        
+        # Compute entropy for the chunk
+        log_probs_full = chunk_logits - chunk_logsumexp.unsqueeze(-1)
+        chunk_entropy = (-torch.exp(log_probs_full) * log_probs_full).sum(
+            dim=-1
+        )  # [B, chunk_size]
+        entropy[:, i : i + chunk_size] = chunk_entropy
+        
         del (
             chunk_hs,
             chunk_input_ids,
             chunk_logits,
             chunk_selected_logits,
             chunk_logsumexp,
+            log_probs_full,
+            chunk_entropy,
         )
     del hidden_states
-    return log_probs
+    return log_probs, entropy
 
 
 def shift_tensor(tensor: torch.Tensor, pad: int | float | bool) -> torch.Tensor:

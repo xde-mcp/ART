@@ -12,94 +12,54 @@ from sweagent.run.hooks.apply_patch import SaveApplyPatchHook
 litellm.success_callback.append("langfuse")
 litellm.failure_callback.append("langfuse")
 
-# Suppress urllib3 retry warnings
-logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
 
-
-# Configuration for log suppression
-SUPPRESS_CONFIG = {
-    # Logger names to completely suppress
-    "suppress_loggers": [
-        "rex-deploy",  # All rex-deploy-ThreadPoolExecutor logs
-        "swea-lm",  # All swea-lm-ThreadPoolExecutor logs
-    ],
-    # Exception types to suppress (will check exception class name)
-    "suppress_exceptions": [
-        "CommandTimeoutError",
-        "BashIncorrectSyntaxError",
-        "NonZeroExitCodeError",
-        "FileNotFoundError",
-        "TIMEOUT",  # pexpect.exceptions.TIMEOUT
-    ],
-    # Specific strings in messages to suppress
-    "suppress_message_contains": [
-        "swerex.exceptions",
-        "pexpect.exceptions",
-        "Retrying LM query",
-        "APITimeoutError",
-        "Request timed out",
-    ],
-    # Module/package prefixes to suppress
-    "suppress_modules": [
-        "swerex.",
-        "pexpect.",
-    ],
-}
-
-
-class ComprehensiveLogFilter(logging.Filter):
-    """
-    Comprehensive filter to suppress unwanted logs based on multiple criteria.
-    """
-
-    def __init__(self, config=None):
-        super().__init__()
-        self.config = config or SUPPRESS_CONFIG
+# Suppress the "dictionary changed size during iteration" errors from Langfuse
+class LangfuseErrorFilter(logging.Filter):
+    """Filter out specific Langfuse errors that occur due to concurrent access"""
 
     def filter(self, record: LogRecord) -> bool:
-        # Check logger name prefixes
-        for logger_prefix in self.config.get("suppress_loggers", []):
-            if record.name.startswith(logger_prefix):
-                return False
-
-        # Check module name
-        if hasattr(record, "module"):
-            for module_prefix in self.config.get("suppress_modules", []):
-                if record.module.startswith(module_prefix):
-                    return False
-
-        # Check message content
-        message = record.getMessage()
-        for substring in self.config.get("suppress_message_contains", []):
-            if substring in message:
-                return False
-
-        # Check exception info
-        if record.exc_info:
-            exc_type, exc_value, exc_tb = record.exc_info
-            if exc_type:
-                exc_name = exc_type.__name__
-                # Check against suppressed exception types
-                for exc_pattern in self.config.get("suppress_exceptions", []):
-                    if exc_pattern in exc_name:
-                        return False
-
-                # Also check the full module path of the exception
-                exc_module = exc_type.__module__
-                for module_prefix in self.config.get("suppress_modules", []):
-                    if exc_module.startswith(module_prefix):
-                        return False
-
+        # Return False to suppress the log message
+        if (
+            record.name == "LiteLLM"
+            and "dictionary changed size during iteration" in record.getMessage()
+        ):
+            return False
         return True
 
 
-# Apply the comprehensive filter to root logger
-logging.getLogger().addFilter(ComprehensiveLogFilter())
+# Add the filter to the LiteLLM logger
+litellm_logger = logging.getLogger("LiteLLM")
+litellm_logger.addFilter(LangfuseErrorFilter())
 
-# Additionally, you can set specific loggers to higher levels
-# to avoid processing their logs at all
-for logger_name in SUPPRESS_CONFIG.get("suppress_loggers", []):
-    logging.getLogger(logger_name).setLevel(logging.CRITICAL + 1)
+# Suppress urllib3 retry warnings
+logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
+
+# Suppress OpenAI base client retry INFO messages
+logging.getLogger("openai._base_client").setLevel(logging.WARNING)
+
+# Hook into Logger creation to suppress new loggers matching our patterns
+# Only patch if not already patched
+if not hasattr(logging.getLogger, "_is_patched"):
+    get_logger = logging.getLogger
+
+    def _get_logger(name: str | None = None) -> logging.Logger:
+        """Patched getLogger that applies suppression to new loggers."""
+        logger = get_logger(name)
+
+        if name:
+            for prefix in ("rex", "swea", "gql"):
+                if name.startswith(prefix):
+                    logger.setLevel(logging.CRITICAL + 1)
+                    logger.propagate = False
+                    logger.disabled = True
+                    logger.handlers = []
+                    break
+
+        return logger
+
+    # Mark the function as patched
+    _get_logger._is_patched = True
+    logging.getLogger = _get_logger
 
 
 # Disable printing the patch message to reduce log noise
@@ -115,9 +75,7 @@ def setup_agent_logger(agent: DefaultAgent) -> None:
 
 
 class LangfuseHandler(Handler):
-    """
-    Custom handler to forward logs to Langfuse
-    """
+    """Custom handler to forward logs to Langfuse"""
 
     def __init__(self, trace_id: str) -> None:
         self.langfuse = Langfuse()

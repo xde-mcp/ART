@@ -96,7 +96,6 @@ model = art.Model(
     project="email_agent",
     config=ProjectPolicyConfig(
         litellm_model_name="openai/gpt-4.1",
-        use_tools=True,
     ),
 )
 

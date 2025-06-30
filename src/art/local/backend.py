@@ -18,6 +18,7 @@ import numpy as np
 import os
 import polars as pl
 import subprocess
+import torch
 from transformers.models.auto.tokenization_auto import AutoTokenizer
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from tqdm import auto as tqdm
@@ -108,15 +109,20 @@ class LocalBackend(Backend):
             _ = self._get_wandb_run(model)
 
     async def _get_service(self, model: TrainableModel) -> ModelService:
+        from ..torchtune.service import TorchtuneService
+        from ..unsloth.service import UnslothService
+
         if model.name not in self._services:
             config = dev.get_model_config(
                 base_model=model.base_model,
                 output_dir=get_model_dir(model=model, art_path=self._path),
                 config=model._internal_config,
             )
-            self._services[model.name] = ModelService(
-                host="localhost",
-                port=8089 + len(self._services),
+            self._services[model.name] = (
+                TorchtuneService
+                if config.get("torchtune_args") is not None
+                else UnslothService
+            )(
                 model_name=model.name,
                 base_model=model.base_model,
                 config=config,
@@ -125,13 +131,14 @@ class LocalBackend(Backend):
             if not self._in_process:
                 # Kill all "model-service" processes to free up GPU memory
                 subprocess.run(["pkill", "-9", "model-service"])
-                # To enable sleep mode, import peft before unsloth
-                # Unsloth will issue warnings, but everything appears to be okay
-                if config.get("engine_args", {}).get("enable_sleep_mode", False):
-                    os.environ["IMPORT_PEFT"] = "1"
-                # When moving the service to a child process, import unsloth
-                # early to maximize optimizations
-                os.environ["IMPORT_UNSLOTH"] = "1"
+                if isinstance(self._services[model.name], UnslothService):
+                    # To enable sleep mode, import peft before unsloth
+                    # Unsloth will issue warnings, but everything appears to be okay
+                    if config.get("engine_args", {}).get("enable_sleep_mode", False):
+                        os.environ["IMPORT_PEFT"] = "1"
+                    # When moving the service to a child process, import unsloth
+                    # early to maximize optimizations
+                    os.environ["IMPORT_UNSLOTH"] = "1"
                 self._services[model.name] = move_to_child_process(
                     self._services[model.name],
                     process_name="model-service",
@@ -307,6 +314,7 @@ class LocalBackend(Backend):
         dev_config: dev.TrainConfig,
         verbose: bool = False,
     ) -> AsyncIterator[dict[str, float]]:
+        step = await self._get_step(model)
         if verbose:
             print("Starting _train_model")
         service = await self._get_service(model)
@@ -334,24 +342,37 @@ class LocalBackend(Backend):
             packed_tensors, f"{get_model_dir(model=model, art_path=self._path)}/tensors"
         )
         results: list[dict[str, float]] = []
-        num_gradient_steps = disk_packed_tensors["num_sequences"]
-        pbar = tqdm.tqdm(total=num_gradient_steps, desc="train")
+        estimated_gradient_steps = disk_packed_tensors["num_sequences"]
+        if torchtune_args := (model._internal_config or dev.InternalModelConfig()).get(
+            "torchtune_args"
+        ):
+            tp = torchtune_args.get("tensor_parallel_dim", 1)
+            cp = torchtune_args.get("context_parallel_dim", 1)
+            world_size = torch.cuda.device_count()
+            dp = world_size // (tp * cp)
+            estimated_gradient_steps = math.ceil(estimated_gradient_steps / dp)
+        pbar = tqdm.tqdm(total=estimated_gradient_steps, desc="train")
         async for result in service.train(
             disk_packed_tensors, config, dev_config, verbose
         ):
+            num_gradient_steps = int(
+                result.pop("num_gradient_steps", estimated_gradient_steps)
+            )
+            assert (
+                num_gradient_steps == estimated_gradient_steps
+            ), f"num_gradient_steps {num_gradient_steps} != estimated_gradient_steps {estimated_gradient_steps}"
             results.append(result)
             yield {**result, "num_gradient_steps": num_gradient_steps}
             pbar.update(1)
             pbar.set_postfix(result)
         pbar.close()
-
         if verbose:
             print("Logging metrics...")
         data = {
             k: sum(d.get(k, 0) for d in results) / sum(1 for d in results if k in d)
             for k in {k for d in results for k in d}
         }
-        self._log_metrics(model, data, "train", step_offset=-1)
+        self._log_metrics(model, data, "train", step=step)
         if verbose:
             print("_train_model complete")
 
@@ -360,7 +381,7 @@ class LocalBackend(Backend):
         model: Model,
         metrics: dict[str, float],
         split: str,
-        step_offset: int = 0,
+        step: int | None = None,
     ) -> None:
         # Add namespacing if needed
         metrics = (
@@ -369,8 +390,10 @@ class LocalBackend(Backend):
             else metrics
         )
         step = (
-            self.__get_step(model) if isinstance(model, TrainableModel) else 0
-        ) + step_offset
+            step
+            if step is not None
+            else (self.__get_step(model) if isinstance(model, TrainableModel) else 0)
+        )
 
         # If we have a W&B run, log the data there
         if run := self._get_wandb_run(model):

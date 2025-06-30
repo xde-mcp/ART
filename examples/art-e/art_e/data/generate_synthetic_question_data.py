@@ -220,6 +220,7 @@ async def generate_queries_for_batch(
                 how_realistic=q.how_realistic,
                 inbox_address=inbox_address,
                 query_date=query_date.strftime("%Y-%m-%d"),
+                split="train",
             )
         )
     print(
@@ -306,7 +307,6 @@ async def create_and_push_dataset(
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
     asyncio.run(
         create_and_push_dataset(
             num_train_inboxes=20,

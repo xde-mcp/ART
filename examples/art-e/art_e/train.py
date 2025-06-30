@@ -2,7 +2,7 @@ import art
 from art.local import LocalBackend
 import asyncio
 from dotenv import load_dotenv
-from typing import List
+from typing import List, cast
 from rollout import rollout
 from art_e.data.query_iterators import load_synthetic_queries
 from art_e.data.types_enron import SyntheticQuery
@@ -10,14 +10,12 @@ from art_e.data.local_email_db import generate_database
 from art.utils import iterate_dataset
 from art_e.project_types import ProjectPolicyConfig
 from art_e.evaluate.benchmark import benchmark_model
+from art_e.judge_group import judge_group
+from art_e.rollout import ProjectTrajectory
 import os
+import statistics
 
 load_dotenv()
-
-# First, I defined a trainable model. The `ProjectPolicyConfig` contains the
-# specific parameters I varied between runs for this project. They're
-# interpreted in the rollout defined in `rollout.py` and used to control
-# generation.
 
 
 async def train(model: art.TrainableModel[ProjectPolicyConfig]):
@@ -35,8 +33,13 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
         await model.register(backend)
 
         print("Loading training data...")
+        # Load the training data with deterministic shuffling if a seed is provided.
+        tc = model.config.training_config
+        seed = tc.training_dataset_seed if tc is not None else None
         train_scenarios: List[SyntheticQuery] = load_synthetic_queries(
-            split="train", limit=model.config.training_config.training_dataset_size
+            split="train",
+            limit=tc.training_dataset_size if tc is not None else None,
+            seed=seed,
         )
         print("Loading validation data...")
         val_scenarios: List[SyntheticQuery] = load_synthetic_queries(
@@ -77,6 +80,79 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
                 )
             )
 
+            # Optionally rescore each trajectory group with the LLM-judge before training.
+            training_cfg = model.config.training_config
+            if training_cfg.use_judge_group_variant is not None:
+                # Run the rescoring concurrently for better throughput.
+                # If any call to `judge_group` fails, we don't want the entire
+                # training run to crash. We therefore collect exceptions and
+                # log a clear warning that can be grepped later.
+
+                judge_tasks = [
+                    judge_group(
+                        model.name,
+                        cast(list[ProjectTrajectory], g.trajectories),
+                        training_cfg,
+                    )
+                    for g in groups
+                ]
+
+                results = await asyncio.gather(*judge_tasks, return_exceptions=True)
+
+                # Determine which groups succeeded.
+                successful_groups = []
+                for grp_idx, (g, res) in enumerate(zip(groups, results)):
+                    if isinstance(res, Exception):
+                        print(
+                            f"WARNING:JUDGE_GROUP_FAILED group={grp_idx} step={global_step}: {res!r}",
+                            flush=True,
+                        )
+                    else:
+                        successful_groups.append(g)
+
+                # Replace `groups` with the subset that passed judgement so
+                # that training only uses trajectories with judge rewards.
+                groups = successful_groups
+
+                # If every group failed, skip this training step entirely.
+                if not groups:
+                    print(
+                        f"WARNING:ALL_JUDGE_GROUPS_FAILED step={global_step}; skipping training step",
+                        flush=True,
+                    )
+                    continue  # Proceed to next batch/epoch without training.
+
+            # Drop groups with reward standard deviation below threshold
+            if (
+                training_cfg.minimum_reward_std_dev is not None
+                and training_cfg.minimum_reward_std_dev > 0
+            ):
+                filtered_groups = []
+                for grp_idx, g in enumerate(groups):
+                    rewards = [t.reward for t in g.trajectories]
+                    if len(rewards) < 2:
+                        std_dev = 0.0
+                    else:
+                        std_dev = statistics.pstdev(rewards)
+                    if std_dev < training_cfg.minimum_reward_std_dev:
+                        print(
+                            f"WARNING:REWARD_STD_DEV_TOO_LOW group={grp_idx} step={global_step} stddev={std_dev:.4f}; dropping group",
+                            flush=True,
+                        )
+                        continue
+                    filtered_groups.append(g)
+
+                # Replace groups with only those meeting the std dev threshold
+                groups = filtered_groups
+
+                # If every group failed the std dev filter, skip this training step
+                if not groups:
+                    print(
+                        f"WARNING:ALL_GROUPS_DROPPED_LOW_STD_DEV step={global_step}; skipping training step",
+                        flush=True,
+                    )
+                    continue  # Proceed to next batch/epoch without training.
+
             await model.train(
                 groups,
                 config=art.TrainConfig(
@@ -104,7 +180,7 @@ if __name__ == "__main__":
 
     model_dict = json.loads(args.model_json)
     model_dict["config"] = ProjectPolicyConfig(**model_dict["config"])
-    model = art.TrainableModel(
+    model: art.TrainableModel[ProjectPolicyConfig] = art.TrainableModel(
         **model_dict,
     )
     asyncio.run(train(model))

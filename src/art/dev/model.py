@@ -11,6 +11,7 @@ from transformers.trainer_utils import (
 from typing_extensions import TypedDict
 
 from .engine import EngineArgs
+from .torchtune import TorchtuneArgs
 
 
 def get_model_config(
@@ -41,14 +42,23 @@ def get_model_config(
         disable_log_requests=True,
         # Multi-step processing is not supported for the Xformers attention backend
         # which is the fallback for devices with compute capability < 8.0
-        num_scheduler_steps=16 if torch.cuda.get_device_capability()[0] >= 8 else 1,
+        num_scheduler_steps=(
+            16
+            if config.get("torchtune_args") is None
+            and torch.cuda.get_device_capability()[0] >= 8
+            else 1
+        ),
         enable_sleep_mode=enable_sleep_mode,
         generation_config="vllm",
     )
     engine_args.update(config.get("engine_args", {}))
     init_args.update(config.get("init_args", {}))
-    if lora_path := get_last_checkpoint_dir(output_dir):
-        init_args["model_name"] = lora_path
+    if last_checkpoint_dir := get_last_checkpoint_dir(output_dir):
+        init_args["model_name"] = last_checkpoint_dir
+        if config.get("torchtune_args") is not None:
+            engine_args["model"] = last_checkpoint_dir
+    elif config.get("torchtune_args") is not None:
+        engine_args["model"] = base_model
     peft_args = PeftArgs(
         r=8,  # Choose any number > 0 ! Suggested 8, 16, 32, 64, 128
         target_modules=[
@@ -84,11 +94,17 @@ def get_model_config(
         report_to="none",
     )
     trainer_args.update(config.get("trainer_args", {}))
+    if config.get("torchtune_args") is not None:
+        torchtune_args = TorchtuneArgs(model="qwen3_32b", model_type="QWEN3")
+        torchtune_args.update(config.get("torchtune_args", {}) or {})
+    else:
+        torchtune_args = None
     return InternalModelConfig(
         init_args=init_args,
         engine_args=engine_args,
         peft_args=peft_args,
         trainer_args=trainer_args,
+        torchtune_args=torchtune_args,
     )
 
 
@@ -106,6 +122,7 @@ class InternalModelConfig(TypedDict, total=False):
     engine_args: "EngineArgs"
     peft_args: "PeftArgs"
     trainer_args: "TrainerArgs"
+    torchtune_args: TorchtuneArgs | None
 
 
 class InitArgs(TypedDict, total=False):

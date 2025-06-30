@@ -1,10 +1,13 @@
 import art
-from typing import List, Any
 from art_e.data.types_enron import SyntheticQuery
 from art import Trajectory
 from litellm import acompletion
 import litellm
-from art_e.email_search_tools import search_emails, read_email
+from art_e.email_search_tools import (
+    search_emails as search_emails_impl,
+    read_email as read_email_impl,
+    Email,
+)
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from litellm.caching.caching import LiteLLMCacheType, Cache
 import json
@@ -14,36 +17,17 @@ from litellm.types.utils import Choices, ModelResponse, Message
 from dataclasses import asdict
 from art.utils.litellm import convert_litellm_choice_to_openai
 from dataclasses import dataclass
-from art.utils import limit_concurrency
-import os
-from openpipe import AsyncOpenPipe
-from datetime import datetime
 from art_e.project_types import ProjectPolicyConfig
 import textwrap
 from tenacity import retry, stop_after_attempt
 import weave
 import logging
+from pydantic import BaseModel, Field, validate_call, ValidationError
+from rich import print
 
 litellm.cache = Cache(type=LiteLLMCacheType.DISK)
-# litellm._turn_on_debug()
+litellm.drop_params = True
 logging.getLogger("weave.trace.op").setLevel(logging.WARNING)
-
-
-# Initialize OpenPipe client (ensure OPENPIPE_API_KEY is in your .env)
-if os.getenv("OPENPIPE_API_KEY"):
-    op_client = AsyncOpenPipe()
-else:
-    op_client = None
-
-"""
-Steps for implementing the rollout function:
-
-"""
-
-# We remove the inbox parameter before describing the tool for OpenAI because we'll set that value explicitly based on the user we're running on behalf of.
-search_tool = convert_to_openai_tool(search_emails)
-del search_tool["function"]["parameters"]["properties"]["inbox"]
-search_tool["function"]["parameters"]["required"].remove("inbox")
 
 
 @dataclass
@@ -65,7 +49,13 @@ class FinalRubric:
     completion_tokens: int = 0
 
     def to_metrics(self) -> dict[str, float | int]:
-        return {k: int(v) for k, v in asdict(self).items()}
+        metrics: dict[str, float | int] = {k: int(v) for k, v in asdict(self).items()}
+        metrics["failed_format_validation"] = int(
+            self.bad_tool_call_name
+            or self.bad_tool_call_args
+            or self.cant_parse_tool_call
+        )
+        return metrics
 
 
 def calculate_reward(
@@ -121,72 +111,79 @@ def calculate_reward(
     raise ValueError("Rubric is not handled properly")
 
 
-def return_final_answer(answer: str, sources: List[str] | None) -> str:
+# Pydantic model for the answer-checking judge response
+class CorrectnessJudgeResponse(BaseModel):
+    """LLM-judge output for answer correctness.
+
+    thinking: free-form rationale for the judgement (not used in scoring but
+    helpful for debugging).
+    accept: True if the AI answer contains every essential fact from the
+    reference answer with no contradictions.
     """
-    This function is used to return the final answer to the user's query.
-    It should be called with the answer and the sources. If you cannot find the answer, you should return "I don't know" with an empty list of sources.
 
-    Args:
-        answer: (str) the answer to the user's query. If you cannot find the answer, you should return "I don't know" with an empty list of sources.
-        sources: (list[str]) a list of message ids that are relevant to the query. Usually there will be only one.
-
-    Returns:
-        (str) the final answer to the user's query
-    """
-    ...
-
-
-def tool_response(response: Any, message: Message) -> ChatCompletionMessageParam:
-    """Generate a response for a tool call.
-
-    Args:
-        response: The response from the tool
-        message: The message that's being responded to
-
-    Returns:
-        A message that can be added to the conversation
-    """
-    if message.tool_calls:
-        return {
-            "role": "tool",
-            "tool_call_id": message.tool_calls[0].id,
-            "content": json.dumps(response),
-        }
-    else:
-        return {
-            "role": "user",
-            "content": json.dumps(response),
-        }
-
-
-tools: list[ChatCompletionToolParam] = [
-    search_tool,
-    convert_to_openai_tool(read_email),
-    convert_to_openai_tool(return_final_answer),
-]  # type: ignore
+    thinking: str = Field(description="Explanation of the reasoning process.")
+    accept: bool = Field(description="Whether the AI answer should be accepted.")
 
 
 @retry(stop=stop_after_attempt(3))
-async def determine_if_answer_is_correct(answer: str, query: SyntheticQuery) -> bool:
-    system_prompt = "You will be given an question and two different answers to the question, the correct answer and the answer given by an AI. Your job is to determine if the answer given by the AI is correct. Return True if the answer is semantically similar to the correct answer, and False otherwise. Return only the word True or False, no other text."
+async def judge_correctness(
+    answer: str, query: SyntheticQuery
+) -> CorrectnessJudgeResponse:
+    """Use an LLM to decide whether *answer* matches *query.answer*.
+
+    Returns a structured ``AnswerJudgeResponse`` with a free-form *thinking*
+    string (useful for debugging) and a boolean *accept* flag used for
+    scoring.
+    """
+
+    system_prompt = textwrap.dedent(
+        """You are given a question, the reference answer (labelled **Reference answer**), and an answer generated by an AI assistant (labelled **AI answer**).
+
+Follow these steps to decide whether the AI answer should be accepted:
+1. Identify EXACTLY what information the **question** is asking for (e.g. who, what, when, where, why, how, quantity, etc.).
+2. From the **Reference answer**, extract ONLY the facts that are required to directly satisfy the information need identified in step 1. Treat all other facts as non-essential context.
+3. Verify that every essential fact from step 2 appears in the **AI answer** with the same meaning. Differences in wording, order, or additional non-conflicting details are allowed.
+4. If any essential fact is missing or contradicted in the **AI answer**, then *accept* must be **false**. Otherwise *accept* must be **true**.
+
+Important: Do NOT penalise the **AI answer** for omitting non-essential facts that appear in the **Reference answer**. The answer should only be rejected for errors or omissions in the information explicitly requested by the question.
+
+Return your judgement as **pure JSON** (no markdown) with this exact schema:
+{
+  "thinking": string,  // Brief explanation of your reasoning.
+  "accept": boolean   // true if the AI answer should be accepted.
+}
+"""
+    )
 
     messages = [
         {"role": "system", "content": system_prompt},
         {
             "role": "user",
-            "content": f"Question: {query.question}\nCorrect answer: {query.answer}\nAI answer: {answer}",
+            "content": (
+                f"Question: {query.question}\n"
+                f"Reference answer: {query.answer}\n"
+                f"AI answer: {answer}"
+            ),
         },
     ]
 
     response = await acompletion(
-        model="gemini/gemini-2.0-flash",
+        model="openai/gpt-4.1",
         messages=messages,
-        temperature=0,
         caching=True,
-        max_tokens=2,
+        response_format=CorrectnessJudgeResponse,
     )
 
-    return response.choices[0].message.content.strip().lower().startswith("t")  # type: ignore
+    first_choice = response.choices[0]  # type: ignore[attr-defined]
+    raw_content = first_choice.message.content or "{}"  # type: ignore[attr-defined]
+
+    try:
+        return CorrectnessJudgeResponse.model_validate_json(raw_content)
+    except Exception as e:
+        # If parsing fails, fall back to 'accept': False
+        return CorrectnessJudgeResponse(
+            thinking=f"Parse error: {e}\nRaw: {raw_content}", accept=False
+        )
 
 
 class ProjectTrajectory(Trajectory):
@@ -194,12 +191,11 @@ class ProjectTrajectory(Trajectory):
 
 
 @retry(stop=stop_after_attempt(3))
-@weave.op()
+# @weave.op(tracing_sample_rate=0.05)  # type: ignore
 async def rollout(
     model: art.Model[ProjectPolicyConfig],
     scenario: SyntheticQuery,
 ) -> ProjectTrajectory:
-    rollout_start_time = datetime.now()
     rubric = FinalRubric()
     traj = ProjectTrajectory(
         messages_and_choices=[],
@@ -216,37 +212,80 @@ async def rollout(
     """
     )
 
-    if model.config.use_tools:
-        traj.tools = tools
-    else:
-        system_prompt += textwrap.dedent(
-            f"""\
-            
-            Here are the tools you can use:
-            {tools}
-            
-            Respond with a valid JSON object with the following fields:
-            - tool_name: (str) the name of the tool to use
-            - tool_args: (JSON) the arguments to pass to the tool
-
-            For example, to read a specific email, you should respond with:
-            {{
-                "tool_name": "read_email",
-                "tool_args": {{
-                    "message_id": "<12635597.1075855702772.JavaMail.evans@thyme>"
-                }}
-            }}
+    async def search_emails(keywords: list[str]) -> list[dict]:
         """
+        Search the user's email inbox for emails that match the given keywords.
+
+        Args:
+            keywords (list[str]): A list of keywords to search for in the user's email inbox.
+
+        Returns:
+            list[dict]: A list of matching messages and snippets.
+        """
+        resp = search_emails_impl(
+            inbox=scenario.inbox_address,
+            sent_before=scenario.query_date,
+            keywords=keywords,
         )
+
+        for r in resp:
+            if r.message_id == scenario.message_ids[0]:
+                rubric.ever_found_right_email = True
+        return [asdict(r) for r in resp]
+
+    async def read_email(message_id: str) -> Email | dict:
+        """
+        Read the content of an email from the user's email inbox. Returns the email content.
+        """
+        email_content = read_email_impl(message_id)
+
+        if message_id == scenario.message_ids[0]:
+            rubric.ever_read_right_email = True
+        if email_content is None:
+            return {"error": "Email not found"}
+        else:
+            return email_content.model_dump()
+
+    async def return_final_answer(answer: str, sources: list[str]):
+        """
+        This function is used to return the final answer to the user's query.
+        It should be called with the answer and the sources. If you cannot find the answer, you should return "I don't know" with an empty list of sources.
+
+        Args:
+            answer: (str) the answer to the user's query. If you cannot find the answer, you should return "I don't know" with an empty list of sources.
+            sources: (list[str]) a list of message ids that are relevant to the query. Usually there will be only one. If you cannot find the answer, you should return an empty list.
+
+        Returns:
+            (str) the final answer to the user's query
+        """
+
+        rubric.attempted_answer = True
+        traj.generated_answer = answer
+
+        if answer == "I don't know":
+            rubric.returned_i_dont_know = True
+        else:
+            async with traj.track_duration("determine_if_answer_is_correct"):
+                judge_response = await judge_correctness(answer, scenario)
+                traj.log(f"Correctness judge response: {judge_response}")
+                rubric.answer_correct = judge_response.accept
+            rubric.sources_correct = scenario.message_ids[0] in sources
+
+    tools = [
+        search_emails,
+        read_email,
+        return_final_answer,
+    ]
+
+    traj.tools = [convert_to_openai_tool(t) for t in tools]  # type: ignore
 
     traj.messages_and_choices = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": scenario.question},
     ]
     llm_response: ModelResponse | None = None
-    final_answer = None
 
-    while True:
+    while not rubric.attempted_answer:
         rubric.num_turns += 1
 
         if rubric.num_turns > model.config.max_turns:
@@ -263,14 +302,11 @@ async def rollout(
                 base_url=model.inference_base_url,
                 messages=traj.messages(),
                 caching=not model.trainable,
+                # caching=False,
                 api_key=model.inference_api_key,
                 max_completion_tokens=model.config.max_tokens,
-                tools=tools if model.config.use_tools else None,
-                tool_choice=(
-                    "required"
-                    if model.config.use_tools and not model.trainable
-                    else None
-                ),
+                tools=traj.tools,
+                # tool_choice=None if model.trainable else "required",
             )  # type: ignore
 
         assert isinstance(llm_response, ModelResponse)
@@ -282,147 +318,59 @@ async def rollout(
         # Our rollout is only set up to handle one tool call at a time, so just ignore any parallel tool calls.
         if choice.message.tool_calls is not None and len(choice.message.tool_calls) > 1:
             choice.message.tool_calls = choice.message.tool_calls[:1]
-        if model.trainable:
-            traj.messages_and_choices.append(convert_litellm_choice_to_openai(choice))
-        else:
-            traj.messages_and_choices.append(choice.message.to_dict())  # type: ignore
+        traj.messages_and_choices.append(convert_litellm_choice_to_openai(choice))  # type: ignore
 
-        if model.config.use_tools:
-            tool_call = (
-                choice.message.tool_calls[0].get("function")
-                if choice.message.tool_calls
-                else None
-            )
+        if choice.message.tool_calls is None:
+            rubric.bad_tool_call_name = True
+            break
+
+        for tool_call in choice.message.tool_calls:
             if tool_call is None:
                 rubric.bad_tool_call_args = True
                 break
-            tool_name = tool_call["name"]
             try:
-                tool_args = json.loads(tool_call["arguments"])
+                tool_args = json.loads(tool_call.function.arguments)
                 assert isinstance(tool_args, dict)
             except Exception as e:
                 rubric.bad_tool_call_args = True
                 break
-        else:
-            raw_content = choice.message.content
-            if raw_content is None:
-                rubric.cant_parse_tool_call = True
-                break
-            start_index = raw_content.find("{")
-            end_index = raw_content.rfind("}")
-            if not (start_index != -1 and end_index != -1 and start_index < end_index):
-                rubric.cant_parse_tool_call = True
-                break
-            json_str = raw_content[start_index : end_index + 1]
 
-            try:
-                tool_call = json.loads(json_str)
-            except Exception as e:
-                traj.logs.append(f"Error parsing tool call: {e}")
-                rubric.cant_parse_tool_call = True
-                break
-
-            if "tool_args" not in tool_call:
-                rubric.bad_tool_call_args = True
-                traj.logs.append(f"Tool call missing tool_args: {tool_call}")
-                break
-            tool_name = tool_call.get("tool_name")
-            tool_args = tool_call.get("tool_args")
-
-        match tool_name:
-            case "search_emails":
-                try:
-                    search_results = search_emails(
-                        **tool_args,
-                        inbox=scenario.inbox_address,
-                    )
-                    traj.messages_and_choices.append(
-                        tool_response(
-                            [asdict(r) for r in search_results],
-                            choice.message,
+            for tool_fn in tools:
+                if tool_fn.__name__ == tool_call.function.name:
+                    try:
+                        validated_fn = validate_call(tool_fn)
+                        result = await validated_fn(**tool_args)
+                        traj.messages_and_choices.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tool_call.id,
+                                "content": json.dumps(result),
+                            }
                         )
-                    )
-                    for r in search_results:
-                        if r.message_id == scenario.message_ids[0]:
-                            rubric.ever_found_right_email = True
-                except Exception as e:
-                    rubric.bad_tool_call_args = True
-                    traj.logs.append(f"Error searching emails: {e}")
-                    break
-            case "read_email":
-                message_id_to_read = tool_args.get("message_id")
-                if not isinstance(message_id_to_read, str):
-                    rubric.bad_tool_call_args = True
-                    break
-                if message_id_to_read == scenario.message_ids[0]:
-                    rubric.ever_read_right_email = True
-                email_content = read_email(message_id_to_read)
-                if email_content is None:
-                    traj.messages_and_choices.append(
-                        tool_response({"error": "Email not found"}, choice.message)
-                    )
-                    rubric.ever_tried_to_read_invalid_email = True
-                else:
-                    traj.messages_and_choices.append(
-                        tool_response(email_content.model_dump(), choice.message)
-                    )
-            case "return_final_answer":
-                final_answer = tool_args.get("answer")
-                final_sources = tool_args.get("sources")
-
-                if (
-                    final_answer is None
-                    or final_sources is None
-                    or not isinstance(final_sources, list)
-                ):
-                    rubric.bad_tool_call_args = True
-                    break
-
-                if final_answer == "I don't know":
-                    rubric.returned_i_dont_know = True
-                else:
-                    rubric.attempted_answer = True
-                    async with traj.track_duration("determine_if_answer_is_correct"):
-                        rubric.answer_correct = await determine_if_answer_is_correct(
-                            final_answer, scenario
+                    except ValidationError as e:
+                        rubric.bad_tool_call_args = True
+                        traj.logs.append(
+                            f"Invalid args for {tool_call.function.name}: {e}"
                         )
-                    rubric.sources_correct = scenario.message_ids[0] in final_sources
-                break
-            case _:
+                        break
+                    break
+            else:
                 rubric.bad_tool_call_name = True
                 break
+
+        # If we encountered an invalid tool name or arguments, we cannot
+        # respond to the tool call properly. Break out of the main loop to
+        # avoid sending an incomplete tool interaction back to the LLM, which
+        # would cause the "assistant message with 'tool_calls' must be
+        # followed by tool messages" error.
+        if rubric.bad_tool_call_name or rubric.bad_tool_call_args:
+            break
 
     reward = calculate_reward(model.config, rubric, traj)
     traj.reward = reward
     traj.metrics = rubric.to_metrics()
-    rollout_end_time = datetime.now()  # Record end time
-    # Compute duration in seconds and add to metrics
-    duration_seconds = (rollout_end_time - rollout_start_time).total_seconds()
-    traj.metrics["duration"] = duration_seconds
-
-    if model.config.log_to_openpipe and op_client is not None:
-        try:
-            await op_client.report(
-                requested_at=rollout_start_time.timestamp() * 1000,
-                received_at=rollout_end_time.timestamp() * 1000,
-                req_payload={
-                    "model": model.name,
-                    "messages": traj.messages()[:-1],
-                    "metadata": {
-                        "type": "enron_rollout_final",
-                        "reward": str(traj.reward),
-                        **{k: str(v) for k, v in traj.metrics.items()},
-                        **{k: str(v) for k, v in traj.metadata.items()},
-                    },
-                },
-                resp_payload=llm_response,
-                status_code=200,
-            )
-        except Exception as e:
-            print(f"Error reporting to OpenPipe: {e}")
 
     traj.finish()
-    traj.generated_answer = final_answer
     return traj
 
 
@@ -434,18 +382,21 @@ if __name__ == "__main__":
 
     load_dotenv()
 
+    scenario = load_synthetic_queries(split="test", limit=1)[0]
+
     traj = asyncio.run(
         rollout(
             art.Model(
-                name="gpt-4o",
+                name="openrouter/qwen/qwen3-32b",
                 project="email_agent",
                 config=ProjectPolicyConfig(
-                    log_to_openpipe=False,
-                    litellm_model_name="openai/gpt-4o",
-                    use_tools=True,
+                    litellm_model_name="openrouter/qwen/qwen3-32b",
                 ),
             ),
-            load_synthetic_queries(split="test", limit=1)[0],
+            scenario,
         )
     )
     print(yaml.dump(traj.for_logging()))
+    print(f"Question: {scenario.question}")
+    print(f"Expected answer: {scenario.answer}")
+    print(f"Generated answer: {traj.generated_answer}")

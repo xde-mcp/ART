@@ -9,74 +9,10 @@ import traceback
 from dotenv import dotenv_values
 from sky import ClusterStatus
 
+from all_models import models
+
 # Usage:
-# uv run run_training.py 002 --fast
-
-models = {
-    "002": art.TrainableModel(
-        name="email-agent-002",
-        project="email_agent",
-        base_model="Qwen/Qwen2.5-14B-Instruct",
-        config=ProjectPolicyConfig(
-            max_turns=10,
-            log_to_openpipe=True,
-            training_config=TrainingConfig(
-                trajectories_per_group=6,
-                groups_per_step=8,
-                learning_rate=1.2e-5,
-                eval_steps=30,
-                val_set_size=100,
-                training_dataset_size=4000,
-                num_epochs=1,
-            ),
-        ),
-    )
-}
-
-
-models["004"] = models["002"].model_copy(deep=True)
-models["004"].name = "email-agent-004"
-models["004"].config.max_turns = 30
-
-models["005"] = models["002"].model_copy(deep=True)
-models["005"].name = "email-agent-005"
-
-models["006"] = models["005"].model_copy(deep=True)
-models["006"].name = "email-agent-006"
-
-models["007"] = models["005"].model_copy(deep=True)
-models["007"].name = "email-agent-007"
-models["007"].config.use_tools = True
-
-models["008"] = models["005"].model_copy(deep=True)
-models["008"].name = "email-agent-008"
-assert models["008"].config.training_config is not None
-models["008"].config.use_tools = True
-models["008"].config.training_config.trajectories_per_group = 4
-models["008"].config.training_config.groups_per_step = 12
-models["008"].config.training_config.num_epochs = 3
-
-models["011"] = models["008"].model_copy(deep=True)
-models["011"].name = "email-agent-011"
-assert models["011"].config.training_config is not None
-models["011"].config.training_config.num_epochs = 4
-
-models["012"] = models["008"].model_copy(deep=True)
-models["012"].name = "email-agent-012"
-
-models["013"] = models["002"].model_copy(deep=True)
-models["013"].name = "email-agent-013"
-assert models["013"].config.training_config is not None
-models["013"].config.training_config.num_epochs = 4
-models["013"].config.training_config.trajectories_per_group = 4
-models["013"].config.training_config.groups_per_step = 24
-
-models["014"] = models["008"].model_copy(deep=True)
-models["014"].name = "email-agent-014"
-models["014"].config.stupid_simple_reward_fn = True
-
-models["201"] = models["008"].model_copy(deep=True)
-models["201"].name = "email-agent-201"
+# uv run run_training.py --models=207 --fast
 
 parser = argparse.ArgumentParser(
     description="Train one or more models (comma separated)."
