@@ -96,6 +96,8 @@ class RunConfig(BaseModel):
     reward_type: str = "real"
     general_rm_model: str = "o3"
     max_num_steps: int = 30
+    skip_eval: bool = False
+
 class TauBenchTrainingConfig(BaseModel):
     """Training configuration for ART RL on tau-bench tasks"""
     trajectories_per_group: int = 6
@@ -105,6 +107,7 @@ class TauBenchTrainingConfig(BaseModel):
     val_set_size: int = 85
     training_dataset_size: int = 30
     num_epochs: int = 50
+    train_mode: str = "sync_rl"
 
 
 class TauBenchPolicyConfig(BaseModel):

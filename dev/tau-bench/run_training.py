@@ -33,6 +33,8 @@ models = {
         "num_epochs": 50,
         "reward_type": "real",
         "max_num_steps": 30,
+        "train_mode": "sync_rl",
+        "skip_eval": False,
     }
 }
 
@@ -51,6 +53,51 @@ models["004"]["model"] = "tau-bench-rl-004-final"
 models["004"]["reward_type"] = "general_rm"
 models["004"]["learning_rate"] = 5e-6
 models["004"]["max_num_steps"] = 14
+
+models["005"] = models["003"].copy()
+models["005"]["model"] = "tau-bench-rl-005-final-4"
+models["005"]["train_mode"] = "async_rl"
+models["005"]["val_set_size"] = 30
+
+models["006"] = models["001"].copy()
+models["006"]["model"] = "tau-bench-rl-006-final-4"
+models["006"]["train_mode"] = "async_rl"
+models["006"]["learning_rate"] = 5e-6
+models["006"]["val_set_size"] = 30
+
+models["007"] = models["005"].copy()
+models["007"]["model"] = "tau-bench-rl-007"
+models["007"]["base_model"] = "Qwen/Qwen2.5-32B-Instruct"
+
+models["008"] = models["001"].copy()
+models["008"]["model"] = "tau-bench-rl-debug-1"
+models["008"]["base_model"] = "Qwen/Qwen2.5-7B-Instruct"
+models["008"]["learning_rate"] = 5e-6
+models["008"]["trajectories_per_group"] = 3
+models["008"]["groups_per_step"] = 3
+models["008"]["val_set_size"] = 4
+models["008"]["training_dataset_size"] = 6
+models["008"]["train_mode"] = "async_rl"
+models["008"]["reward_type"] = "general_rm"
+models["008"]["skip_eval"] = True
+
+models["009"] = models["003"].copy()
+models["009"]["model"] = "tau-bench-rl-009-2"
+models["009"]["train_mode"] = "async_rl"
+models["009"]["val_set_size"] = 30
+models["009"]["trajectories_per_group"] = 10
+
+models["010"] = models["001"].copy()
+models["010"]["model"] = "tau-bench-rl-010-2"
+models["010"]["train_mode"] = "async_rl"
+models["010"]["learning_rate"] = 5e-6
+models["010"]["val_set_size"] = 30
+models["010"]["trajectories_per_group"] = 10
+
+models["011"] = models["005"].copy()
+models["011"]["model"] = "tau-bench-rl-011"
+models["011"]["base_model"] = "Qwen/Qwen2.5-32B-Instruct"
+models["011"]["trajectories_per_group"] = 10
 
 parser = argparse.ArgumentParser(
     description="Train one or more tau-bench RL models (comma separated)."
@@ -119,6 +166,8 @@ def launch_model(model_key: str):
         f"--num-epochs {model_config['num_epochs']}",
         f"--reward-type {model_config['reward_type']}",
         f"--max-num-steps {model_config['max_num_steps']}",
+        f"--train-mode {model_config['train_mode']}",
+        f"{'--skip-eval' if model_config['skip_eval'] else ''}",
     ]
 
     run_script = textwrap.dedent(f"""

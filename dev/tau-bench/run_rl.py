@@ -3,8 +3,8 @@
 import argparse
 import asyncio
 import concurrent.futures
-import os
-from typing import Any, Dict, List
+import random
+from typing import List
 from dotenv import load_dotenv
 
 import art
@@ -19,56 +19,11 @@ from tau_bench.envs.user import UserStrategy
 from tau_bench.agents.tool_calling_agent import ToolCallingRLAgent
 from tau_bench.types import TauBenchPolicyConfig, TauBenchTrainingConfig
 from tau_bench.general_rm import create_general_rm_trajectory_groups
-from langfuse import Langfuse
+from tau_bench.rl_utils import log_trajectory_to_openpipe, update_steps_for_openpipe_logs
 from tqdm.asyncio import tqdm_asyncio
 
 # Load environment variables
 load_dotenv(override=True)
-
-def log_trajectory_to_langfuse(
-    traj: art.Trajectory,
-    messages: List[Dict[str, Any]]
-) -> None:
-    """
-    Push one trajectory to Langfuse with task_idx and step for comparison.
-    """
-    # Initialize langfuse
-    langfuse = Langfuse(
-        secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
-        public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
-        host=os.getenv("LANGFUSE_HOST"),
-    )
-    phase = traj.metadata.get("phase", "unknown")
-    step = traj.metadata.get("training_step", 0)
-    task_idx = traj.metadata.get("task_index", 0)
-    env = traj.metadata.get("env", "unknown")
-    
-    trace_name = f"rl-{phase}-step-{step}-task-{task_idx}"
-    
-    # Create trace with trajectory data
-    trace = langfuse.trace(
-        name=trace_name,
-        input={
-            "task_idx": task_idx,
-            "step": step,
-            "phase": phase,
-            "metadata": traj.metadata
-        },
-        output={
-            "messages": messages,
-            "reward": traj.reward,
-            "metadata": traj.metadata
-        },
-        metadata={
-            "task_idx": task_idx,
-            "training_step": step,
-            "phase": phase,
-            "env": env
-        }
-    )
-    
-    # Add reward as a score
-    trace.score(name="reward", value=traj.reward)
 
 async def rollout_tau_bench_task(
     model: art.Model[TauBenchPolicyConfig],
@@ -109,10 +64,12 @@ async def rollout_tau_bench_task(
         messages_and_choices=[],
         reward=0,
         metadata={
-            "task_index": task_index, 
+            "task_index": str(task_index), 
             "env": config.env,
-            "training_step": step,
-            "phase": phase
+            "training_step": str(step),
+            "phase": phase,
+            "model": model.name,
+            "reward_type": config.reward_type,
         }
     )
     
@@ -126,14 +83,18 @@ async def rollout_tau_bench_task(
         
         # Convert result to trajectory format
         traj.reward = result.reward
-        traj.metadata.update(result.info)
         traj.metrics = {
             "total_steps": result.info["total_steps"],
             "final_prompt_tokens": result.info["final_prompt_tokens"],
             "avg_completion_tokens": result.info["avg_completion_tokens"],
             "max_completion_tokens": result.info["max_completion_tokens"],
+            "outcome_correct": traj.reward,
         }
-        
+        traj.metadata.update(result.info)
+        traj.metadata["reward"] = "pending_general_rm" if config.reward_type == "general_rm" else traj.reward
+        traj.metadata["outcome_correct"] = traj.reward
+
+
         traj.messages_and_choices = agent.create_messages_and_choices(result.messages)
     except Exception as e:
         print(f"Error in rollout for task {task_index}: {e}")
@@ -142,11 +103,11 @@ async def rollout_tau_bench_task(
     
     traj.finish()
     
-    # Log to langfuse
+    # Log to langfuse/openpipe
     try:
-        log_trajectory_to_langfuse(traj, result.messages)
+        await log_trajectory_to_openpipe(traj, result.messages)
     except Exception as e:
-        print(f"Error logging trajectory to langfuse: {e}")
+        print(f"Error logging trajectory to openpipe: {e}")
     
     # print(f"Finished rolling out task {task_index} (reward: {traj.reward})")
     return traj
@@ -239,6 +200,8 @@ def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]
     parser.add_argument("--reward-type", type=str, default="real", help="Reward type")
     parser.add_argument("--general-rm-model", type=str, default="o3", help="Model to use for general RM. ignored if reward type is not general_rm")
     parser.add_argument("--max-num-steps", type=int, default=30, help="Maximum number of steps per rollout")
+    parser.add_argument("--train-mode", type=str, default="sync_rl", choices=["sync_rl", "async_rl"], help="Training mode")
+    parser.add_argument("--skip-eval", action="store_true", default=False, help="Skip evaluation")
     
     args = parser.parse_args()
     print(args)
@@ -258,14 +221,15 @@ def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]
         end_index=args.end_index,
         task_ids=args.task_ids,
         log_dir=args.log_dir,
-        max_concurrency=1,  # RL training is sequential
+        max_concurrency=50,
         seed=args.seed,
         shuffle=args.shuffle,
         user_strategy=args.user_strategy,
         few_shot_displays_path=args.few_shot_displays_path,
         reward_type=args.reward_type,
         general_rm_model=args.general_rm_model,
-        max_num_steps=args.max_num_steps
+        max_num_steps=args.max_num_steps,
+        skip_eval=args.skip_eval,
     )
     
     # Create training config
@@ -277,6 +241,7 @@ def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]
         val_set_size=args.val_set_size,
         training_dataset_size=args.training_dataset_size,
         num_epochs=args.num_epochs,
+        train_mode=args.train_mode,
     )
     
     return run_config, training_config, args
@@ -286,27 +251,17 @@ async def evaluate_model(
     model: art.TrainableModel[TauBenchPolicyConfig],
     config: RunConfig,
     step: int,
-    num_eval_tasks: int = 50
+    val_task_indices: List[int]
 ) -> float:
     """Evaluate the model on a subset of tasks"""
-    print(f"Evaluating model on {num_eval_tasks} tasks...")
-    
-    # Get environment for evaluation
-    env = get_env(
-        config.env,
-        user_strategy=config.user_strategy,
-        user_model=config.user_model,
-        user_provider=config.user_model_provider,
-        task_split=config.task_split,
-    )
+    print(f"Evaluating model on {len(val_task_indices)} tasks...")
     
     total_reward = 0.0
-    eval_tasks = min(num_eval_tasks, len(env.tasks))
 
     trajectories = await art.gather_trajectories(
         (
-            async_rollout_tau_bench_task(model, i, step, "val")
-            for i in range(eval_tasks)
+            async_rollout_tau_bench_task(model, val_task_index, step, "val")
+            for val_task_index in val_task_indices
         )
     )
     await model.log(trajectories=trajectories, split="val")
@@ -315,7 +270,7 @@ async def evaluate_model(
         total_reward += traj.reward
         print(f"Eval task {traj.metadata['task_index']}: reward={traj.reward}")
     
-    avg_reward = total_reward / eval_tasks
+    avg_reward = total_reward / len(val_task_indices)
     print(f"Average evaluation reward: {avg_reward}")
     return avg_reward
 
@@ -360,71 +315,123 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
         
         print(f"Training on {len(train_task_indices)} tasks")
         print(f"Validation on {len(val_task_indices)} tasks")
-        
-        # Training iterator
-        train_iterator = iterate_dataset(
-            train_task_indices,
-            groups_per_step=training_config.groups_per_step,
-            num_epochs=training_config.num_epochs,
-            initial_step=await model.get_step(),
-        )
-        
-        for batch, epoch, global_step, epoch_step in train_iterator:
-            print(f"\n--- Training Step {global_step} (Epoch {epoch}, Step {epoch_step}) ---")
-            
-            # Evaluation
-            if global_step % training_config.eval_steps == 0:
-                print(f"\n--- Evaluating at Step {global_step} ---")
-                await evaluate_model(model, config, global_step, num_eval_tasks=len(val_task_indices))
-                await model.delete_checkpoints()
-            
-            # Generate trajectory groups
-            print(f"Generating trajectories for {len(batch)} tasks...")
-            groups = await art.gather_trajectory_groups(
+
+        if training_config.train_mode == "async_rl":
+            global_step = 0
+            train_task_indices_async_rl = []
+            for _ in range(training_config.num_epochs):
+                train_task_indices_async_rl.extend(random.sample(train_task_indices, len(train_task_indices)))
+
+            async for trajectory_groups in art.trajectory_group_batches(
                 (
                     art.TrajectoryGroup(
                         (
-                            async_rollout_tau_bench_task(model, task_index, global_step, "train")
+                            async_rollout_tau_bench_task(model, task_index, -1, "train")
                             for _ in range(training_config.trajectories_per_group)
                         )
                     )
-                    for task_index in batch
-                )
-            )
-            if config.reward_type == "general_rm":
-                print("Creating general RM trajectory groups...")
-                updated_groups = await tqdm_asyncio.gather(
-                    *[
-                        create_general_rm_trajectory_groups(group, config)
-                        for group in groups
-                    ],
-                    desc="Creating general RM trajectory groups",
-                    total=len(groups),
-                )
-                groups = updated_groups
-            
-            # Training step
-            print(f"Training on {len(groups)} trajectory groups...")
-            await model.train(
-                groups,
-                config=art.TrainConfig(
-                    learning_rate=training_config.learning_rate
+                    for task_index in train_task_indices_async_rl
                 ),
+                batch_size=training_config.groups_per_step,
+                max_concurrent_batches=3,
+                skip_batches=await model.get_step(),
+            ):
+                if global_step % training_config.eval_steps == 0 and not config.skip_eval:
+                    print(f"\n--- Evaluating at Step {global_step} ---")
+                    await evaluate_model(model, config, global_step, val_task_indices)
+                    # await model.delete_checkpoints()
+                
+                if config.reward_type == "general_rm":
+                    print("Creating general RM trajectory groups...")
+                    updated_groups = await tqdm_asyncio.gather(
+                        *[
+                            create_general_rm_trajectory_groups(group, config)
+                            for group in trajectory_groups
+                        ],
+                        desc="Creating general RM trajectory groups",
+                        total=len(trajectory_groups),
+                    )
+                    trajectory_groups = updated_groups
+
+                try:
+                    await update_steps_for_openpipe_logs(trajectory_groups, global_step)
+                except Exception as e:
+                    print(f"Error updating steps for openpipe logs: {e}")
+
+                # Training step
+                print(f"Training on {len(trajectory_groups)} trajectory groups...")
+                await model.train(
+                    trajectory_groups,
+                    config=art.TrainConfig(
+                        learning_rate=training_config.learning_rate
+                    ),
+                )
+                global_step += 1
+        else:
+            # Training iterator
+            train_iterator = iterate_dataset(
+                train_task_indices,
+                groups_per_step=training_config.groups_per_step,
+                num_epochs=training_config.num_epochs,
+                initial_step=await model.get_step(),
             )
             
-            # Log progress
-            total_reward = sum(
-                sum(traj.reward for traj in group.trajectories) 
-                for group in groups
-            )
-            num_trajectories = sum(len(group.trajectories) for group in groups)
-            avg_reward = total_reward / num_trajectories if num_trajectories > 0 else 0
-            print(f"Step {global_step}: Average training reward = {avg_reward}")
+            for batch, epoch, global_step, epoch_step in train_iterator:
+                print(f"\n--- Training Step {global_step} (Epoch {epoch}, Step {epoch_step}) ---")
+                
+                # Evaluation
+                if global_step % training_config.eval_steps == 0 and not config.skip_eval:
+                    print(f"\n--- Evaluating at Step {global_step} ---")
+                    await evaluate_model(model, config, global_step, val_task_indices)
+                    await model.delete_checkpoints()
+                
+                # Generate trajectory groups
+                print(f"Generating trajectories for {len(batch)} tasks...")
+                groups = await art.gather_trajectory_groups(
+                    (
+                        art.TrajectoryGroup(
+                            (
+                                async_rollout_tau_bench_task(model, task_index, global_step, "train")
+                                for _ in range(training_config.trajectories_per_group)
+                            )
+                        )
+                        for task_index in batch
+                    )
+                )
+                if config.reward_type == "general_rm":
+                    print("Creating general RM trajectory groups...")
+                    updated_groups = await tqdm_asyncio.gather(
+                        *[
+                            create_general_rm_trajectory_groups(group, config)
+                            for group in groups
+                        ],
+                        desc="Creating general RM trajectory groups",
+                        total=len(groups),
+                    )
+                    groups = updated_groups
+                
+                # Training step
+                print(f"Training on {len(groups)} trajectory groups...")
+                await model.train(
+                    groups,
+                    config=art.TrainConfig(
+                        learning_rate=training_config.learning_rate
+                    ),
+                )
+                
+                # Log progress
+                total_reward = sum(
+                    sum(traj.reward for traj in group.trajectories) 
+                    for group in groups
+                )
+                num_trajectories = sum(len(group.trajectories) for group in groups)
+                avg_reward = total_reward / num_trajectories if num_trajectories > 0 else 0
+                print(f"Step {global_step}: Average training reward = {avg_reward}")
         
         # Final evaluation
         print("\n--- Final Evaluation ---")
         final_step = await model.get_step()
-        final_reward = await evaluate_model(model, config, final_step, num_eval_tasks=len(val_task_indices))
+        final_reward = await evaluate_model(model, config, final_step, val_task_indices)
         print(f"Final average reward: {final_reward}")
         
         print("Training completed!")
