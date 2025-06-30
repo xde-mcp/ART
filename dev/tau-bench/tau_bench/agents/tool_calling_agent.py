@@ -87,6 +87,10 @@ class ToolCallingAgent(Agent):
             if env_response.done:
                 break
             if final_prompt_tokens > 20000:
+                reward = -1
+                break
+            if res.choices[0].finish_reason == "length":
+                reward = -1
                 break
         info["total_steps"] = curr_step_number + 1
         info["avg_completion_tokens"] = avg_completion_tokens / info["total_steps"]

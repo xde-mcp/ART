@@ -99,6 +99,29 @@ models["011"]["model"] = "tau-bench-rl-011"
 models["011"]["base_model"] = "Qwen/Qwen2.5-32B-Instruct"
 models["011"]["trajectories_per_group"] = 10
 
+models["012"] = models["001"].copy()
+models["012"]["model"] = "tau-bench-rl-012"
+models["012"]["learning_rate"] = 5e-6
+models["012"]["val_set_size"] = 30
+models["012"]["trajectories_per_group"] = 10
+models["012"]["reward_type"] = "general_rm"
+
+# same as 012 but this one has slightly more graded rewards since max token trajs get -1 reward
+models["013"] = models["001"].copy()
+models["013"]["model"] = "tau-bench-rl-013"
+models["013"]["learning_rate"] = 5e-6
+models["013"]["val_set_size"] = 30
+models["013"]["trajectories_per_group"] = 10
+models["013"]["reward_type"] = "general_rm"
+
+# models["013"] = models["001"].copy()
+# models["013"]["model"] = "tau-bench-rl-013"
+# models["013"]["base_model"] = "Qwen/Qwen2.5-32B-Instruct"
+# models["013"]["learning_rate"] = 5e-6
+# models["013"]["val_set_size"] = 30
+# models["013"]["trajectories_per_group"] = 10
+# models["013"]["reward_type"] = "general_rm"
+
 parser = argparse.ArgumentParser(
     description="Train one or more tau-bench RL models (comma separated)."
 )
