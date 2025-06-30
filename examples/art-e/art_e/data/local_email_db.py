@@ -12,10 +12,6 @@ DEFAULT_DB_PATH = os.path.join(BASE_DIR, "..", "..", "data", "enron_emails.db")
 
 DEFAULT_REPO_ID = "corbt/enron-emails"
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-
 
 # --- Database Schema ---
 SQL_CREATE_TABLES = """

@@ -61,7 +61,8 @@ class TorchtuneService:
             run_on_workers(
                 llm,
                 sleep,
-                level=1 if llm.output_processor.has_unfinished_requests() else 2,
+                # level=1 if llm.output_processor.has_unfinished_requests() else 2,
+                level=1,
                 pids_path=pids_path,
                 weights_path=None if async_weight_syncing else weights_path,
                 profile=verbose,
@@ -182,6 +183,7 @@ class TorchtuneService:
             f"output_dir={self.output_dir}",
             "metric_logger._component_=torchtune.training.metric_logging.StdoutLogger",
             "metric_logger.log_dir=null",
+            f"enable_activation_offloading={torchtune_args.get('enable_activation_offloading', False)}",
         ]
         return await asyncio.subprocess.create_subprocess_exec(
             *program_and_args,

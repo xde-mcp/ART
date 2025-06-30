@@ -307,7 +307,6 @@ async def create_and_push_dataset(
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
     asyncio.run(
         create_and_push_dataset(
             num_train_inboxes=20,
