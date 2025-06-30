@@ -5,12 +5,20 @@ description: "Train open source models on ART."
 icon: "robot"
 ---
 
+<Info>
+  If you aren't sure which model to start with, we recommend using one of the
+  [Qwen 2.5
+  models](https://huggingface.co/collections/Qwen/qwen25-66e81a666513e518adb90d9e).
+  If you're looking for a good balance of performance and size, start with [Qwen
+  2.5 14B Instruct](https://huggingface.co/Qwen/Qwen2.5-14B-Instruct).
+</Info>
+
 ART supports a wide variety of base models, with two constraining factors:
 
 1. For single-device fine-tuning, the base model (along with some reasonable amount of context) must be able to fit on a H100 in a quantized state.
 2. ART's dependencies (including Unsloth and vLLM) must support the model.
 
-Fortunately, the vast majority of models meet these requirements. If you're curious about a model that is not listed below, ask in the Discord [#support](https://discord.com/channels/1359674493949448375/1359674622965973185) channel.
+If you're curious about a model that is not listed below, ask in the Discord [#support](https://discord.com/channels/1359674493949448375/1359674622965973185) channel.
 
 ## Instruct models
 
