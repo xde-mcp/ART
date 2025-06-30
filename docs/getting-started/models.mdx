@@ -1,6 +1,244 @@
 ---
 title: "Supported Models"
 sidebarTitle: "Models"
-description: "ART supports training on a variety of models."
+description: "Train open source models on ART."
 icon: "robot"
 ---
+
+ART supports a wide variety of base models, with two constraining factors:
+
+1. For single-device fine-tuning, the base model (along with some reasonable amount of context) must be able to fit on a H100 in a quantized state.
+2. ART's dependencies (including Unsloth and vLLM) must support the model.
+
+Fortunately, the vast majority of models meet these requirements. If you're curious about a model that is not listed below, ask in the Discord #support channel.
+
+## Instruct-tuned models
+
+<Tabs>
+  <Tab title="Qwen">
+    <table className="full-width">
+      <thead>
+        <tr>
+          <th>Model</th>
+          <th>Variant</th>
+          <th>License</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Qwen 3</td>
+          <td>
+            <a href="https://huggingface.co/Qwen/Qwen3-0.6B">0.6&nbsp;B</a>
+          </td>
+          <td>Apache-2.0</td>
+        </tr>
+        <tr>
+          <td>Qwen 3</td>
+          <td>
+            <a href="https://huggingface.co/Qwen/Qwen3-1.7B">1.7&nbsp;B</a>
+          </td>
+          <td>Apache-2.0</td>
+        </tr>
+        <tr>
+          <td>Qwen 3</td>
+          <td>
+            <a href="https://huggingface.co/Qwen/Qwen3-4B">4&nbsp;B</a>
+          </td>
+          <td>Apache-2.0</td>
+        </tr>
+        <tr>
+          <td>Qwen 3</td>
+          <td>
+            <a href="https://huggingface.co/Qwen/Qwen3-8B">8&nbsp;B</a>
+          </td>
+          <td>Apache-2.0</td>
+        </tr>
+        <tr>
+          <td>Qwen 3</td>
+          <td>
+            <a href="https://huggingface.co/Qwen/Qwen3-14B">14&nbsp;B</a>
+          </td>
+          <td>Apache-2.0</td>
+        </tr>
+        <tr>
+          <td>Qwen 3</td>
+          <td>
+            <a href="https://huggingface.co/Qwen/Qwen3-30B-A3B">30B-A3B</a>
+          </td>
+          <td>Apache-2.0</td>
+        </tr>
+        <tr>
+          <td>Qwen 3</td>
+          <td>
+            <a href="https://huggingface.co/Qwen/Qwen3-32B">32&nbsp;B</a>
+          </td>
+          <td>Apache-2.0</td>
+        </tr>
+        <tr>
+          <td>Qwen 2.5&nbsp;Omni</td>
+          <td>
+            <a href="https://huggingface.co/Qwen/Qwen2.5-Omni-3B">3&nbsp;B</a>
+          </td>
+          <td>Apache-2.0</td>
+        </tr>
+        <tr>
+          <td>Qwen 2.5&nbsp;Omni</td>
+          <td>
+            <a href="https://huggingface.co/Qwen/Qwen2.5-Omni-7B">7&nbsp;B</a>
+          </td>
+          <td>Apache-2.0</td>
+        </tr>
+        <tr>
+          <td>Qwen 2.5</td>
+          <td>
+            <a href="https://huggingface.co/Qwen/Qwen2.5-0.5B">0.5 B</a>
+          </td>
+          <td>Apache-2.0</td>
+        </tr>
+        <tr>
+          <td>Qwen 2.5</td>
+          <td>
+            <a href="https://huggingface.co/Qwen/Qwen2.5-1.5B">1.5&nbsp;B</a>
+          </td>
+          <td>Apache-2.0</td>
+        </tr>
+        <tr>
+          <td>Qwen 2.5</td>
+          <td>
+            <a href="https://huggingface.co/Qwen/Qwen2.5-3B">3&nbsp;B</a>
+          </td>
+          <td>Apache-2.0</td>
+        </tr>
+        <tr>
+          <td>Qwen 2.5</td>
+          <td>
+            <a href="https://huggingface.co/Qwen/Qwen2.5-7B">7&nbsp;B</a>
+          </td>
+          <td>Apache-2.0</td>
+        </tr>
+        <tr>
+          <td>Qwen 2.5</td>
+          <td>
+            <a href="https://huggingface.co/Qwen/Qwen2.5-14B">14&nbsp;B</a>
+          </td>
+          <td>Apache-2.0</td>
+        </tr>
+        <tr>
+          <td>Qwen 2.5</td>
+          <td>
+            <a href="https://huggingface.co/Qwen/Qwen2.5-32B">32&nbsp;B</a>
+          </td>
+          <td>Apache-2.0</td>
+        </tr>
+        <tr>
+          <td>Qwen 2.5&nbsp;Coder</td>
+          <td>
+            <a href="https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B">
+              0.5&nbsp;B
+            </a>
+          </td>
+          <td>Apache-2.0</td>
+        </tr>
+        <tr>
+          <td>Qwen 2.5&nbsp;Coder</td>
+          <td>
+            <a href="https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B">
+              1.5&nbsp;B
+            </a>
+          </td>
+          <td>Apache-2.0</td>
+        </tr>
+        <tr>
+          <td>Qwen 2.5&nbsp;Coder</td>
+          <td>
+            <a href="https://huggingface.co/Qwen/Qwen2.5-Coder-3B">3&nbsp;B</a>
+          </td>
+          <td>Apache-2.0</td>
+        </tr>
+        <tr>
+          <td>Qwen 2.5&nbsp;Coder</td>
+          <td>
+            <a href="https://huggingface.co/Qwen/Qwen2.5-Coder-7B">7&nbsp;B</a>
+          </td>
+          <td>Apache-2.0</td>
+        </tr>
+        <tr>
+          <td>Qwen 2.5&nbsp;Coder</td>
+          <td>
+            <a href="https://huggingface.co/Qwen/Qwen2.5-Coder-14B">
+              14&nbsp;B
+            </a>
+          </td>
+          <td>Apache-2.0</td>
+        </tr>
+        <tr>
+          <td>Qwen 2.5&nbsp;Coder</td>
+          <td>
+            <a href="https://huggingface.co/Qwen/Qwen2.5-Coder-32B">
+              32&nbsp;B
+            </a>
+          </td>
+          <td>Apache-2.0</td>
+        </tr>
+      </tbody>
+    </table>
+  </Tab>
+</Tabs>
+
+### Qwen
+
+### DeepSeek
+
+| Model                 | Variant                                                                          | License |
+| --------------------- | -------------------------------------------------------------------------------- | ------- |
+| **DeepSeek-V3**       | [V3-0324](https://huggingface.co/deepseek-ai/DeepSeek-V3-0324)                   | MIT     |
+|                       | [V3](https://huggingface.co/deepseek-ai/DeepSeek-V3)                             | MIT     |
+| **DeepSeek-R1**       | [R1-0528](https://huggingface.co/deepseek-ai/DeepSeek-R1-0528)                   | MIT     |
+|                       | [R1-0528-Qwen3-8B](https://huggingface.co/deepseek-ai/DeepSeek-R1-0528-Qwen3-8B) | MIT     |
+|                       | [R1](https://huggingface.co/deepseek-ai/DeepSeek-R1)                             | MIT     |
+| **R1 Zero**           | [R1 Zero](https://huggingface.co/deepseek-ai/R1-Zero)                            | MIT     |
+| **Distill Llama 3**   | [8 B](https://huggingface.co/deepseek-ai/Distill-Llama3-8B)                      | MIT     |
+| **Distill Llama 3.3** | [70 B](https://huggingface.co/deepseek-ai/Distill-Llama3.3-70B)                  | MIT     |
+| **Distill Qwen 2.5**  | [1.5 B](https://huggingface.co/deepseek-ai/Distill-Qwen2.5-1.5B)                 | MIT     |
+
+### LLama
+
+| Model         | Variant                                                                          | License           |
+| ------------- | -------------------------------------------------------------------------------- | ----------------- |
+| **Llama 4**   | [Scout 17B-16E](https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E)         | Llama 4 Community |
+|               | [Maverick 17B-128E](https://huggingface.co/meta-llama/Llama-4-Maverick-17B-128E) | Llama 4 Community |
+| **Llama 3.3** | [70 B](https://huggingface.co/meta-llama/Llama-3.3-70B)                          | Llama 3 Community |
+| **Llama 3.2** | [1 B](https://huggingface.co/meta-llama/Llama-3.2-1B)                            | Llama 3 Community |
+|               | [3 B](https://huggingface.co/meta-llama/Llama-3.2-3B)                            | Llama 3 Community |
+|               | [11 B Vision](https://huggingface.co/meta-llama/Llama-3.2-11B-Vision)            | Llama 3 Community |
+|               | [90 B Vision](https://huggingface.co/meta-llama/Llama-3.2-90B-Vision)            | Llama 3 Community |
+| **Llama 3.1** | [8 B](https://huggingface.co/meta-llama/Llama-3.1-8B)                            | Llama 3 Community |
+|               | [70 B](https://huggingface.co/meta-llama/Llama-3.1-70B)                          | Llama 3 Community |
+|               | [405 B](https://huggingface.co/meta-llama/Llama-3.1-405B)                        | Llama 3 Community |
+| **Llama 3**   | [8 B](https://huggingface.co/meta-llama/Meta-Llama-3-8B)                         | Llama 3 Community |
+|               | [70 B](https://huggingface.co/meta-llama/Meta-Llama-3-70B)                       | Llama 3 Community |
+| **Llama 2**   | [7 B](https://huggingface.co/meta-llama/Llama-2-7b)                              | Llama 2 Community |
+
+### Gemma
+
+| Model        | Variant                                           | License |
+| ------------ | ------------------------------------------------- | ------- |
+| **Gemma 3n** | [E2B](https://huggingface.co/google/gemma-3n-E2B) | gemma   |
+|              | [E4B](https://huggingface.co/google/gemma-3n-E4B) | gemma   |
+| **Gemma 3**  | [1 B](https://huggingface.co/google/gemma-3-1b)   | gemma   |
+|              | [4 B](https://huggingface.co/google/gemma-3-4b)   | gemma   |
+|              | [12 B](https://huggingface.co/google/gemma-3-12b) | gemma   |
+|              | [27 B](https://huggingface.co/google/gemma-3-27b) | gemma   |
+| **Gemma 2**  | [2 B](https://huggingface.co/google/gemma-2-2b)   | gemma   |
+|              | [9 B](https://huggingface.co/google/gemma-2-9b)   | gemma   |
+|              | [27 B](https://huggingface.co/google/gemma-2-27b) | gemma   |
+
+### Mistral
+
+| Model        | Variant                                                                   | License    |
+| ------------ | ------------------------------------------------------------------------- | ---------- |
+| **Mistral**  | [Small 2409-22B](https://huggingface.co/mistralai/Mistral-Small-2409-22B) | Apache-2.0 |
+|              | [Large 2407](https://huggingface.co/mistralai/Mistral-Large-2407)         | Apache-2.0 |
+|              | [7B v0.3](https://huggingface.co/mistralai/Mistral-7B-v0.3)               | Apache-2.0 |
+|              | [7B v0.2](https://huggingface.co/mistralai/Mistral-7B-v0.2)               | Apache-2.0 |
+| **Devstral** | [Small 2505](https://huggingface.co/mistralai/Devstral-Small-2505)        | Apache-2.0 |

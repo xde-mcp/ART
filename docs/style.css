@@ -1,11 +1,37 @@
-table th,
-table td {
+table.full-width th,
+table.full-width td {
   vertical-align: top !important;
   line-height: 1.5;
+  /* Horizontal borders */
+  border-top: 1px solid #d0d0d0;
+  border-bottom: 1px solid #d0d0d0;
+  /* Vertical inner borders */
+  border-left: 1px solid #d0d0d0;
+  padding: 6px 8px;
+  width: auto;
 }
 
 /* Hide the "Powered by Mintlify" credit link everywhere */
 a[href^="https://mintlify.com/preview-request"]
 {
   display: none !important;
+}
+
+table.full-width {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.prose.overflow-x-auto table.full-width {
+  display: table !important;
+  width: 100% !important;
+  min-width: 100%;
+}
+
+/* Remove border on the far left of the table */
+table.full-width th:first-child,
+table.full-width td:first-child {
+  border-left: none;
+  padding-left: 8px !important;
 }
