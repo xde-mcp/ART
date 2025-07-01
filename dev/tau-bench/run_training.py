@@ -36,6 +36,7 @@ models = {
         "train_mode": "sync_rl",
         "skip_eval": False,
         "add_shadow_trajectory": False,
+        "messages_only": False,
     }
 }
 
@@ -152,7 +153,20 @@ models["018"]["val_set_size"] = 30
 models["018"]["trajectories_per_group"] = 10
 models["018"]["reward_type"] = "real"
 
+models["019"] = models["001"].copy()
+models["019"]["model"] = "tau-bench-rl-019-2"
+models["019"]["skip_eval"] = True
+models["019"]["training_dataset_size"] = 10
+models["019"]["trajectories_per_group"] = 8
+models["019"]["groups_per_step"] = 5
+models["019"]["num_epochs"] = 150
+models["019"]["reward_type"] = "general_rm"
+models["019"]["learning_rate"] = 8e-6
+models["019"]["messages_only"] = True
 
+models["020"] = models["019"].copy()
+models["020"]["model"] = "tau-bench-rl-020-4"
+models["020"]["add_shadow_trajectory"] = True
 
 # models["013"] = models["001"].copy()
 # models["013"]["model"] = "tau-bench-rl-013"
@@ -232,6 +246,7 @@ def launch_model(model_key: str):
         f"--train-mode {model_config['train_mode']}",
         f"{'--skip-eval' if model_config['skip_eval'] else ''}",
         f"{'--add-shadow-trajectory' if model_config['add_shadow_trajectory'] else ''}",
+        f"{'--messages-only' if model_config['messages_only'] else ''}",
     ]
 
     run_script = textwrap.dedent(f"""

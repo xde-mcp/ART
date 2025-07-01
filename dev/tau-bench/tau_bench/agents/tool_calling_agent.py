@@ -87,6 +87,7 @@ class ToolCallingAgent(Agent):
                 )
             if env_response.done:
                 forced_stop = False
+                break
             if final_prompt_tokens > 20000 or res.choices[0].finish_reason == "length":
                 break
         info["total_steps"] = curr_step_number + 1
@@ -104,8 +105,8 @@ class ToolCallingAgent(Agent):
 class ToolCallingRLAgent(ToolCallingAgent):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.api_key = kwargs.get("api_key")
-        self.base_url = kwargs.get("base_url")
+        self.api_key = kwargs.get("api_key", None)
+        self.base_url = kwargs.get("base_url", None)
         self.choices = []
     
     async def llm_completion(self, messages: List[Dict[str, Any]]):
@@ -118,10 +119,10 @@ class ToolCallingRLAgent(ToolCallingAgent):
             tools=self.tools_info,
             temperature=self.temperature,
             max_completion_tokens=1024,
-            logprobs=True,
+            logprobs=False if self.provider == "openai" else True,
         )
         choice = response.choices[0] # type: ignore
-        assert isinstance(choice, Choices)
+        assert isinstance(choice, Choices), f"Choice is not a Choices object: {choice}"
         self.choices.append(convert_litellm_choice_to_openai(choice))
         return response
     

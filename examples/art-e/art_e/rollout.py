@@ -1,3 +1,4 @@
+from typing import Any, Dict
 import art
 from art_e.data.types_enron import SyntheticQuery
 from art import Trajectory
@@ -189,6 +190,9 @@ Return your judgement as **pure JSON** (no markdown) with this exact schema:
 class ProjectTrajectory(Trajectory):
     generated_answer: str | None = None
 
+def clean_message(message: Dict[str, Any]) -> Dict[str, Any]:
+    return {k: v for k, v in message.items() if v is not None}
+
 
 @retry(stop=stop_after_attempt(3))
 # @weave.op(tracing_sample_rate=0.05)  # type: ignore
@@ -318,7 +322,10 @@ async def rollout(
         # Our rollout is only set up to handle one tool call at a time, so just ignore any parallel tool calls.
         if choice.message.tool_calls is not None and len(choice.message.tool_calls) > 1:
             choice.message.tool_calls = choice.message.tool_calls[:1]
-        traj.messages_and_choices.append(convert_litellm_choice_to_openai(choice))  # type: ignore
+        if model.config.training_config.messages_only:
+            traj.messages_and_choices.append(clean_message(convert_litellm_choice_to_openai(choice).message.model_dump()))  # type: ignore
+        else:
+            traj.messages_and_choices.append(convert_litellm_choice_to_openai(choice))  # type: ignore
 
         if choice.message.tool_calls is None:
             rubric.bad_tool_call_name = True
