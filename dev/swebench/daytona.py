@@ -6,6 +6,16 @@ from dotenv import load_dotenv
 import re
 from tqdm.auto import tqdm
 from typing import Literal
+import json
+import time
+import os
+import sys
+import subprocess
+import polars as pl
+from pathlib import Path
+from typing import Dict, List, Optional, Set, Tuple
+from dataclasses import dataclass
+import traceback
 
 load_dotenv()
 
@@ -120,6 +130,38 @@ async def install_missing_module(
     Returns:
         True if installation succeeded, False otherwise
     """
+    # Special handling for pandas._libs.pandas_parser
+    if module == "pandas._libs.pandas_parser" or module.startswith("pandas._libs"):
+        return await install_pandas_properly(sandbox, uv_cmd)
+    
+    # Enhanced special package mappings
+    special_packages = {
+        "jwt": "PyJWT",
+        "torch": "torch",
+        "freezegun": "freezegun", 
+        "validators": "validators",
+        "wcag_contrast_ratio": "wcag-contrast-ratio",
+        "responses": "responses",
+        "numpy": "numpy",
+        "cv2": "opencv-python",
+        "skimage": "scikit-image",
+        "PIL": "Pillow",
+        "yaml": "PyYAML",
+        "dateutil": "python-dateutil",
+        "serial": "pyserial",
+        "bs4": "beautifulsoup4",
+        "OpenSSL": "pyOpenSSL",
+    }
+    
+    # Try special mapping first
+    if module in special_packages:
+        package = special_packages[module]
+        install_res = await sandbox.process.exec(
+            f"{uv_cmd} pip install -q {package} 2>&1", cwd="/testbed"
+        )
+        if "successfully installed" in install_res.result.lower():
+            return True
+    
     # Try the module name as-is first
     install_res = await sandbox.process.exec(
         f"{uv_cmd} pip install -q {module} 2>&1", cwd="/testbed"
@@ -135,10 +177,6 @@ async def install_missing_module(
     ):
         # Common module name transformations
         alternatives = []
-
-        # Special case for common packages
-        if module == "jwt":
-            alternatives.append("PyJWT")
 
         # Try with underscores replaced by hyphens
         if "_" in module:
@@ -160,6 +198,68 @@ async def install_missing_module(
                 return True
 
     return False
+
+
+async def install_pandas_properly(sandbox: daytona_sdk.AsyncSandbox, uv_cmd: str) -> bool:
+    """Handle special pandas installation requirements.
+    
+    Pandas compilation can be tricky, especially _libs.pandas_parser.
+    This function handles the proper installation sequence.
+    """
+    pandas_commands = [
+        f"{uv_cmd} pip install --no-cache-dir --upgrade pip setuptools wheel",
+        f"{uv_cmd} pip install --no-cache-dir numpy cython", 
+        f"{uv_cmd} pip install --no-cache-dir --no-build-isolation pandas",
+    ]
+    
+    for cmd in pandas_commands:
+        result = await sandbox.process.exec(f"{cmd} 2>&1", cwd="/testbed")
+        if result.exit_code != 0:
+            print(f"  Pandas installation step failed: {cmd}")
+            return False
+    
+    # Test if pandas._libs.pandas_parser is now available
+    test_result = await sandbox.process.exec(
+        "python -c 'import pandas._libs.pandas_parser; print(\"Pandas properly installed\")'",
+        cwd="/testbed"
+    )
+    
+    return test_result.exit_code == 0
+
+
+async def execute_with_retry(
+    sandbox: daytona_sdk.AsyncSandbox, 
+    command: str, 
+    max_retries: int = 3,
+    timeout: int = 120,
+    cwd: str = "/testbed"
+):
+    """Execute command with retry logic for network timeouts and gateway errors."""
+    last_exception = None
+    
+    for attempt in range(max_retries):
+        try:
+            result = await sandbox.process.exec(command, cwd=cwd)
+            return result
+        except Exception as e:
+            last_exception = e
+            error_msg = str(e).lower()
+            
+            # Check for network-related errors
+            if any(keyword in error_msg for keyword in ["timeout", "504", "gateway", "network", "connection"]):
+                if attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) * 5  # Exponential backoff: 5s, 10s, 20s
+                    print(f"  Network error detected, retrying in {wait_time}s (attempt {attempt + 2}/{max_retries})...")
+                    import asyncio
+                    await asyncio.sleep(wait_time)
+                    continue
+            
+            # Re-raise non-network errors immediately
+            raise e
+    
+    # If we get here, all retries failed
+    if last_exception:
+        raise last_exception
 
 
 def analyze_test_results(output: str, instance: Instance) -> dict:
@@ -305,14 +405,38 @@ async def run_tests(
         # 4. Try running tests and install missing dependencies if needed
         logger.log("\nRunning tests...")
         max_retries = 5
+        result = None
+        
+        # Create a shared result class for error cases
+        class TestResult:
+            def __init__(self, exit_code=0, result=""):
+                self.exit_code = exit_code
+                self.result = result
+        
         for attempt in range(max_retries):
-            result = await sandbox.process.exec(
-                "cat /tmp/tests.txt | xargs -d '\n' python -m pytest -v -o addopts= --tb=short",
-                cwd="/testbed",
-            )
+            try:
+                result = await execute_with_retry(
+                    sandbox,
+                    "cat /tmp/tests.txt | xargs -d '\n' python -m pytest -v -o addopts= --tb=short",
+                    max_retries=3  # Use retry logic for network issues
+                )
+            except Exception as e:
+                # Handle specific error patterns that need special treatment
+                if attempt < max_retries - 1:
+                    error_msg = str(e).lower()
+                    if "504" in error_msg or "gateway" in error_msg or "timeout" in error_msg:
+                        logger.log(f"  Network/timeout error (attempt {attempt + 1}), retrying...")
+                        import asyncio
+                        await asyncio.sleep(10)
+                        continue
+                
+                # If we get here, it's either the last attempt or an unrecoverable error
+                logger.log(f"❌ Test execution failed: {e}")
+                result = TestResult(exit_code=-1, result=f"Error: {str(e)}")
+                break
 
-            # Check for missing pytest plugins
-            if "Missing required plugins:" in result.result:
+            # Check for missing pytest plugins (only if we have a valid result)
+            if result and "Missing required plugins:" in result.result:
                 plugin_line = [
                     line
                     for line in result.result.split("\n")
@@ -340,8 +464,8 @@ async def run_tests(
                     )
                     continue
 
-            # Check for import errors
-            if "ModuleNotFoundError" in result.result or "ImportError" in result.result:
+            # Check for import errors (only if we have a valid result)
+            if result and ("ModuleNotFoundError" in result.result or "ImportError" in result.result):
                 # Extract missing module names from both test execution and collection errors
                 missing_modules = extract_missing_modules(result.result)
 
@@ -363,6 +487,11 @@ async def run_tests(
 
             # No more import errors or max retries reached
             break
+        
+        # Ensure we have a result object to work with
+        if result is None:
+            logger.log("❌ Failed to execute tests after all retries")
+            result = TestResult(exit_code=-1, result="Error: Failed to execute tests after all retries")
 
         # Analyze results
         logger.log(f"\nTest Results:")
