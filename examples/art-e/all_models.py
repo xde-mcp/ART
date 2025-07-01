@@ -159,3 +159,12 @@ assert models["0001"].config.training_config is not None
 models[
     "0001"
 ].config.training_config.judge_group_model_name = "openrouter/qwen/qwen3-32b"
+
+models["0002"] = models["008"].model_copy(deep=True)
+models["0002"].name = "email-agent-0002"
+models["0002"].project = "email_agent_saumya_test"
+assert models["0002"].config.training_config is not None
+models[
+    "0002"
+].config.training_config.judge_group_model_name = "openrouter/qwen/qwen3-32b"
+models["0002"].config.training_config.messages_only = True

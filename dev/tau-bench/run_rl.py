@@ -3,15 +3,16 @@
 import argparse
 import asyncio
 import concurrent.futures
+import copy
 import random
-from typing import List
+from typing import Any, Dict, List
 from dotenv import load_dotenv
 
 import art
 from art.local import LocalBackend
 from art.utils import iterate_dataset
 
-from tau_bench.types import RunConfig
+from tau_bench.types import RunConfig, SolveResult
 from tau_bench.envs import get_env
 from tau_bench.run import agent_factory
 from litellm import provider_list
@@ -25,11 +26,19 @@ from tqdm.asyncio import tqdm_asyncio
 # Load environment variables
 load_dotenv(override=True)
 
+def clean_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    cleaned_messages = []
+    for msg in messages:
+        cleaned_msg = {k: v for k, v in msg.items() if v is not None}
+        cleaned_messages.append(cleaned_msg)
+    return cleaned_messages
+
 async def rollout_tau_bench_task(
     model: art.Model[TauBenchPolicyConfig],
     task_index: int,
     step: int = 0,
     phase: str = "train",
+    is_shadow: bool = False,
 ) -> art.Trajectory:
     """
     Generate a trajectory for a single tau-bench task using the given model.
@@ -37,7 +46,12 @@ async def rollout_tau_bench_task(
     Now truly async.
     """
     # print(f"Rolling out task {task_index} (step {step}, phase {phase})")
-    config = model.config.run_config
+    config = copy.deepcopy(model.config.run_config)
+    if is_shadow:
+        config.model = "gpt-4.1"
+        config.model_provider = "openai"
+        config.api_key = None
+        config.base_url = None
     
     # Get isolated environment for this task
     env = get_env(
@@ -71,6 +85,7 @@ async def rollout_tau_bench_task(
             "phase": phase,
             "model": model.name,
             "reward_type": config.reward_type,
+            "is_shadow": str(is_shadow),
         }
     )
     
@@ -98,11 +113,20 @@ async def rollout_tau_bench_task(
         traj.metadata["outcome_correct"] = traj.metrics["outcome_correct"]
 
 
-        traj.messages_and_choices = agent.create_messages_and_choices(result.messages)
+        if config.messages_only:
+            traj.messages_and_choices = clean_messages(result.messages) # type: ignore
+        else:
+            traj.messages_and_choices = agent.create_messages_and_choices(result.messages) # type: ignore
     except Exception as e:
         print(f"Error in rollout for task {task_index}: {e}")
         traj.reward = 0.0
         traj.metadata["error"] = str(e)
+        result = SolveResult(
+            reward=0.0,
+            info={"error": str(e)},
+            messages=[],
+            total_cost=0.0,
+        )
     
     traj.finish()
     
@@ -122,11 +146,12 @@ async def async_rollout_tau_bench_task(
     task_index: int,
     step: int = 0,
     phase: str = "train",
+    is_shadow: bool = False,
 ) -> art.Trajectory:
     """
     Direct alias for rollout_tau_bench_task since it's now truly async.
     """
-    return await rollout_tau_bench_task(model, task_index, step, phase)
+    return await rollout_tau_bench_task(model, task_index, step, phase, is_shadow)
 
 
 def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]:
@@ -206,6 +231,7 @@ def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]
     parser.add_argument("--train-mode", type=str, default="sync_rl", choices=["sync_rl", "async_rl"], help="Training mode")
     parser.add_argument("--skip-eval", action="store_true", default=False, help="Skip evaluation")
     parser.add_argument("--add-shadow-trajectory", action="store_true", default=False, help="Add shadow trajectory")
+    parser.add_argument("--messages-only", action="store_true", default=False, help="Only use messages for training")
     
     args = parser.parse_args()
     print(args)
@@ -235,6 +261,7 @@ def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]
         max_num_steps=args.max_num_steps,
         skip_eval=args.skip_eval,
         add_shadow_trajectory=args.add_shadow_trajectory,
+        messages_only=args.messages_only,
     )
     
     # Create training config
@@ -341,6 +368,7 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                 max_concurrent_batches=3,
                 skip_batches=await model.get_step(),
             ):
+                # NOT UPDATED FOR TRAINING WITH SHADOW TRAJECTORIES
                 if global_step % training_config.eval_steps == 0 and not config.skip_eval:
                     print(f"\n--- Evaluating at Step {global_step} ---")
                     await evaluate_model(model, config, global_step, val_task_indices)
@@ -396,8 +424,8 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                     (
                         art.TrajectoryGroup(
                             (
-                                async_rollout_tau_bench_task(model, task_index, global_step, "train")
-                                for _ in range(training_config.trajectories_per_group)
+                                async_rollout_tau_bench_task(model, task_index, global_step, "train", is_shadow=config.add_shadow_trajectory and rollout_idx % training_config.trajectories_per_group == 0)
+                                for rollout_idx in range(training_config.trajectories_per_group)
                             )
                         )
                         for task_index in batch
@@ -422,6 +450,7 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                     config=art.TrainConfig(
                         learning_rate=training_config.learning_rate
                     ),
+                    _config=art.dev.TrainConfig(allow_training_without_logprobs=True if config.messages_only else False)
                 )
                 
                 # Log progress
