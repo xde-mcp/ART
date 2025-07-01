@@ -4,7 +4,8 @@ import argparse
 import asyncio
 import concurrent.futures
 import random
-from typing import List
+import copy
+from typing import List, Any, cast
 from dotenv import load_dotenv
 
 import art
@@ -95,8 +96,13 @@ async def rollout_tau_bench_task(
         traj.metadata["reward"] = "pending_general_rm" if config.reward_type == "general_rm" else traj.reward
         traj.metadata["outcome_correct"] = traj.reward
 
-
-        traj.messages_and_choices = agent.create_messages_and_choices(result.messages)
+        # For OpenAI provider, we directly store the messages produced by the agent.
+        # Otherwise we convert them to ART compatible messages_and_choices using
+        # `create_messages_and_choices`, which also attaches logprobs.
+        if config.model_provider == "openai":
+            traj.messages_and_choices = result.messages
+        else:
+            traj.messages_and_choices = agent.create_messages_and_choices(result.messages)
     except Exception as e:
         print(f"Error in rollout for task {task_index}: {e}")
         traj.reward = 0.0
@@ -319,6 +325,25 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
         print(f"Training on {len(train_task_indices)} tasks")
         print(f"Validation on {len(val_task_indices)} tasks")
 
+        # ------------------------------------------------------------------
+        # Create a shadow model (gpt-4.1 / openai) once if requested. It will
+        # be used to produce an additional rollout for each trajectory group.
+        # ------------------------------------------------------------------
+        shadow_model = None
+        if config.add_shadow_trajectory:
+            shadow_run_config = copy.deepcopy(config)
+            shadow_run_config.model = "gpt-4.1"
+            shadow_run_config.model_provider = "openai"
+
+            class _ShadowModel:
+                """A minimal stub that provides .name and .config for rollout."""
+
+                def __init__(self, _run_cfg):
+                    self.name = _run_cfg.model
+                    self.config = TauBenchPolicyConfig(run_config=_run_cfg, training_config=None)
+
+            shadow_model = cast(Any, _ShadowModel(shadow_run_config))
+
         if training_config.train_mode == "async_rl":
             global_step = 0
             train_task_indices_async_rl = []
@@ -344,6 +369,25 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                     await evaluate_model(model, config, global_step, val_task_indices)
                     # await model.delete_checkpoints()
                 
+                # Optionally launch shadow trajectory rollouts ---------------------------------
+                if config.add_shadow_trajectory and shadow_model is not None:
+                    # run one shadow rollout per trajectory group (same task_idx)
+                    shadow_task_indices = [
+                        int(str(group.trajectories[0].metadata.get("task_index", 0)))
+                        for group in trajectory_groups
+                    ]
+                    await art.gather_trajectories(
+                        (
+                            async_rollout_tau_bench_task(
+                                shadow_model,  # type: ignore[arg-type]
+                                task_idx,
+                                global_step,
+                                "shadow_train",
+                            )
+                            for task_idx in shadow_task_indices
+                        )
+                    )
+
                 if config.reward_type == "general_rm":
                     print("Creating general RM trajectory groups...")
                     updated_groups = await tqdm_asyncio.gather(
@@ -401,6 +445,21 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                         for task_index in batch
                     )
                 )
+
+                # Optionally launch shadow trajectory rollouts ---------------------------------
+                if config.add_shadow_trajectory and shadow_model is not None:
+                    await art.gather_trajectories(
+                        (
+                            async_rollout_tau_bench_task(
+                                shadow_model,  # type: ignore[arg-type]
+                                task_idx,
+                                global_step,
+                                "shadow_train",
+                            )
+                            for task_idx in batch
+                        )
+                    )
+
                 if config.reward_type == "general_rm":
                     print("Creating general RM trajectory groups...")
                     updated_groups = await tqdm_asyncio.gather(
