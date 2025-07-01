@@ -53,6 +53,7 @@ class ToolCallingAgent(Agent):
         final_prompt_tokens = 0
         avg_completion_tokens = 0
         max_completion_tokens = 0
+        forced_stop = True
         for curr_step_number in range(max_num_steps):
             res = await self.llm_completion(messages)
             final_prompt_tokens = res.usage.prompt_tokens # type: ignore
@@ -85,17 +86,16 @@ class ToolCallingAgent(Agent):
                     ]
                 )
             if env_response.done:
+                forced_stop = False
+            if final_prompt_tokens > 20000 or res.choices[0].finish_reason == "length":
                 break
-            if final_prompt_tokens > 20000:
-                reward = -1
-                break
-            if res.choices[0].finish_reason == "length":
-                reward = -1
-                break
+        if forced_stop:
+            reward = -1
         info["total_steps"] = curr_step_number + 1
         info["avg_completion_tokens"] = avg_completion_tokens / info["total_steps"]
         info["max_completion_tokens"] = max_completion_tokens
         info["final_prompt_tokens"] = final_prompt_tokens
+        info["forced_stop"] = 1 if forced_stop else 0
         return SolveResult(
             reward=reward,
             info=info,

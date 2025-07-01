@@ -90,10 +90,12 @@ async def rollout_tau_bench_task(
             "avg_completion_tokens": result.info["avg_completion_tokens"],
             "max_completion_tokens": result.info["max_completion_tokens"],
             "outcome_correct": traj.reward,
+            "forced_stop": result.info["forced_stop"],
         }
         traj.metadata.update(result.info)
         traj.metadata["reward"] = "pending_general_rm" if config.reward_type == "general_rm" else traj.reward
         traj.metadata["outcome_correct"] = traj.reward
+        traj.metadata["forced_stop"] = result.info["forced_stop"]
 
 
         traj.messages_and_choices = agent.create_messages_and_choices(result.messages)

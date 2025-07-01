@@ -137,6 +137,23 @@ models["016"]["val_set_size"] = 30
 models["016"]["groups_per_step"] = 8
 models["016"]["reward_type"] = "general_rm"
 
+# same as 016 but with the forced stop logging and reward implication
+models["017"] = models["001"].copy()
+models["017"]["model"] = "tau-bench-rl-017"
+models["017"]["val_set_size"] = 30
+models["017"]["groups_per_step"] = 8
+models["017"]["reward_type"] = "general_rm"
+
+# same as 015 but with the forced stop logging and reward implication, and also real rewards
+models["018"] = models["001"].copy()
+models["018"]["model"] = "tau-bench-rl-018"
+models["018"]["learning_rate"] = 5e-6
+models["018"]["val_set_size"] = 30
+models["018"]["trajectories_per_group"] = 10
+models["018"]["reward_type"] = "real"
+
+
+
 # models["013"] = models["001"].copy()
 # models["013"]["model"] = "tau-bench-rl-013"
 # models["013"]["base_model"] = "Qwen/Qwen2.5-32B-Instruct"
