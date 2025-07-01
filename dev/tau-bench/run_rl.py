@@ -127,6 +127,120 @@ async def async_rollout_tau_bench_task(
     return await rollout_tau_bench_task(model, task_index, step, phase)
 
 
+async def rollout_shadow_trajectory(
+    task_index: int,
+    run_config: RunConfig,
+    step: int = 0,
+    phase: str = "train",
+) -> art.Trajectory:
+    """
+    Generate a shadow trajectory for a single tau-bench task using GPT-4.1 via OpenAI.
+    This creates a reference trajectory for comparison with the training model.
+    """
+    # Create a modified config for shadow trajectory using GPT-4.1 and OpenAI
+    shadow_config = RunConfig(
+        model_provider="openai",
+        user_model_provider=run_config.user_model_provider,
+        model="gpt-4.1",  # Using GPT-4.1 as specified
+        user_model=run_config.user_model,
+        num_trials=run_config.num_trials,
+        env=run_config.env,
+        agent_strategy=run_config.agent_strategy,
+        temperature=run_config.temperature,
+        task_split=run_config.task_split,
+        start_index=run_config.start_index,
+        end_index=run_config.end_index,
+        task_ids=run_config.task_ids,
+        log_dir=run_config.log_dir,
+        max_concurrency=run_config.max_concurrency,
+        seed=run_config.seed,
+        shuffle=run_config.shuffle,
+        user_strategy=run_config.user_strategy,
+        few_shot_displays_path=run_config.few_shot_displays_path,
+        reward_type=run_config.reward_type,
+        general_rm_model=run_config.general_rm_model,
+        max_num_steps=run_config.max_num_steps,
+        skip_eval=run_config.skip_eval,
+        add_shadow_trajectory=False,  # Prevent recursive shadow trajectories
+    )
+    
+    # Get isolated environment for this task
+    env = get_env(
+        shadow_config.env,
+        user_strategy=shadow_config.user_strategy,
+        user_model=shadow_config.user_model,
+        user_provider=shadow_config.user_model_provider,
+        task_split=shadow_config.task_split,
+        task_index=task_index,
+    )
+    
+    # Create agent with GPT-4.1
+    agent = agent_factory(
+        tools_info=env.tools_info,
+        wiki=env.wiki,
+        config=shadow_config,
+    )
+
+    if not isinstance(agent, ToolCallingRLAgent):
+        raise ValueError("Agent must be a ToolCallingRLAgent")
+    
+    # Create trajectory object
+    traj = art.Trajectory(
+        messages_and_choices=[],
+        tools=env.tools_info,
+        reward=0,
+        metadata={
+            "task_index": str(task_index), 
+            "env": shadow_config.env,
+            "training_step": str(step),
+            "phase": phase,
+            "model": "gpt-4.1-shadow",
+            "reward_type": shadow_config.reward_type,
+            "is_shadow": True,
+        }
+    )
+    
+    try:
+        # Run the agent on the task
+        result = await agent.solve(
+            env=env,
+            task_index=task_index,
+            max_num_steps=shadow_config.max_num_steps,
+        )
+        
+        # Convert result to trajectory format
+        traj.reward = result.reward
+        traj.metrics = {
+            "total_steps": result.info["total_steps"],
+            "final_prompt_tokens": result.info["final_prompt_tokens"],
+            "avg_completion_tokens": result.info["avg_completion_tokens"],
+            "max_completion_tokens": result.info["max_completion_tokens"],
+            "outcome_correct": traj.reward,
+        }
+        traj.metadata.update(result.info)
+        traj.metadata["reward"] = "pending_general_rm" if shadow_config.reward_type == "general_rm" else traj.reward
+        traj.metadata["outcome_correct"] = traj.reward
+
+        # For OpenAI provider, set messages_and_choices to results.messages directly
+        # instead of using create_messages_and_choices
+        traj.messages_and_choices = result.messages
+        
+    except Exception as e:
+        print(f"Error in shadow rollout for task {task_index}: {e}")
+        traj.reward = 0.0
+        traj.metadata["error"] = str(e)
+    
+    traj.finish()
+    
+    # Log to langfuse/openpipe
+    try:
+        await log_trajectory_to_openpipe(traj, result.messages)
+    except Exception as e:
+        print(f"Error logging shadow trajectory to openpipe: {e}")
+    
+    return traj
+
+
 def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]:
     """Parse command line arguments for RL training"""
     parser = argparse.ArgumentParser(description="Train an agent on tau-bench using ART RL")
@@ -328,9 +442,12 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
             async for trajectory_groups in art.trajectory_group_batches(
                 (
                     art.TrajectoryGroup(
-                        (
+                        [
                             async_rollout_tau_bench_task(model, task_index, -1, "train")
                             for _ in range(training_config.trajectories_per_group)
+                        ] + (
+                            [rollout_shadow_trajectory(task_index, config, -1, "train")]
+                            if config.add_shadow_trajectory else []
                         )
                     )
                     for task_index in train_task_indices_async_rl
@@ -393,9 +510,12 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                 groups = await art.gather_trajectory_groups(
                     (
                         art.TrajectoryGroup(
-                            (
+                            [
                                 async_rollout_tau_bench_task(model, task_index, global_step, "train")
                                 for _ in range(training_config.trajectories_per_group)
+                            ] + (
+                                [rollout_shadow_trajectory(task_index, config, global_step, "train")]
+                                if config.add_shadow_trajectory else []
                             )
                         )
                         for task_index in batch
