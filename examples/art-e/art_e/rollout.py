@@ -187,11 +187,11 @@ Return your judgement as **pure JSON** (no markdown) with this exact schema:
 
 
 class ProjectTrajectory(Trajectory):
+    scenario: SyntheticQuery
     generated_answer: str | None = None
 
 
 @retry(stop=stop_after_attempt(3))
-# @weave.op(tracing_sample_rate=0.05)  # type: ignore
 async def rollout(
     model: art.Model[ProjectPolicyConfig],
     scenario: SyntheticQuery,
@@ -201,6 +201,7 @@ async def rollout(
         messages_and_choices=[],
         reward=0,
         metadata={"email_inbox": scenario.inbox_address, "scenario_id": scenario.id},
+        scenario=scenario,
     )
 
     system_prompt = textwrap.dedent(

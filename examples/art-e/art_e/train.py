@@ -10,10 +10,11 @@ from art_e.data.local_email_db import generate_database
 from art.utils import iterate_dataset
 from art_e.project_types import ProjectPolicyConfig
 from art_e.evaluate.benchmark import benchmark_model
-from art_e.judge_group import judge_group
 from art_e.rollout import ProjectTrajectory
 import os
 import statistics
+from report_trajectory import report_trajectory
+from group_judge import GroupJudge
 
 load_dotenv()
 
@@ -23,6 +24,12 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
 
     if model.config.training_config is None:
         raise ValueError("Training config is not set")
+
+    group_judge = GroupJudge(
+        project=model.project,
+        judge_model=model.config.training_config.group_judge_model,
+    )
+
     with LocalBackend() as backend:
         print(f"Pulling from S3 bucket: `{os.environ['BACKUP_BUCKET']}`")
         await backend._experimental_pull_from_s3(
@@ -59,7 +66,7 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
         for batch, epoch, global_step, epoch_step in train_iterator:
             if global_step % model.config.training_config.eval_steps == 0:
                 print(f"\n--- Evaluating at Iteration {global_step} ---")
-                await benchmark_model(model)
+                await benchmark_model(model, step=global_step)
                 await model.delete_checkpoints()
                 await backend._experimental_push_to_s3(
                     model,
@@ -83,16 +90,9 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
             # Optionally rescore each trajectory group with the LLM-judge before training.
             training_cfg = model.config.training_config
             if training_cfg.use_judge_group_variant is not None:
-                # Run the rescoring concurrently for better throughput.
-                # If any call to `judge_group` fails, we don't want the entire
-                # training run to crash. We therefore collect exceptions and
-                # log a clear warning that can be grepped later.
-
                 judge_tasks = [
-                    judge_group(
-                        model.name,
+                    group_judge.judge(
                         cast(list[ProjectTrajectory], g.trajectories),
-                        training_cfg,
                     )
                     for g in groups
                 ]
@@ -113,6 +113,10 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
                 # Replace `groups` with the subset that passed judgement so
                 # that training only uses trajectories with judge rewards.
                 groups = successful_groups
+
+                for g in groups:
+                    for t in g.trajectories:
+                        report_trajectory(model, t, global_step)
 
                 # If every group failed, skip this training step entirely.
                 if not groups:
@@ -160,7 +164,7 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
                 ),
             )
 
-        await benchmark_model(model)
+        await benchmark_model(model, step=global_step)
         await backend._experimental_push_to_s3(
             model,
             s3_bucket=os.environ["BACKUP_BUCKET"],

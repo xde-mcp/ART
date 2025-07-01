@@ -88,16 +88,14 @@ models["205"] = models["204"].model_copy(deep=True)
 models["205"].name = "email-agent-205"
 # Ensure training config exists and set the judge group model
 assert models["205"].config.training_config is not None
-models["205"].config.training_config.judge_group_model_name = "gemini/gemini-2.5-flash"
+models["205"].config.training_config.group_judge_model = "gemini/gemini-2.5-flash"
 
 # Model 206: like 204 but using Qwen3 32B as the judge-group model
 models["206"] = models["204"].model_copy(deep=True)
 models["206"].name = "email-agent-206"
 # Ensure training config exists and set the judge group model
 assert models["206"].config.training_config is not None
-models[
-    "206"
-].config.training_config.judge_group_model_name = "openrouter/qwen/qwen3-32b"
+models["206"].config.training_config.group_judge_model = "openrouter/qwen/qwen3-32b"
 
 # Model 207: like 205 but only uses 12 training examples total
 models["207"] = models["205"].model_copy(deep=True)
@@ -147,9 +145,5 @@ for _seed in [1, 2, 3]:
 models["211"] = models["206"].model_copy(deep=True)
 models["211"].name = "email-agent-211"
 
-models["212"] = models["008"].model_copy(deep=True)
-assert models["212"].config.training_config is not None
-models["212"].config.training_config.eval_steps = 5
-models["212"].config.training_config.val_set_size = 10
-models["212"].config.training_config.groups_per_step = 2
-models["212"].name = "email-agent-212-26"
+models["212"] = models["206"].model_copy(deep=True)
+models["212"].name = "email-agent-212-30"
