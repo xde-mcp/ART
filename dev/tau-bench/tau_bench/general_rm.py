@@ -76,7 +76,7 @@ async def create_general_rm_trajectory_groups(group: art.TrajectoryGroup, config
         user_prompt = GENERAL_RM_PROMPT
 
         system_message, remaining_messages = create_and_split_messages(group.trajectories[0].messages_and_choices)
-        user_prompt +=f"Here is the system prompt that was provided at the beginning of each of the rollouts:\n--- START OF SYSTEM PROMPT ---\n{system_message}\n--- END OF SYSTEM PROMPT ---\nHere are the rollouts to evaluate:"
+        user_prompt +=f"Here is the system prompt that was provided at the beginning of each of the rollouts:\n--- START OF SYSTEM PROMPT ---\n{system_message}\n--- END OF SYSTEM PROMPT ---\n\n Here are the tools that were available to the rollouts:\n--- START OF TOOLS ---\n{group.trajectories[0].tools}\n--- END OF TOOLS ---\n\n Here are the rollouts to evaluate:"
         for idx, trajectory in enumerate(group.trajectories):
             user_prompt += f"\n\n--- ROLLOUT {idx} ---\n"
             _, messages = create_and_split_messages(trajectory.messages_and_choices)    
@@ -105,7 +105,9 @@ async def create_general_rm_trajectory_groups(group: art.TrajectoryGroup, config
         new_trajectories = []
         for idx, trajectory in enumerate(group.trajectories):
             new_trajectory = copy.deepcopy(trajectory)
-            if new_trajectory.reward != -1:
+            if new_trajectory.reward == -1:
+                new_trajectory.metadata["judge_explanation"] = "Max token trajectory"
+            else:
                 new_trajectory.metrics["outcome_correct"] = new_trajectory.reward
                 new_trajectory.reward = response.rollout_scores[idx].score
                 new_trajectory.metadata["judge_explanation"] = response.rollout_scores[idx].explanation

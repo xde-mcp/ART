@@ -149,3 +149,13 @@ models["211"].name = "email-agent-211"
 
 models["212"] = models["008"].model_copy(deep=True)
 models["212"].name = "email-agent-212-8"
+
+# Model 206: like 204 but using Qwen3 32B as the judge-group model
+models["0001"] = models["008"].model_copy(deep=True)
+models["0001"].name = "email-agent-0001"
+models["0001"].project = "email_agent_saumya_test"
+# Ensure training config exists and set the judge group model
+assert models["0001"].config.training_config is not None
+models[
+    "0001"
+].config.training_config.judge_group_model_name = "openrouter/qwen/qwen3-32b"

@@ -119,7 +119,7 @@ class ToolCallingRLAgent(ToolCallingAgent):
             base_url=self.base_url,
             tools=self.tools_info,
             temperature=self.temperature,
-            max_tokens=1024,
+            max_completion_tokens=1024,
             logprobs=True,
         )
         choice = response.choices[0] # type: ignore

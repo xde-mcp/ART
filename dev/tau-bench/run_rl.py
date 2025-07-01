@@ -62,6 +62,7 @@ async def rollout_tau_bench_task(
     # Create trajectory object
     traj = art.Trajectory(
         messages_and_choices=[],
+        tools=env.tools_info,
         reward=0,
         metadata={
             "task_index": str(task_index), 
@@ -202,6 +203,7 @@ def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]
     parser.add_argument("--max-num-steps", type=int, default=30, help="Maximum number of steps per rollout")
     parser.add_argument("--train-mode", type=str, default="sync_rl", choices=["sync_rl", "async_rl"], help="Training mode")
     parser.add_argument("--skip-eval", action="store_true", default=False, help="Skip evaluation")
+    parser.add_argument("--add-shadow-trajectory", action="store_true", default=False, help="Add shadow trajectory")
     
     args = parser.parse_args()
     print(args)
@@ -230,6 +232,7 @@ def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]
         general_rm_model=args.general_rm_model,
         max_num_steps=args.max_num_steps,
         skip_eval=args.skip_eval,
+        add_shadow_trajectory=args.add_shadow_trajectory,
     )
     
     # Create training config

@@ -97,6 +97,7 @@ async def log_trajectory_to_openpipe(
         req_payload={
             "model": traj.metadata["model"],
             "messages": messages,
+            "tools": traj.tools,
             "metadata": report_payload_metrics,
         },
         resp_payload=resp_payload,

@@ -35,6 +35,7 @@ models = {
         "max_num_steps": 30,
         "train_mode": "sync_rl",
         "skip_eval": False,
+        "add_shadow_trajectory": False,
     }
 }
 
@@ -114,6 +115,28 @@ models["013"]["val_set_size"] = 30
 models["013"]["trajectories_per_group"] = 10
 models["013"]["reward_type"] = "general_rm"
 
+# same as 013 but this one is running on latest ART
+models["014"] = models["001"].copy()
+models["014"]["model"] = "tau-bench-rl-014"
+models["014"]["learning_rate"] = 5e-6
+models["014"]["val_set_size"] = 30
+models["014"]["trajectories_per_group"] = 10
+models["014"]["reward_type"] = "general_rm"
+
+# same as 013 but this one is running on latest ART WITH tools info in the trajectory
+models["015"] = models["001"].copy()
+models["015"]["model"] = "tau-bench-rl-015"
+models["015"]["learning_rate"] = 5e-6
+models["015"]["val_set_size"] = 30
+models["015"]["trajectories_per_group"] = 10
+models["015"]["reward_type"] = "general_rm"
+
+models["016"] = models["001"].copy()
+models["016"]["model"] = "tau-bench-rl-016"
+models["016"]["val_set_size"] = 30
+models["016"]["groups_per_step"] = 8
+models["016"]["reward_type"] = "general_rm"
+
 # models["013"] = models["001"].copy()
 # models["013"]["model"] = "tau-bench-rl-013"
 # models["013"]["base_model"] = "Qwen/Qwen2.5-32B-Instruct"
@@ -191,11 +214,11 @@ def launch_model(model_key: str):
         f"--max-num-steps {model_config['max_num_steps']}",
         f"--train-mode {model_config['train_mode']}",
         f"{'--skip-eval' if model_config['skip_eval'] else ''}",
+        f"{'--add-shadow-trajectory' if model_config['add_shadow_trajectory'] else ''}",
     ]
 
     run_script = textwrap.dedent(f"""
         # Run the RL training
-        uv add "accelerate==1.7.0"
         uv run run_rl.py {' '.join(run_args)}
     """)
 
