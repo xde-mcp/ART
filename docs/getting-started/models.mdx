@@ -16,12 +16,13 @@ icon: "robot"
 
 ## More Models
 
+ART has wide support for models supported by both [transformers](https://huggingface.co/docs/transformers/main/en/model_summary) and [vLLM](https://docs.vllm.ai/en/latest/models/supported_models.html). However, the functionality available may depend on the specifics of each model. For instance, if a model's chat template does not include tool-call support, you won't be able to use tools with it natively. And if a model's architecture doesn't have support for LoRA layers, it won't be compatible with our LoRA-based backend, but it may still work with our full-fine-tuning backend.
+
 <Info>
   If you're curious about a model that is not listed below, ask in the Discord
   [#support](https://discord.com/channels/1359674493949448375/1359674622965973185)
   channel.
 </Info>
-
 <Tabs>
   <Tab title="Gemma">
     <div className="full-width">
