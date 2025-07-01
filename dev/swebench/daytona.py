@@ -660,8 +660,8 @@ def main() -> None:
     parser.add_argument(
         "--logging",
         choices=["as-you-go", "on-exit", "on-error", "none"],
-        default="as-you-go",
-        help="Logging mode (default: as-you-go)",
+        default="on-exit",
+        help="Logging mode (default: on-exit)",
     )
     parser.add_argument("--parallel", action="store_true", help="Run tests in parallel")
     parser.add_argument(
