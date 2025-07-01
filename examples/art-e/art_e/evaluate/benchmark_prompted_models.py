@@ -10,7 +10,6 @@ from art_e.data.local_email_db import generate_database
 from art_e.project_types import ProjectPolicyConfig
 from art_e.evaluate.benchmark import benchmark_model
 import os
-import weave
 
 load_dotenv()
 generate_database()
@@ -47,10 +46,7 @@ async def main():
         models.append(model)
 
     results = await asyncio.gather(
-        *[
-            benchmark_model(model, TEST_SET_ENTRIES, swallow_exceptions=False)
-            for model in models
-        ]
+        *[benchmark_model(model, TEST_SET_ENTRIES) for model in models]
     )
     for model in models:
         print(f"Pushing {model.name} to S3")
