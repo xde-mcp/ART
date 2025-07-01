@@ -89,8 +89,6 @@ class ToolCallingAgent(Agent):
                 forced_stop = False
             if final_prompt_tokens > 20000 or res.choices[0].finish_reason == "length":
                 break
-        if forced_stop:
-            reward = -1
         info["total_steps"] = curr_step_number + 1
         info["avg_completion_tokens"] = avg_completion_tokens / info["total_steps"]
         info["max_completion_tokens"] = max_completion_tokens

@@ -83,19 +83,19 @@ async def rollout_tau_bench_task(
         )
         
         # Convert result to trajectory format
-        traj.reward = result.reward
+        updated_reward = -1 if result.info["forced_stop"] else result.reward
+        traj.reward = updated_reward
         traj.metrics = {
             "total_steps": result.info["total_steps"],
             "final_prompt_tokens": result.info["final_prompt_tokens"],
             "avg_completion_tokens": result.info["avg_completion_tokens"],
             "max_completion_tokens": result.info["max_completion_tokens"],
-            "outcome_correct": traj.reward,
+            "outcome_correct": 1 if traj.reward == 1 else 0,
             "forced_stop": result.info["forced_stop"],
         }
         traj.metadata.update(result.info)
         traj.metadata["reward"] = "pending_general_rm" if config.reward_type == "general_rm" else traj.reward
-        traj.metadata["outcome_correct"] = traj.reward
-        traj.metadata["forced_stop"] = result.info["forced_stop"]
+        traj.metadata["outcome_correct"] = traj.metrics["outcome_correct"]
 
 
         traj.messages_and_choices = agent.create_messages_and_choices(result.messages)
