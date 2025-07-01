@@ -84,6 +84,13 @@ def get_filtered_swe_smith_instances_df() -> pl.DataFrame:
                     # pypika: no tests collected (same issue as other pypika instances)
                     "kayak__pypika.1c9646f0.lm_rewrite__nqk3tt63",
                     "kayak__pypika.1c9646f0.lm_rewrite__ddbee9oz",
+                    "kayak__pypika.1c9646f0.lm_rewrite__xdfkt9wb",
+                    "kayak__pypika.1c9646f0.func_pm_class_rm_funcs__muwfrdsf",
+                    # pandas: more instances with missing compiled C extensions
+                    "pandas-dev__pandas.95280573.pr_48966",
+                    "pandas-dev__pandas.95280573.pr_48426",
+                    # django-money: no tests collected
+                    "django-money__django-money.835c1ab8.lm_rewrite__bv3wb2wq",
                 ]
             )
         )
