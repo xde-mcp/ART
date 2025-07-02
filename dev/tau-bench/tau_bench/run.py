@@ -171,6 +171,7 @@ def agent_factory(
             temperature=config.temperature,
             api_key=config.api_key,
             base_url=config.base_url,
+            base_model=config.base_model,
         )
     elif config.agent_strategy == "tool-calling":
         # native tool calling

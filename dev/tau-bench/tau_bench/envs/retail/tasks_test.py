@@ -3356,3 +3356,7 @@ TASKS_TEST = [
         outputs=[],
     ),
 ]
+
+if __name__ == "__main__":
+    task_idx = 17
+    print(TASKS_TEST[task_idx])

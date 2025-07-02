@@ -121,7 +121,7 @@ class ToolCallingRLAgent(ToolCallingAgent):
             temperature=self.temperature,
             max_completion_tokens=1024,
             logprobs=False if self.provider == "openai" else True,
-            extra_body={"chat_template_kwargs": {"enable_thinking": False}} if "Qwen3-" in self.base_model else None,
+            extra_body={"chat_template_kwargs": {"enable_thinking": False}} if "Qwen3-" in self.base_model else {},
         )
         choice = response.choices[0] # type: ignore
         assert isinstance(choice, Choices), f"Choice is not a Choices object: {choice}"
@@ -133,9 +133,19 @@ class ToolCallingRLAgent(ToolCallingAgent):
         choice_idx = 0
         for message in messages:
             if message["role"] == "assistant":
-                messages_and_choices.append(self.choices[choice_idx])
+                choice = self.choices[choice_idx]
+                if "Qwen3-" in self.base_model:
+                    if hasattr(choice.message, "content") and choice.message.content is None:
+                        choice.message.content = ""
+                messages_and_choices.append(choice)
                 choice_idx += 1
             else:
+                if "Qwen3-" in self.base_model:
+                    if "content" in message and message["content"] is None:
+                        message["content"] = ""
+                    for key in message.keys():
+                        if message[key] is None:
+                            message.pop(key)
                 messages_and_choices.append(message)
         return messages_and_choices
 
