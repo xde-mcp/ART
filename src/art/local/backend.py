@@ -118,16 +118,18 @@ class LocalBackend(Backend):
                 output_dir=get_model_dir(model=model, art_path=self._path),
                 config=model._internal_config,
             )
-            self._services[model.name] = (
+            service_class = (
                 TorchtuneService
                 if config.get("torchtune_args") is not None
                 else UnslothService
-            )(
+            )
+            self._services[model.name] = service_class(
                 model_name=model.name,
                 base_model=model.base_model,
                 config=config,
                 output_dir=get_model_dir(model=model, art_path=self._path),
             )
+
             if not self._in_process:
                 # Kill all "model-service" processes to free up GPU memory
                 subprocess.run(["pkill", "-9", "model-service"])
@@ -358,9 +360,9 @@ class LocalBackend(Backend):
             num_gradient_steps = int(
                 result.pop("num_gradient_steps", estimated_gradient_steps)
             )
-            assert (
-                num_gradient_steps == estimated_gradient_steps
-            ), f"num_gradient_steps {num_gradient_steps} != estimated_gradient_steps {estimated_gradient_steps}"
+            assert num_gradient_steps == estimated_gradient_steps, (
+                f"num_gradient_steps {num_gradient_steps} != estimated_gradient_steps {estimated_gradient_steps}"
+            )
             results.append(result)
             yield {**result, "num_gradient_steps": num_gradient_steps}
             pbar.update(1)
@@ -383,12 +385,7 @@ class LocalBackend(Backend):
         split: str,
         step: int | None = None,
     ) -> None:
-        # Add namespacing if needed
-        metrics = (
-            {f"{split}/{metric}": value for metric, value in metrics.items()}
-            if split
-            else metrics
-        )
+        metrics = {f"{split}/{metric}": value for metric, value in metrics.items()}
         step = (
             step
             if step is not None
@@ -397,10 +394,12 @@ class LocalBackend(Backend):
 
         # If we have a W&B run, log the data there
         if run := self._get_wandb_run(model):
-            run.log(
-                metrics,
-                step=step,
-            )
+            # Mark the step metric itself as hidden so W&B doesn't create an automatic chart for it
+            wandb.define_metric("training_step", hidden=True)
+
+            # Enabling the following line will cause W&B to use the training_step metric as the x-axis for all metrics
+            # wandb.define_metric(f"{split}/*", step_metric="training_step")
+            run.log({"training_step": step, **metrics})
 
     def _get_wandb_run(self, model: Model) -> Run | None:
         if "WANDB_API_KEY" not in os.environ:
@@ -414,6 +413,15 @@ class LocalBackend(Backend):
                 name=model.name,
                 id=model.name,
                 resume="allow",
+                settings=wandb.Settings(
+                    x_stats_open_metrics_endpoints={
+                        "vllm": "http://localhost:8000/metrics",
+                    },
+                    x_stats_open_metrics_filters=(
+                        "vllm.vllm:num_requests_waiting",
+                        "vllm.vllm:num_requests_running",
+                    ),
+                ),
             )
             self._wandb_runs[model.name] = run
             os.environ["WEAVE_PRINT_CALL_LINK"] = os.getenv(

@@ -15,7 +15,7 @@ class TrainingConfig(BaseModel):
     )
     # Model name to use for judge-group rescoring (LLM-as-a-judge). Defaults to
     # OpenAI's o3 model.  You can override this per-training run.
-    judge_group_model_name: str = "openai/o3"
+    group_judge_model: str = "openai/o3"
     minimum_reward_std_dev: float = 0.0
     # Random seed to control which subset of the training data is sampled. When None, the sampler can
     # choose its own default (e.g., derive from the current time).
