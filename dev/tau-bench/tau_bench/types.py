@@ -99,6 +99,7 @@ class RunConfig(BaseModel):
     skip_eval: bool = False
     add_shadow_trajectory: bool = False
     messages_only: bool = False
+    base_model: str = "unsloth/Qwen2.5-14B-Instruct"
 class TauBenchTrainingConfig(BaseModel):
     """Training configuration for ART RL on tau-bench tasks"""
     trajectories_per_group: int = 6

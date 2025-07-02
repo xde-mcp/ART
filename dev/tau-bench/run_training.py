@@ -140,19 +140,21 @@ models["016"]["reward_type"] = "general_rm"
 
 # same as 016 but with the forced stop logging and reward implication
 models["017"] = models["001"].copy()
-models["017"]["model"] = "tau-bench-rl-017"
-models["017"]["val_set_size"] = 30
-models["017"]["groups_per_step"] = 8
+models["017"]["model"] = "tau-bench-rl-017-2"
+models["017"]["skip_eval"] = True
+models["017"]["training_dataset_size"] = 20
 models["017"]["reward_type"] = "general_rm"
 
 # same as 015 but with the forced stop logging and reward implication, and also real rewards
 models["018"] = models["001"].copy()
-models["018"]["model"] = "tau-bench-rl-018"
+models["018"]["model"] = "tau-bench-rl-018-2"
 models["018"]["learning_rate"] = 5e-6
-models["018"]["val_set_size"] = 30
+models["018"]["skip_eval"] = True
+models["018"]["training_dataset_size"] = 20
 models["018"]["trajectories_per_group"] = 10
 models["018"]["reward_type"] = "real"
 
+# tried training with messages only
 models["019"] = models["001"].copy()
 models["019"]["model"] = "tau-bench-rl-019-2"
 models["019"]["skip_eval"] = True
@@ -164,9 +166,20 @@ models["019"]["reward_type"] = "general_rm"
 models["019"]["learning_rate"] = 8e-6
 models["019"]["messages_only"] = True
 
+# same as 019 but with shadow trajectories
 models["020"] = models["019"].copy()
 models["020"]["model"] = "tau-bench-rl-020-4"
 models["020"]["add_shadow_trajectory"] = True
+
+# same as 017 but with 32B model
+models["021"] = models["017"].copy()
+models["021"]["model"] = "tau-bench-rl-021"
+models["021"]["base_model"] = "Qwen/Qwen2.5-32B-Instruct"
+
+# same as 017 but with Qwen3 14B model instead
+models["022"] = models["017"].copy()
+models["022"]["model"] = "tau-bench-rl-022"
+models["022"]["base_model"] = "OpenPipe/Qwen3-14B-custom-template"
 
 # models["013"] = models["001"].copy()
 # models["013"]["model"] = "tau-bench-rl-013"

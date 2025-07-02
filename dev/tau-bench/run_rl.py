@@ -324,6 +324,7 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
         await model.register(backend)
         config.api_key = model.inference_api_key
         config.base_url = model.inference_base_url
+        config.base_model = model.base_model
         
         print("Loading training tasks...")
         # Get environment to access tasks
