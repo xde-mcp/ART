@@ -183,8 +183,21 @@ models["021"]["base_model"] = "Qwen/Qwen2.5-32B-Instruct"
 
 # same as 017 but with Qwen3 14B model instead
 models["022"] = models["017"].copy()
-models["022"]["model"] = "tau-bench-rl-022"
-models["022"]["base_model"] = "OpenPipe/Qwen3-14B-custom-template"
+models["022"]["model"] = "tau-bench-rl-022-5"
+models["022"]["base_model"] = "unsloth/Qwen3-14B"
+models["022"]["reward_type"] = "real"
+
+# same as 017 but with OpenPipe Qwen3 14B model instead
+models["023"] = models["017"].copy()
+models["023"]["model"] = "tau-bench-rl-023-2"
+models["023"]["base_model"] = "OpenPipe/Qwen3-14B-custom-template"
+models["023"]["reward_type"] = "real"
+
+# same as 017 but with real rewards
+models["024"] = models["017"].copy()
+models["024"]["model"] = "tau-bench-rl-024-2"
+models["024"]["reward_type"] = "real"
+
 
 # models["013"] = models["001"].copy()
 # models["013"]["model"] = "tau-bench-rl-013"
