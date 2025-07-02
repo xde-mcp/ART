@@ -54,6 +54,16 @@ trainable_models["002"].config.training_config.groups_per_step = 4
 trainable_models["002"].config.training_config.training_dataset_size = 4
 trainable_models["002"].config.training_config.learning_rate = 5e-6
 
+# v high lr, v low gn, because twitter said so
+trainable_models["003"] = trainable_models["002"].model_copy(deep=True)
+assert trainable_models["003"].config.training_config is not None
+trainable_models["003"].name = "tau-bench-rl-003-tm"
+trainable_models["003"].config.training_config.learning_rate = 1e-2
+trainable_models["003"]._internal_config = art.dev.InternalModelConfig(
+    trainer_args=art.dev.TrainerArgs(
+        max_grad_norm=1e-7,
+    )
+)
 
 parser = argparse.ArgumentParser(
     description="Train one or more tau-bench RL models (comma separated)."
@@ -73,10 +83,10 @@ args = parser.parse_args()
 
 # Parse and validate the requested model keys
 requested_models = [m.strip() for m in args.models.split(",") if m.strip()]
-unknown = [m for m in requested_models if m not in models]
+unknown = [m for m in requested_models if m not in trainable_models]
 if unknown:
     raise ValueError(
-        f"Unknown model keys requested: {', '.join(unknown)}. Valid keys: {', '.join(models.keys())}"
+        f"Unknown model keys requested: {', '.join(unknown)}. Valid keys: {', '.join(trainable_models.keys())}"
     )
 
 

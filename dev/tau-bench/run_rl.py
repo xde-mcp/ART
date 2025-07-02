@@ -400,6 +400,12 @@ def main():
     # The nested `config` needs to be converted back into the proper pydantic model.
     model_dict["config"] = TauBenchPolicyConfig(**model_dict["config"])
 
+    # the nested "_internal_config" needs to be converted back into the proper pydantic model.
+    if "_internal_config" in model_dict:
+        model_dict["_internal_config"] = art.dev.InternalModelConfig(
+            **model_dict["_internal_config"]
+        )
+
     model: art.TrainableModel[TauBenchPolicyConfig] = art.TrainableModel(**model_dict)
     model.config.run_config.model = (
         model.name
