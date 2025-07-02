@@ -152,3 +152,6 @@ models["213"] = models["206"].model_copy(deep=True)
 models["213"].name = "email-agent-213"
 assert models["213"].config.training_config is not None
 models["213"].config.training_config.group_judge_model = "openai/o3"
+
+models["215"] = models["008"].model_copy(deep=True)
+models["215"].name = "email-agent-215"
