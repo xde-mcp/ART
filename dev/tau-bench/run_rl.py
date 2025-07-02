@@ -7,6 +7,7 @@ import copy
 import random
 from typing import Any, Dict, List
 from dotenv import load_dotenv
+import json
 
 import art
 from art.local import LocalBackend
@@ -148,204 +149,8 @@ async def rollout_tau_bench_task(
     return traj
 
 
-def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]:
-    """Parse command line arguments for RL training"""
-    parser = argparse.ArgumentParser(
-        description="Train an agent on tau-bench using ART RL"
-    )
-
-    # tau-bench arguments (reuse from original run.py)
-    parser.add_argument("--num-trials", type=int, default=1)
-    parser.add_argument(
-        "--env", type=str, choices=["retail", "airline"], default="retail"
-    )
-    parser.add_argument(
-        "--model",
-        type=str,
-        help="The model to use for the agent",
-        required=True,
-    )
-    parser.add_argument(
-        "--model-provider",
-        type=str,
-        choices=provider_list,
-        help="The model provider for the agent",
-        required=True,
-    )
-    parser.add_argument(
-        "--user-model",
-        type=str,
-        default="gpt-4o",
-        help="The model to use for the user simulator",
-    )
-    parser.add_argument(
-        "--user-model-provider",
-        type=str,
-        choices=provider_list,
-        help="The model provider for the user simulator",
-    )
-    parser.add_argument(
-        "--agent-strategy",
-        type=str,
-        default="tool-calling-rl",
-        choices=["tool-calling-rl"],
-    )
-    parser.add_argument(
-        "--temperature",
-        type=float,
-        default=1.0,
-        help="The sampling temperature for the action model",
-    )
-    parser.add_argument(
-        "--task-split",
-        type=str,
-        default="train",  # Default to train for RL
-        choices=["train", "test", "dev"],
-        help="The split of tasks to run",
-    )
-    parser.add_argument("--start-index", type=int, default=0)
-    parser.add_argument(
-        "--end-index", type=int, default=100, help="End index for training tasks"
-    )
-    parser.add_argument(
-        "--task-ids",
-        type=int,
-        nargs="+",
-        help="(Optional) run only the tasks with the given IDs",
-    )
-    parser.add_argument("--log-dir", type=str, default="rl_results")
-    parser.add_argument("--seed", type=int, default=10)
-    parser.add_argument("--shuffle", type=int, default=0)
-    parser.add_argument(
-        "--user-strategy",
-        type=str,
-        default="llm",
-        choices=[item.value for item in UserStrategy],
-    )
-    parser.add_argument(
-        "--few-shot-displays-path",
-        type=str,
-        help="Path to a jsonlines file containing few shot displays",
-    )
-
-    # RL-specific arguments
-    parser.add_argument(
-        "--base-model",
-        type=str,
-        default="Qwen/Qwen2.5-14B-Instruct",
-        help="Base model for training",
-    )
-    parser.add_argument(
-        "--trajectories-per-group",
-        type=int,
-        default=6,
-        help="Number of trajectories per group",
-    )
-    parser.add_argument(
-        "--groups-per-step",
-        type=int,
-        default=8,
-        help="Number of groups per training step",
-    )
-    parser.add_argument(
-        "--learning-rate", type=float, default=1.2e-5, help="Learning rate for training"
-    )
-    parser.add_argument(
-        "--eval-steps", type=int, default=30, help="Evaluate every N steps"
-    )
-    parser.add_argument(
-        "--val-set-size", type=int, default=100, help="Validation set size"
-    )
-    parser.add_argument(
-        "--training-dataset-size", type=int, default=1000, help="Training dataset size"
-    )
-    parser.add_argument(
-        "--num-epochs", type=int, default=1, help="Number of training epochs"
-    )
-    parser.add_argument("--reward-type", type=str, default="real", help="Reward type")
-    parser.add_argument(
-        "--general-rm-model",
-        type=str,
-        default="o3",
-        help="Model to use for general RM. ignored if reward type is not general_rm",
-    )
-    parser.add_argument(
-        "--max-num-steps",
-        type=int,
-        default=30,
-        help="Maximum number of steps per rollout",
-    )
-    parser.add_argument(
-        "--train-mode",
-        type=str,
-        default="sync_rl",
-        choices=["sync_rl", "async_rl"],
-        help="Training mode",
-    )
-    parser.add_argument(
-        "--skip-eval", action="store_true", default=False, help="Skip evaluation"
-    )
-    parser.add_argument(
-        "--add-shadow-trajectory",
-        action="store_true",
-        default=False,
-        help="Add shadow trajectory",
-    )
-    parser.add_argument(
-        "--messages-only",
-        action="store_true",
-        default=False,
-        help="Only use messages for training",
-    )
-
-    args = parser.parse_args()
-    print(args)
-
-    # Create RunConfig for tau-bench
-    run_config = RunConfig(
-        model_provider=args.model_provider,
-        user_model_provider=args.user_model_provider,
-        model=args.model,
-        user_model=args.user_model,
-        num_trials=args.num_trials,
-        env=args.env,
-        agent_strategy=args.agent_strategy,
-        temperature=args.temperature,
-        task_split=args.task_split,
-        start_index=args.start_index,
-        end_index=args.end_index,
-        task_ids=args.task_ids,
-        log_dir=args.log_dir,
-        max_concurrency=50,
-        seed=args.seed,
-        shuffle=args.shuffle,
-        user_strategy=args.user_strategy,
-        few_shot_displays_path=args.few_shot_displays_path,
-        reward_type=args.reward_type,
-        general_rm_model=args.general_rm_model,
-        max_num_steps=args.max_num_steps,
-        skip_eval=args.skip_eval,
-        add_shadow_trajectory=args.add_shadow_trajectory,
-        messages_only=args.messages_only,
-    )
-
-    # Create training config
-    training_config = TauBenchTrainingConfig(
-        trajectories_per_group=args.trajectories_per_group,
-        groups_per_step=args.groups_per_step,
-        learning_rate=args.learning_rate,
-        eval_steps=args.eval_steps,
-        val_set_size=args.val_set_size,
-        training_dataset_size=args.training_dataset_size,
-        num_epochs=args.num_epochs,
-        train_mode=args.train_mode,
-    )
-
-    return run_config, training_config, args
-
-
 async def evaluate_model(
-    model: art.TrainableModel[TauBenchPolicyConfig],
+    model: art.Model[TauBenchPolicyConfig],
     config: RunConfig,
     step: int,
     val_task_indices: List[int],
@@ -574,19 +379,35 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
 
 
 def main():
-    """Main function"""
-    run_config, training_config, args = parse_args()
+    """Entry point: expects a JSON-serialized TrainableModel (model_json) just like art-e/train.py"""
 
-    # Create trainable model
-    model = art.TrainableModel(
-        name=args.model,
-        project="tau_bench_rl",
-        base_model=args.base_model,
-        config=TauBenchPolicyConfig(
-            training_config=training_config,
-            run_config=run_config,
-        ),
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Run RL training for a serialized TrainableModel"
     )
+    parser.add_argument(
+        "model_json",
+        help="JSON string serialization of the TrainableModel to train",
+    )
+    args = parser.parse_args()
+
+    print("Model JSON:", args.model_json)
+
+    # Recreate the TrainableModel from the serialized JSON.
+    model_dict = json.loads(args.model_json)
+
+    # The nested `config` needs to be converted back into the proper pydantic model.
+    model_dict["config"] = TauBenchPolicyConfig(**model_dict["config"])
+
+    model: art.TrainableModel[TauBenchPolicyConfig] = art.TrainableModel(**model_dict)
+    model.config.run_config.model = (
+        model.name
+    )  # set run_config model name to model name
+
+    print(model)
+
+    run_config = model.config.run_config
 
     print(f"Starting RL training for model: {model.name}")
     print(f"Base model: {model.base_model}")
