@@ -401,6 +401,11 @@ def main():
     model_dict["config"] = TauBenchPolicyConfig(**model_dict["config"])
 
     model: art.TrainableModel[TauBenchPolicyConfig] = art.TrainableModel(**model_dict)
+    model.config.run_config.model = (
+        model.name
+    )  # set run_config model name to model name
+
+    print(model)
 
     run_config = model.config.run_config
 

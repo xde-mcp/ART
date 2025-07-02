@@ -74,7 +74,7 @@ class EnvRunResult(BaseModel):
 class RunConfig(BaseModel):
     model_provider: str
     user_model_provider: str
-    model: str
+    model: str = "gpt-4.1"
     user_model: str = "gpt-4o"
     num_trials: int = 1
     env: str = "retail"
@@ -100,8 +100,11 @@ class RunConfig(BaseModel):
     add_shadow_trajectory: bool = False
     messages_only: bool = False
     base_model: str = "unsloth/Qwen2.5-14B-Instruct"
+
+
 class TauBenchTrainingConfig(BaseModel):
     """Training configuration for ART RL on tau-bench tasks"""
+
     trajectories_per_group: int = 6
     groups_per_step: int = 10
     learning_rate: float = 1.2e-5
@@ -114,9 +117,9 @@ class TauBenchTrainingConfig(BaseModel):
 
 class TauBenchPolicyConfig(BaseModel):
     """Policy configuration for tau-bench agent"""
-    
+
     # Training configuration
     training_config: TauBenchTrainingConfig | None = None
-    
+
     # tau-bench specific configs
     run_config: RunConfig
