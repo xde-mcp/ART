@@ -13,7 +13,7 @@ from sky import ClusterStatus
 # Define model configurations for tau-bench RL experiments
 models = {
     "001": {
-        "base_model": "Qwen/Qwen2.5-14B-Instruct", 
+        "base_model": "Qwen/Qwen2.5-14B-Instruct",
         "env": "retail",
         "model": "tau-bench-rl-001-final",
         "model_provider": "hosted_vllm",
@@ -264,7 +264,7 @@ def launch_model(model_key: str):
 
     run_script = textwrap.dedent(f"""
         # Run the RL training
-        uv run run_rl.py {' '.join(run_args)}
+        uv run run_rl.py {" ".join(run_args)}
     """)
 
     # Create a SkyPilot Task

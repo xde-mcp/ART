@@ -20,11 +20,15 @@ from tau_bench.envs.user import UserStrategy
 from tau_bench.agents.tool_calling_agent import ToolCallingRLAgent
 from tau_bench.types import TauBenchPolicyConfig, TauBenchTrainingConfig
 from tau_bench.general_rm import create_general_rm_trajectory_groups
-from tau_bench.rl_utils import log_trajectory_to_openpipe, update_steps_for_openpipe_logs
+from tau_bench.rl_utils import (
+    log_trajectory_to_openpipe,
+    update_steps_for_openpipe_logs,
+)
 from tqdm.asyncio import tqdm_asyncio
 
 # Load environment variables
 load_dotenv(override=True)
+
 
 def clean_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     cleaned_messages = []
@@ -32,6 +36,7 @@ def clean_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         cleaned_msg = {k: v for k, v in msg.items() if v is not None}
         cleaned_messages.append(cleaned_msg)
     return cleaned_messages
+
 
 async def rollout_tau_bench_task(
     model: art.Model[TauBenchPolicyConfig],
@@ -52,7 +57,7 @@ async def rollout_tau_bench_task(
         config.model_provider = "openai"
         config.api_key = None
         config.base_url = None
-    
+
     # Get isolated environment for this task
     env = get_env(
         config.env,
@@ -62,7 +67,7 @@ async def rollout_tau_bench_task(
         task_split=config.task_split,
         task_index=task_index,
     )
-    
+
     # Create agent with the trainable model
     agent = agent_factory(
         tools_info=env.tools_info,
@@ -72,23 +77,23 @@ async def rollout_tau_bench_task(
 
     if not isinstance(agent, ToolCallingRLAgent):
         raise ValueError("Agent must be a ToolCallingRLAgent")
-    
+
     # Create trajectory object
     traj = art.Trajectory(
         messages_and_choices=[],
         tools=env.tools_info,
         reward=0,
         metadata={
-            "task_index": str(task_index), 
+            "task_index": str(task_index),
             "env": config.env,
             "training_step": str(step),
             "phase": phase,
             "model": model.name,
             "reward_type": config.reward_type,
             "is_shadow": str(is_shadow),
-        }
+        },
     )
-    
+
     try:
         # Run the agent on the task (now async call)
         result = await agent.solve(
@@ -96,7 +101,7 @@ async def rollout_tau_bench_task(
             task_index=task_index,
             max_num_steps=config.max_num_steps,
         )
-        
+
         # Convert result to trajectory format
         updated_reward = -1 if result.info["forced_stop"] else result.reward
         traj.reward = updated_reward
@@ -109,14 +114,17 @@ async def rollout_tau_bench_task(
             "forced_stop": result.info["forced_stop"],
         }
         traj.metadata.update(result.info)
-        traj.metadata["reward"] = "pending_general_rm" if config.reward_type == "general_rm" else traj.reward
+        traj.metadata["reward"] = (
+            "pending_general_rm" if config.reward_type == "general_rm" else traj.reward
+        )
         traj.metadata["outcome_correct"] = traj.metrics["outcome_correct"]
 
-
         if config.messages_only:
-            traj.messages_and_choices = clean_messages(result.messages) # type: ignore
+            traj.messages_and_choices = clean_messages(result.messages)  # type: ignore
         else:
-            traj.messages_and_choices = agent.create_messages_and_choices(result.messages) # type: ignore
+            traj.messages_and_choices = agent.create_messages_and_choices(
+                result.messages
+            )  # type: ignore
     except Exception as e:
         print(f"Error in rollout for task {task_index}: {e}")
         traj.reward = 0.0
@@ -127,37 +135,25 @@ async def rollout_tau_bench_task(
             messages=[],
             total_cost=0.0,
         )
-    
+
     traj.finish()
-    
+
     # Log to langfuse/openpipe
     try:
         await log_trajectory_to_openpipe(traj, result.messages)
     except Exception as e:
         print(f"Error logging trajectory to openpipe: {e}")
-    
+
     # print(f"Finished rolling out task {task_index} (reward: {traj.reward})")
     return traj
 
 
-# Remove the async wrapper since rollout_tau_bench_task is now truly async
-async def async_rollout_tau_bench_task(
-    model: art.Model[TauBenchPolicyConfig],
-    task_index: int,
-    step: int = 0,
-    phase: str = "train",
-    is_shadow: bool = False,
-) -> art.Trajectory:
-    """
-    Direct alias for rollout_tau_bench_task since it's now truly async.
-    """
-    return await rollout_tau_bench_task(model, task_index, step, phase, is_shadow)
-
-
 def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]:
     """Parse command line arguments for RL training"""
-    parser = argparse.ArgumentParser(description="Train an agent on tau-bench using ART RL")
-    
+    parser = argparse.ArgumentParser(
+        description="Train an agent on tau-bench using ART RL"
+    )
+
     # tau-bench arguments (reuse from original run.py)
     parser.add_argument("--num-trials", type=int, default=1)
     parser.add_argument(
@@ -197,7 +193,7 @@ def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]
     parser.add_argument(
         "--temperature",
         type=float,
-        default=0.0,
+        default=1.0,
         help="The sampling temperature for the action model",
     )
     parser.add_argument(
@@ -208,34 +204,103 @@ def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]
         help="The split of tasks to run",
     )
     parser.add_argument("--start-index", type=int, default=0)
-    parser.add_argument("--end-index", type=int, default=100, help="End index for training tasks")
-    parser.add_argument("--task-ids", type=int, nargs="+", help="(Optional) run only the tasks with the given IDs")
+    parser.add_argument(
+        "--end-index", type=int, default=100, help="End index for training tasks"
+    )
+    parser.add_argument(
+        "--task-ids",
+        type=int,
+        nargs="+",
+        help="(Optional) run only the tasks with the given IDs",
+    )
     parser.add_argument("--log-dir", type=str, default="rl_results")
     parser.add_argument("--seed", type=int, default=10)
     parser.add_argument("--shuffle", type=int, default=0)
-    parser.add_argument("--user-strategy", type=str, default="llm", choices=[item.value for item in UserStrategy])
-    parser.add_argument("--few-shot-displays-path", type=str, help="Path to a jsonlines file containing few shot displays")
-    
+    parser.add_argument(
+        "--user-strategy",
+        type=str,
+        default="llm",
+        choices=[item.value for item in UserStrategy],
+    )
+    parser.add_argument(
+        "--few-shot-displays-path",
+        type=str,
+        help="Path to a jsonlines file containing few shot displays",
+    )
+
     # RL-specific arguments
-    parser.add_argument("--base-model", type=str, default="Qwen/Qwen2.5-14B-Instruct", help="Base model for training")
-    parser.add_argument("--trajectories-per-group", type=int, default=6, help="Number of trajectories per group")
-    parser.add_argument("--groups-per-step", type=int, default=8, help="Number of groups per training step")
-    parser.add_argument("--learning-rate", type=float, default=1.2e-5, help="Learning rate for training")
-    parser.add_argument("--eval-steps", type=int, default=30, help="Evaluate every N steps")
-    parser.add_argument("--val-set-size", type=int, default=100, help="Validation set size")
-    parser.add_argument("--training-dataset-size", type=int, default=1000, help="Training dataset size")
-    parser.add_argument("--num-epochs", type=int, default=1, help="Number of training epochs")
+    parser.add_argument(
+        "--base-model",
+        type=str,
+        default="Qwen/Qwen2.5-14B-Instruct",
+        help="Base model for training",
+    )
+    parser.add_argument(
+        "--trajectories-per-group",
+        type=int,
+        default=6,
+        help="Number of trajectories per group",
+    )
+    parser.add_argument(
+        "--groups-per-step",
+        type=int,
+        default=8,
+        help="Number of groups per training step",
+    )
+    parser.add_argument(
+        "--learning-rate", type=float, default=1.2e-5, help="Learning rate for training"
+    )
+    parser.add_argument(
+        "--eval-steps", type=int, default=30, help="Evaluate every N steps"
+    )
+    parser.add_argument(
+        "--val-set-size", type=int, default=100, help="Validation set size"
+    )
+    parser.add_argument(
+        "--training-dataset-size", type=int, default=1000, help="Training dataset size"
+    )
+    parser.add_argument(
+        "--num-epochs", type=int, default=1, help="Number of training epochs"
+    )
     parser.add_argument("--reward-type", type=str, default="real", help="Reward type")
-    parser.add_argument("--general-rm-model", type=str, default="o3", help="Model to use for general RM. ignored if reward type is not general_rm")
-    parser.add_argument("--max-num-steps", type=int, default=30, help="Maximum number of steps per rollout")
-    parser.add_argument("--train-mode", type=str, default="sync_rl", choices=["sync_rl", "async_rl"], help="Training mode")
-    parser.add_argument("--skip-eval", action="store_true", default=False, help="Skip evaluation")
-    parser.add_argument("--add-shadow-trajectory", action="store_true", default=False, help="Add shadow trajectory")
-    parser.add_argument("--messages-only", action="store_true", default=False, help="Only use messages for training")
-    
+    parser.add_argument(
+        "--general-rm-model",
+        type=str,
+        default="o3",
+        help="Model to use for general RM. ignored if reward type is not general_rm",
+    )
+    parser.add_argument(
+        "--max-num-steps",
+        type=int,
+        default=30,
+        help="Maximum number of steps per rollout",
+    )
+    parser.add_argument(
+        "--train-mode",
+        type=str,
+        default="sync_rl",
+        choices=["sync_rl", "async_rl"],
+        help="Training mode",
+    )
+    parser.add_argument(
+        "--skip-eval", action="store_true", default=False, help="Skip evaluation"
+    )
+    parser.add_argument(
+        "--add-shadow-trajectory",
+        action="store_true",
+        default=False,
+        help="Add shadow trajectory",
+    )
+    parser.add_argument(
+        "--messages-only",
+        action="store_true",
+        default=False,
+        help="Only use messages for training",
+    )
+
     args = parser.parse_args()
     print(args)
-    
+
     # Create RunConfig for tau-bench
     run_config = RunConfig(
         model_provider=args.model_provider,
@@ -263,7 +328,7 @@ def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]
         add_shadow_trajectory=args.add_shadow_trajectory,
         messages_only=args.messages_only,
     )
-    
+
     # Create training config
     training_config = TauBenchTrainingConfig(
         trajectories_per_group=args.trajectories_per_group,
@@ -275,7 +340,7 @@ def parse_args() -> tuple[RunConfig, TauBenchTrainingConfig, argparse.Namespace]
         num_epochs=args.num_epochs,
         train_mode=args.train_mode,
     )
-    
+
     return run_config, training_config, args
 
 
@@ -283,25 +348,25 @@ async def evaluate_model(
     model: art.TrainableModel[TauBenchPolicyConfig],
     config: RunConfig,
     step: int,
-    val_task_indices: List[int]
+    val_task_indices: List[int],
 ) -> float:
     """Evaluate the model on a subset of tasks"""
     print(f"Evaluating model on {len(val_task_indices)} tasks...")
-    
+
     total_reward = 0.0
 
     trajectories = await art.gather_trajectories(
         (
-            async_rollout_tau_bench_task(model, val_task_index, step, "val")
+            rollout_tau_bench_task(model, val_task_index, step, "val")
             for val_task_index in val_task_indices
         )
     )
     await model.log(trajectories=trajectories, split="val")
-    
+
     for traj in trajectories:
         total_reward += traj.reward
         print(f"Eval task {traj.metadata['task_index']}: reward={traj.reward}")
-    
+
     avg_reward = total_reward / len(val_task_indices)
     print(f"Average evaluation reward: {avg_reward}")
     return avg_reward
@@ -315,17 +380,17 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
 
     config = model.config.run_config
     training_config = model.config.training_config
-    
+
     if training_config is None:
         raise ValueError("Training config is not set")
-    
+
     with LocalBackend() as backend:
         # Setup model with backend
         await model.register(backend)
         config.api_key = model.inference_api_key
         config.base_url = model.inference_base_url
         config.base_model = model.base_model
-        
+
         print("Loading training tasks...")
         # Get environment to access tasks
         env = get_env(
@@ -335,17 +400,31 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
             user_provider=config.user_model_provider,
             task_split=config.task_split,
         )
-        
+
         # Create list of task indices for training
-        end_index = min(config.end_index, len(env.tasks)) if config.end_index != -1 else len(env.tasks)
+        end_index = (
+            min(config.end_index, len(env.tasks))
+            if config.end_index != -1
+            else len(env.tasks)
+        )
         if config.task_ids:
             train_task_indices = config.task_ids
         else:
-            train_task_indices = list(range(config.start_index, min(end_index, training_config.training_dataset_size)))
-        
+            train_task_indices = list(
+                range(
+                    config.start_index,
+                    min(end_index, training_config.training_dataset_size),
+                )
+            )
+
         # Validation task indices
-        val_task_indices = list(range(len(train_task_indices), len(train_task_indices) + training_config.val_set_size))
-        
+        val_task_indices = list(
+            range(
+                len(train_task_indices),
+                len(train_task_indices) + training_config.val_set_size,
+            )
+        )
+
         print(f"Training on {len(train_task_indices)} tasks")
         print(f"Validation on {len(val_task_indices)} tasks")
 
@@ -353,13 +432,15 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
             global_step = 0
             train_task_indices_async_rl = []
             for _ in range(training_config.num_epochs):
-                train_task_indices_async_rl.extend(random.sample(train_task_indices, len(train_task_indices)))
+                train_task_indices_async_rl.extend(
+                    random.sample(train_task_indices, len(train_task_indices))
+                )
 
             async for trajectory_groups in art.trajectory_group_batches(
                 (
                     art.TrajectoryGroup(
                         (
-                            async_rollout_tau_bench_task(model, task_index, -1, "train")
+                            rollout_tau_bench_task(model, task_index, -1, "train")
                             for _ in range(training_config.trajectories_per_group)
                         )
                     )
@@ -370,11 +451,14 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                 skip_batches=await model.get_step(),
             ):
                 # NOT UPDATED FOR TRAINING WITH SHADOW TRAJECTORIES
-                if global_step % training_config.eval_steps == 0 and not config.skip_eval:
+                if (
+                    global_step % training_config.eval_steps == 0
+                    and not config.skip_eval
+                ):
                     print(f"\n--- Evaluating at Step {global_step} ---")
                     await evaluate_model(model, config, global_step, val_task_indices)
                     # await model.delete_checkpoints()
-                
+
                 if config.reward_type == "general_rm":
                     print("Creating general RM trajectory groups...")
                     updated_groups = await tqdm_asyncio.gather(
@@ -396,9 +480,7 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                 print(f"Training on {len(trajectory_groups)} trajectory groups...")
                 await model.train(
                     trajectory_groups,
-                    config=art.TrainConfig(
-                        learning_rate=training_config.learning_rate
-                    ),
+                    config=art.TrainConfig(learning_rate=training_config.learning_rate),
                 )
                 global_step += 1
         else:
@@ -409,24 +491,40 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                 num_epochs=training_config.num_epochs,
                 initial_step=await model.get_step(),
             )
-            
+
             for batch, epoch, global_step, epoch_step in train_iterator:
-                print(f"\n--- Training Step {global_step} (Epoch {epoch}, Step {epoch_step}) ---")
-                
+                print(
+                    f"\n--- Training Step {global_step} (Epoch {epoch}, Step {epoch_step}) ---"
+                )
+
                 # Evaluation
-                if global_step % training_config.eval_steps == 0 and not config.skip_eval:
+                if (
+                    global_step % training_config.eval_steps == 0
+                    and not config.skip_eval
+                ):
                     print(f"\n--- Evaluating at Step {global_step} ---")
                     await evaluate_model(model, config, global_step, val_task_indices)
                     await model.delete_checkpoints()
-                
+
                 # Generate trajectory groups
                 print(f"Generating trajectories for {len(batch)} tasks...")
                 groups = await art.gather_trajectory_groups(
                     (
                         art.TrajectoryGroup(
                             (
-                                async_rollout_tau_bench_task(model, task_index, global_step, "train", is_shadow=config.add_shadow_trajectory and rollout_idx % training_config.trajectories_per_group == 0)
-                                for rollout_idx in range(training_config.trajectories_per_group)
+                                rollout_tau_bench_task(
+                                    model,
+                                    task_index,
+                                    global_step,
+                                    "train",
+                                    is_shadow=config.add_shadow_trajectory
+                                    and rollout_idx
+                                    % training_config.trajectories_per_group
+                                    == 0,
+                                )
+                                for rollout_idx in range(
+                                    training_config.trajectories_per_group
+                                )
                             )
                         )
                         for task_index in batch
@@ -443,39 +541,42 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                         total=len(groups),
                     )
                     groups = updated_groups
-                
+
                 # Training step
                 print(f"Training on {len(groups)} trajectory groups...")
                 await model.train(
                     groups,
-                    config=art.TrainConfig(
-                        learning_rate=training_config.learning_rate
+                    config=art.TrainConfig(learning_rate=training_config.learning_rate),
+                    _config=art.dev.TrainConfig(
+                        allow_training_without_logprobs=True
+                        if config.messages_only
+                        else False
                     ),
-                    _config=art.dev.TrainConfig(allow_training_without_logprobs=True if config.messages_only else False)
                 )
-                
+
                 # Log progress
                 total_reward = sum(
-                    sum(traj.reward for traj in group.trajectories) 
-                    for group in groups
+                    sum(traj.reward for traj in group.trajectories) for group in groups
                 )
                 num_trajectories = sum(len(group.trajectories) for group in groups)
-                avg_reward = total_reward / num_trajectories if num_trajectories > 0 else 0
+                avg_reward = (
+                    total_reward / num_trajectories if num_trajectories > 0 else 0
+                )
                 print(f"Step {global_step}: Average training reward = {avg_reward}")
-        
+
         # Final evaluation
         print("\n--- Final Evaluation ---")
         final_step = await model.get_step()
         final_reward = await evaluate_model(model, config, final_step, val_task_indices)
         print(f"Final average reward: {final_reward}")
-        
+
         print("Training completed!")
 
 
 def main():
     """Main function"""
     run_config, training_config, args = parse_args()
-    
+
     # Create trainable model
     model = art.TrainableModel(
         name=args.model,
@@ -486,13 +587,13 @@ def main():
             run_config=run_config,
         ),
     )
-    
+
     print(f"Starting RL training for model: {model.name}")
     print(f"Base model: {model.base_model}")
     print(f"Environment: {run_config.env}")
     print(f"Task split: {run_config.task_split}")
     print(f"Reward type: {run_config.reward_type}")
-    
+
     # Run training
     asyncio.run(train(model))
 
