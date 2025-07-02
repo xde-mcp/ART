@@ -1,10 +1,15 @@
 import argparse
-import sky
+import json
 import textwrap
 import concurrent.futures
 import traceback
+import sky
 from dotenv import dotenv_values
 from sky import ClusterStatus
+
+# New imports for model serialization
+import art
+from tau_bench.types import RunConfig, TauBenchTrainingConfig, TauBenchPolicyConfig
 
 # Usage:
 # uv run run_training.py 001 --fast
@@ -218,6 +223,59 @@ def launch_model(model_key: str):
     model_config = models[model_key]
     print(f"Launching {model_key} ({model_config['model']}) on SkyPilot…")
 
+    # ------------------------------------------------------------------
+    # 1. Build the TrainableModel using pydantic model objects
+    # ------------------------------------------------------------------
+
+    run_cfg = RunConfig(
+        model_provider=model_config["model_provider"],
+        user_model_provider=model_config["user_model_provider"],
+        model=model_config["model"],
+        user_model=model_config["user_model"],
+        env=model_config["env"],
+        agent_strategy=model_config["agent_strategy"],
+        temperature=model_config["temperature"],
+        task_split=model_config["task_split"],
+        start_index=model_config["start_index"],
+        end_index=model_config["end_index"],
+        log_dir="rl_results",
+        max_concurrency=50,
+        seed=model_config.get("seed", 10),
+        shuffle=model_config.get("shuffle", 0),
+        user_strategy=model_config.get("user_strategy", "llm"),
+        reward_type=model_config["reward_type"],
+        general_rm_model=model_config.get("general_rm_model", "o3"),
+        max_num_steps=model_config["max_num_steps"],
+        skip_eval=model_config["skip_eval"],
+        add_shadow_trajectory=model_config["add_shadow_trajectory"],
+        messages_only=model_config["messages_only"],
+        base_model=model_config["base_model"],
+    )
+
+    training_cfg = TauBenchTrainingConfig(
+        trajectories_per_group=model_config["trajectories_per_group"],
+        groups_per_step=model_config["groups_per_step"],
+        learning_rate=model_config["learning_rate"],
+        eval_steps=model_config["eval_steps"],
+        val_set_size=model_config["val_set_size"],
+        training_dataset_size=model_config["training_dataset_size"],
+        num_epochs=model_config["num_epochs"],
+        train_mode=model_config["train_mode"],
+    )
+
+    trainable_model = art.TrainableModel(
+        name=model_config["model"],
+        project="tau_bench_rl",
+        base_model=model_config["base_model"],
+        config=TauBenchPolicyConfig(training_config=training_cfg, run_config=run_cfg),
+    )
+
+    model_json = json.dumps(trainable_model.model_dump())
+
+    # ------------------------------------------------------------------
+    # 2. Prepare the setup and run scripts
+    # ------------------------------------------------------------------
+
     setup_script = textwrap.dedent(
         """
             echo 'Setting up environment...'
@@ -234,38 +292,15 @@ def launch_model(model_key: str):
         """
     )
 
-    # Construct the run_rl.py command with all necessary arguments
-    run_args = [
-        f"--base-model {model_config['base_model']}",
-        f"--env {model_config['env']}",
-        f"--model {model_config['model']}",
-        f"--model-provider {model_config['model_provider']}",
-        f"--user-model {model_config['user_model']}",
-        f"--user-model-provider {model_config['user_model_provider']}",
-        f"--agent-strategy {model_config['agent_strategy']}",
-        f"--temperature {model_config['temperature']}",
-        f"--task-split {model_config['task_split']}",
-        f"--start-index {model_config['start_index']}",
-        f"--end-index {model_config['end_index']}",
-        f"--trajectories-per-group {model_config['trajectories_per_group']}",
-        f"--groups-per-step {model_config['groups_per_step']}",
-        f"--learning-rate {model_config['learning_rate']}",
-        f"--eval-steps {model_config['eval_steps']}",
-        f"--val-set-size {model_config['val_set_size']}",
-        f"--training-dataset-size {model_config['training_dataset_size']}",
-        f"--num-epochs {model_config['num_epochs']}",
-        f"--reward-type {model_config['reward_type']}",
-        f"--max-num-steps {model_config['max_num_steps']}",
-        f"--train-mode {model_config['train_mode']}",
-        f"{'--skip-eval' if model_config['skip_eval'] else ''}",
-        f"{'--add-shadow-trajectory' if model_config['add_shadow_trajectory'] else ''}",
-        f"{'--messages-only' if model_config['messages_only'] else ''}",
-    ]
-
-    run_script = textwrap.dedent(f"""
+    run_script = textwrap.dedent(
+        f"""
         # Run the RL training
-        uv run run_rl.py {" ".join(run_args)}
-    """)
+        uv remove openpipe-art
+        uv add --editable ~/ART
+
+        uv run run_rl.py '{model_json}'
+    """
+    )
 
     # Create a SkyPilot Task
     task = sky.Task(
