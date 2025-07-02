@@ -168,3 +168,20 @@ models[
     "0002"
 ].config.training_config.judge_group_model_name = "openrouter/qwen/qwen3-32b"
 models["0002"].config.training_config.messages_only = True
+
+
+# Model 206: like 204 but using Qwen3 32B as the judge-group model
+models["0003"] = models["008"].model_copy(deep=True)
+models["0003"].name = "email-agent-0003"
+models["0003"].project = "email_agent_saumya_test"
+# Ensure training config exists and set the judge group model
+assert models["0003"].config.training_config is not None
+models[
+    "0003"
+].config.training_config.judge_group_model_name = "openrouter/qwen/qwen3-32b"
+models["0003"]._internal_config = art.dev.InternalModelConfig(
+        engine_args=art.dev.EngineArgs(
+            tensor_parallel_size=8, gpu_memory_utilization=0.85
+        ),
+        torchtune_args=art.dev.TorchtuneArgs(model="qwen2_5_14b_instruct", model_type="QWEN2", async_weight_syncing=True),
+    )

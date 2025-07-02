@@ -160,6 +160,8 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
                 ),
                 _config=art.dev.TrainConfig(allow_training_without_logprobs=True if model.config.training_config.messages_only else False)
             )
+            if model._internal_config is not None and model._internal_config.get("torchtune_args") is not None:
+                await model.delete_checkpoints()
 
         await benchmark_model(model)
         await backend._experimental_push_to_s3(

@@ -88,7 +88,11 @@ def launch_model(model_key: str):
         workdir=".",  # Sync the project directory
         envs=dict(dotenv_values()),  # type: ignore
     )
-    task.set_resources(sky.Resources(accelerators="H100-SXM:1"))
+    num_gpus = 1
+    if model._internal_config is not None and model._internal_config.get("torchtune_args") is not None:
+        num_gpus = model._internal_config.get("engine_args").get("tensor_parallel_size", 1)
+    print(f"Requesting {num_gpus} GPUs for {model_key}")
+    task.set_resources(sky.Resources(accelerators=f"H100-SXM:{num_gpus}", memory="1024+"))
     task.set_file_mounts({"~/ART": "../.."})
 
     # Generate cluster name

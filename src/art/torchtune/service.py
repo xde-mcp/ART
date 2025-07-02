@@ -89,11 +89,26 @@ class TorchtuneService:
             )
         # consume the batch gradient step results
         num_gradient_steps = -1
+        # `asyncio.wait` requires an *iterable of `Future`/`Task`* objects, not raw
+        # coroutines.  Passing bare coroutines was tolerated by some older Python
+        # versions but raises a `TypeError` starting in Python 3.12 ("Passing
+        # coroutines is forbidden, use tasks explicitly.").  Wrap the
+        # coroutines returned by `train_queue.get()` and `train_process.wait()`
+        # in `asyncio.create_task` so that the code works on all supported
+        # versions of Python.
         while num_gradient_steps != 0:
-            done, _ = await asyncio.wait(
-                [train_queue.get(), train_process.wait()],
+            task_queue_get = asyncio.create_task(train_queue.get())
+            task_process_wait = asyncio.create_task(train_process.wait())
+
+            done, pending = await asyncio.wait(
+                [task_queue_get, task_process_wait],
                 return_when=asyncio.FIRST_COMPLETED,
             )
+
+            # Cancel whichever task is still pending so that we don't leak tasks
+            # over the (potentially many) iterations of this loop.
+            # for task in pending:
+            #     task.cancel()
             for task in done:
                 result = task.result()
                 if isinstance(result, dict):
