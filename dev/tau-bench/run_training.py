@@ -109,7 +109,7 @@ def launch_model(model_key: str):
 
             # Install project in editable mode
             uv remove openpipe-art
-            uv add --editable ~/ART
+            uv add --editable ~/ART --extra backend
 
             # Sync dependencies
             uv sync
@@ -120,7 +120,7 @@ def launch_model(model_key: str):
         f"""
         # Run the RL training
         uv remove openpipe-art
-        uv add --editable ~/ART
+        uv add --editable ~/ART --extra backend
 
         uv run run_rl.py '{model_json}'
     """

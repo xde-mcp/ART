@@ -155,3 +155,6 @@ models["213"].config.training_config.group_judge_model = "openai/o3"
 
 models["215"] = models["008"].model_copy(deep=True)
 models["215"].name = "email-agent-215"
+
+models["216"] = models["008"].model_copy(deep=True)
+models["216"].name = "email-agent-216-3"
