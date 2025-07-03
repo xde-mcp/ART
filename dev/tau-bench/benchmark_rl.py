@@ -45,6 +45,18 @@ def parse_args() -> tuple[RunConfig, argparse.Namespace]:
         choices=provider_list,
         help="List of model providers corresponding to each model",
     )
+    parser.add_argument(
+        "--api-key",
+        type=str,
+        default=None,
+        help="API key for the model provider",
+    )
+    parser.add_argument(
+        "--base-url",
+        type=str,
+        default=None,
+        help="Base URL for the model provider",
+    )
 
     # Environment configuration
     parser.add_argument(
@@ -145,6 +157,8 @@ def parse_args() -> tuple[RunConfig, argparse.Namespace]:
         max_num_steps=args.max_num_steps,
         reward_type="real",
         messages_only=True,
+        api_key=args.api_key,
+        base_url=args.base_url,
     )
 
     return run_config, args
