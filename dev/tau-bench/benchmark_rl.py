@@ -9,8 +9,7 @@ from typing import List, Dict, Any
 from dotenv import load_dotenv
 
 import art
-from art.utils import iterate_dataset
-from tau_bench.types import RunConfig, TauBenchPolicyConfig, TauBenchTrainingConfig
+from tau_bench.types import RunConfig, TauBenchPolicyConfig
 from tau_bench.envs import get_env
 from tau_bench.run import display_metrics
 from tau_bench.types import EnvRunResult
@@ -18,7 +17,7 @@ from litellm import provider_list
 from tau_bench.envs.user import UserStrategy
 
 # Import evaluate_model and rollout functions from run_rl
-from run_rl import evaluate_model, rollout_tau_bench_task
+from run_rl import rollout_tau_bench_task
 
 # Load environment variables
 load_dotenv(override=True)
@@ -145,6 +144,7 @@ def parse_args() -> tuple[RunConfig, argparse.Namespace]:
         user_strategy=args.user_strategy,
         max_num_steps=args.max_num_steps,
         reward_type="real",
+        messages_only=True,
     )
 
     return run_config, args
@@ -168,6 +168,7 @@ async def benchmark_model(
 
     # Create a mock trainable model for evaluation
     model = art.Model(
+        project="tau_bench_rl",
         name=model_name,
         config=TauBenchPolicyConfig(
             run_config=config,
@@ -187,17 +188,21 @@ async def benchmark_model(
         total_reward = 0.0
 
         # Collect trajectories for all tasks in this trial
-        trajectories = []
-        for task_idx in task_indices:
-            traj = await rollout_tau_bench_task(
-                model=model,
-                task_index=task_idx,
-                step=0,
-                phase="eval",
-                is_shadow=False,
-            )
-            trajectories.append(traj)
+        trajectories = await art.gather_trajectories(
+            [
+                rollout_tau_bench_task(
+                    model=model,
+                    task_index=task_idx,
+                    step=0,
+                    phase="eval",
+                    is_shadow=False,
+                )
+                for task_idx in task_indices
+            ]
+        )
 
+        for task_idx in task_indices:
+            traj = trajectories[task_idx]
             # Track results
             reward = traj.reward
             total_reward += reward
@@ -206,17 +211,17 @@ async def benchmark_model(
                 task_id=task_idx,
                 reward=reward,
                 info=traj.metadata,
-                traj=[],  # We could extract messages if needed
+                traj=traj.messages_and_choices,
                 trial=trial,
             )
             trial_results.append(result)
             all_results.append(result)
 
-            print(
-                "" if reward == 1 else "L",
-                f"task_id={task_idx}",
-                f"reward={reward}",
-            )
+            # print(
+            #     "" if reward == 1 else "L",
+            #     f"task_id={task_idx}",
+            #     f"reward={reward}",
+            # )
 
         avg_reward = total_reward / len(task_indices)
         trial_rewards[trial] = avg_reward
