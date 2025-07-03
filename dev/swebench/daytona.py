@@ -182,8 +182,11 @@ def analyze_test_results(output: str, instance: Instance) -> dict:
     total_issues = failed_count + error_count
 
     # Determine if results are as expected
-    is_expected = (fail_to_pass_count > 0 and total_issues > 0) or (
-        fail_to_pass_count == 0 and total_issues == 0
+    # CRITICAL: We need EXACT matches, not just "some" failures
+    # - The number of failed/error tests should equal the number of FAIL_TO_PASS tests
+    # - The number of passed tests should equal the number of PASS_TO_PASS tests
+    is_expected = (
+        total_issues == fail_to_pass_count and passed_count == pass_to_pass_count
     )
 
     return {
@@ -300,16 +303,63 @@ async def run_tests(
 
         # Prepare and run tests
         tests = instance["FAIL_TO_PASS"] + instance["PASS_TO_PASS"]
+
+        # Simple filtering - just skip obvious non-test files
+        filtered_tests = []
+        for test in tests:
+            # Skip documentation files
+            if test.endswith((".md", ".rst", ".txt")) and "::" in test:
+                logger.log(f"  Skipping documentation file: {test}")
+                continue
+            filtered_tests.append(test)
+
+        tests = filtered_tests
         await write_file_chunked(sandbox, "\n".join(tests), "/tmp/tests.txt")
 
         # 4. Try running tests and install missing dependencies if needed
         logger.log("\nRunning tests...")
+        num_tests = len(tests)  # Store for later use in retry logic
         max_retries = 5
         for attempt in range(max_retries):
+            # Create a Python script that uses pytest's Python API to avoid command line limits
+            pytest_script = """
+import sys
+import os
+
+# Add testbed to path
+sys.path.insert(0, '/testbed')
+
+# Read all test paths
+with open('/tmp/tests.txt', 'r') as f:
+    tests = [line.strip() for line in f if line.strip()]
+
+print(f"DEBUG: Total tests to run: {len(tests)}", file=sys.stderr)
+print(f"DEBUG: First few tests: {tests[:3]}", file=sys.stderr)
+
+# Use pytest.main() which doesn't have command line length limits
+import pytest
+
+# Prepare arguments for pytest
+args = ['-v', '-o', 'addopts=', '--tb=short', '--no-header'] + tests
+
+print(f"DEBUG: Running pytest with {len(tests)} tests...", file=sys.stderr)
+exit_code = pytest.main(args)
+print(f"DEBUG: Pytest exit code: {exit_code}", file=sys.stderr)
+
+sys.exit(exit_code)
+"""
+            await write_file_chunked(sandbox, pytest_script, "/tmp/run_pytest.py")
             result = await sandbox.process.exec(
-                "cat /tmp/tests.txt | xargs -d '\n' python -m pytest -v -o addopts= --tb=short",
+                "python /tmp/run_pytest.py 2>&1",
                 cwd="/testbed",
             )
+
+            # Capture any debug output
+            if "DEBUG:" in result.result:
+                logger.log("Debug output from pytest runner:")
+                for line in result.result.split("\n"):
+                    if "DEBUG:" in line:
+                        logger.log(f"  {line}")
 
             # Check for missing pytest plugins
             if "Missing required plugins:" in result.result:
@@ -345,6 +395,14 @@ async def run_tests(
                 # Extract missing module names from both test execution and collection errors
                 missing_modules = extract_missing_modules(result.result)
 
+                # Skip retries for known problematic modules that require compilation
+                unfixable_modules = ["torch", "tensorflow", "pandas._libs"]
+                if any(module in str(missing_modules) for module in unfixable_modules):
+                    logger.log(
+                        f"  Skipping retry - requires compiled dependencies: {missing_modules}"
+                    )
+                    break
+
                 if missing_modules and attempt < max_retries - 1:
                     logger.log(
                         f"  Missing modules detected: {', '.join(missing_modules)}"
@@ -370,59 +428,33 @@ async def run_tests(
 
         output = result.result
 
-        # Handle conftest loading errors with recursive dependency installation
-        conftest_retry_count = 0
-        max_conftest_retries = 5
+        # Simple conftest error handling - just check if package[extras] is suggested
+        if "ImportError while loading conftest" in output and "pip install" in output:
+            # Look for package[extras] pattern
+            for line in output.split("\n"):
+                if "pip install" in line and "[" in line and "]" in line:
+                    import re
 
-        while (
-            "ImportError while loading conftest" in output
-            and conftest_retry_count < max_conftest_retries
-        ):
-            # Extract package suggestions from error message
-            if "pip install" in output:
-                # Look for patterns like "pip install sunpy[timeseries]" or "pip install sunpy[all]"
-                install_suggestions = []
-                for line in output.split("\n"):
-                    if "pip install" in line:
-                        # Extract the package[extras] pattern
-                        import re
-
-                        matches = re.findall(
-                            r"pip install\s+`?([^\s`]+(?:\[[^\]]+\])?)`?", line
-                        )
-                        install_suggestions.extend(matches)
-
-                if install_suggestions:
-                    logger.log(
-                        f"  Conftest loading error (attempt {conftest_retry_count + 1}/{max_conftest_retries}) - trying: {', '.join(install_suggestions[:2])}"
-                    )
-
-                    # Try the first suggestion (usually the specific one)
-                    installed_any = False
-                    for suggestion in install_suggestions[:1]:
-                        install_res = await sandbox.process.exec(
-                            f"{uv_cmd} pip install -q '{suggestion}'", cwd="/testbed"
-                        )
-                        if install_res.exit_code == 0:
-                            logger.log(f"  Installed {suggestion}")
-                            installed_any = True
-                            break
-
-                    if installed_any:
-                        # Retry tests after installing optional dependencies
+                    match = re.search(r"pip install\s+`?(\S+\[[^\]]+\])`?", line)
+                    if match:
+                        package_with_extras = match.group(1)
                         logger.log(
-                            "  Retrying tests after installing optional dependencies..."
+                            f"  Conftest loading error - installing {package_with_extras}"
                         )
-                        result = await sandbox.process.exec(
-                            "cat /tmp/tests.txt | xargs -d '\n' python -m pytest -v -o addopts= --tb=short",
+                        install_res = await sandbox.process.exec(
+                            f"{uv_cmd} pip install -q '{package_with_extras}'",
                             cwd="/testbed",
                         )
-                        output = result.result
-                        conftest_retry_count += 1
-                        continue
-
-            # No more suggestions found or installation failed
-            break
+                        if install_res.exit_code == 0:
+                            logger.log(
+                                "  Retrying tests after installing optional dependencies..."
+                            )
+                            result = await sandbox.process.exec(
+                                "python /tmp/run_pytest.py",
+                                cwd="/testbed",
+                            )
+                            output = result.result
+                        break
 
         results = analyze_test_results(output, instance)
 
@@ -519,25 +551,20 @@ async def run_tests(
                         logger.log(f"  {line.strip()}")
 
         if not results["is_expected"]:
-            error_msg = f"Tests are not failing as expected!\n"
-            error_msg += f"\nExpected behavior:\n"
-            if results["fail_to_pass_count"] > 0:
-                error_msg += f"  - {results['fail_to_pass_count']} FAIL_TO_PASS tests should fail (have failures/errors)\n"
-            else:
-                error_msg += f"  - No FAIL_TO_PASS tests, so there should be no failures/errors\n"
+            # Simplified error message
+            fail_diff = results["total_issues"] - results["fail_to_pass_count"]
+            pass_diff = results["passed"] - results["pass_to_pass_count"]
 
-            error_msg += f"\nActual results:\n"
-            error_msg += f"  - Failed: {results['failed']}\n"
-            error_msg += f"  - Errors: {results['errors']}\n"
-            error_msg += f"  - Total issues: {results['total_issues']}\n"
+            error_msg = f"Test count mismatch!\n"
+            error_msg += f"Expected: {results['fail_to_pass_count']} failures, {results['pass_to_pass_count']} passes\n"
+            error_msg += f"Actual:   {results['total_issues']} failures/errors, {results['passed']} passes\n"
 
-            error_msg += f"\nProblem:\n"
-            if results["fail_to_pass_count"] > 0 and results["total_issues"] == 0:
-                error_msg += f"  - Expected {results['fail_to_pass_count']} tests to fail after patch, but all tests are passing!\n"
-                error_msg += f"  - This likely means the patch didn't introduce the expected bug.\n"
-            elif results["fail_to_pass_count"] == 0 and results["total_issues"] > 0:
-                error_msg += f"  - Expected no failures (no FAIL_TO_PASS tests), but got {results['total_issues']} failures/errors!\n"
-                error_msg += f"  - This might indicate issues with the test setup or dependencies.\n"
+            if fail_diff != 0:
+                error_msg += f"Failure mismatch: {'+' if fail_diff > 0 else ''}{fail_diff} tests\n"
+            if pass_diff != 0:
+                error_msg += (
+                    f"Pass mismatch: {'+' if pass_diff > 0 else ''}{pass_diff} tests\n"
+                )
 
             assert False, error_msg
 
@@ -557,7 +584,7 @@ async def test_instances(
     instance_indices: list[int],
     logging: Logging = "as-you-go",
     parallel: bool = False,
-    print_exceptions: bool = False,
+    allow_exceptions: bool = False,
     use_pbar: bool = False,
 ) -> None:
     """Test specified instances"""
@@ -577,6 +604,7 @@ async def test_instances(
         else:
             pbar = None
 
+        num_exceptions = 0
         try:
             coros = [
                 run_tests(daytona, instances[idx], logging, idx)
@@ -586,15 +614,18 @@ async def test_instances(
                 try:
                     await awaitable
                 except Exception as e:
-                    if print_exceptions:
-                        print(e if str(e) else type(e))
+                    if allow_exceptions:
+                        if logging != "none":
+                            print(e if str(e) else type(e))
                         if logging == "on-error":
                             print("\n" + "=" * 60)
+                        num_exceptions += 1
                     else:
                         raise e
                 finally:
                     if pbar:
                         pbar.update(1)
+                        pbar.set_postfix({"exceptions": num_exceptions})
                     if logging == "as-you-go" or logging == "on-exit":
                         print("\n" + "=" * 60)
         finally:
@@ -665,7 +696,7 @@ def main() -> None:
     )
     parser.add_argument("--parallel", action="store_true", help="Run tests in parallel")
     parser.add_argument(
-        "--print-exceptions",
+        "--allow-exceptions",
         action="store_true",
         help="Print exceptions instead of raising them",
     )
@@ -691,7 +722,7 @@ def main() -> None:
             indices,
             logging=args.logging,
             parallel=args.parallel,
-            print_exceptions=args.print_exceptions,
+            allow_exceptions=args.allow_exceptions,
             use_pbar=args.use_pbar,
         )
     )

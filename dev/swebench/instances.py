@@ -49,6 +49,7 @@ def get_filtered_swe_smith_instances_df() -> pl.DataFrame:
                         "knio__dominate.9082227e",
                         "marshmallow-code__marshmallow.9716fc62",
                         "mido__mido.a0158ff9",
+                        "pandas-dev__pandas.95280573",
                         "pallets__markupsafe.620c06c9",
                         "pydantic__pydantic.acb0f10f",
                         "pylint-dev__astroid.b114f6b5",
@@ -67,7 +68,6 @@ def get_filtered_swe_smith_instances_df() -> pl.DataFrame:
             .is_in(
                 [
                     "dask__dask.5f61e423.pr_10746",
-                    "pandas-dev__pandas.95280573.combine_module__f5wnuvus",
                     # Tests passing when they should fail (patch doesn't introduce bug)
                     "kayak__pypika.1c9646f0.func_basic__09ty2nm3",
                     "sunpy__sunpy.f8edfd5c.combine_module__cjeldg50",
@@ -75,12 +75,13 @@ def get_filtered_swe_smith_instances_df() -> pl.DataFrame:
                     "alecthomas__voluptuous.a7a55f83.lm_rewrite__9zfstktu",
                     "alecthomas__voluptuous.a7a55f83.func_basic__s03cvwpk",
                     # pandas: missing compiled C extensions (pandas._libs.pandas_parser)
-                    "pandas-dev__pandas.95280573.lm_rewrite__am6uh57m",
-                    "pandas-dev__pandas.95280573.pr_57116",
-                    "pandas-dev__pandas.95280573.combine_module__bwhtr1n5",
-                    "pandas-dev__pandas.95280573.combine_file__i3dkumyn",
-                    "pandas-dev__pandas.95280573.lm_rewrite__36dwchy4",
-                    "pandas-dev__pandas.95280573.pr_57174",
+                    # "pandas-dev__pandas.95280573.lm_rewrite__am6uh57m",
+                    # "pandas-dev__pandas.95280573.pr_57116",
+                    # "pandas-dev__pandas.95280573.combine_module__f5wnuvus",
+                    # "pandas-dev__pandas.95280573.combine_module__bwhtr1n5",
+                    # "pandas-dev__pandas.95280573.combine_file__i3dkumyn",
+                    # "pandas-dev__pandas.95280573.lm_rewrite__36dwchy4",
+                    # "pandas-dev__pandas.95280573.pr_57174",
                     # pypika: no tests collected (same issue as other pypika instances)
                     "kayak__pypika.1c9646f0.lm_rewrite__nqk3tt63",
                     "kayak__pypika.1c9646f0.lm_rewrite__ddbee9oz",
