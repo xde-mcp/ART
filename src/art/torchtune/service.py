@@ -91,7 +91,10 @@ class TorchtuneService:
         num_gradient_steps = -1
         while num_gradient_steps != 0:
             done, _ = await asyncio.wait(
-                [train_queue.get(), train_process.wait()],
+                [
+                    asyncio.create_task(train_queue.get()),
+                    asyncio.create_task(train_process.wait()),
+                ],
                 return_when=asyncio.FIRST_COMPLETED,
             )
             for task in done:
