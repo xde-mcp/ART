@@ -18,7 +18,6 @@ from .batch import Batch
 from .. import dev
 from ..local.pack import DiskPackedTensors
 from .. import types
-from ..utils.get_model_step import get_step_from_dir
 from ..vllm import get_llm, get_worker, openai_server_task, run_on_workers
 
 
@@ -139,9 +138,9 @@ class TorchtuneService:
     @property
     def torchtune_args(self) -> dev.TorchtuneArgs:
         torchtune_args = self.config.get("torchtune_args")
-        assert (
-            torchtune_args is not None
-        ), 'TorchtuneService created without config["torchtune_args"]'
+        assert torchtune_args is not None, (
+            'TorchtuneService created without config["torchtune_args"]'
+        )
         return torchtune_args
 
     @cached_property

@@ -154,7 +154,7 @@ class LocalBackend(Backend):
         allow_training_without_logprobs: bool,
         plot_tensors: bool,
     ) -> PackedTensors | None:
-        if not model.base_model in self._tokenizers:
+        if model.base_model not in self._tokenizers:
             self._tokenizers[model.base_model] = AutoTokenizer.from_pretrained(
                 model.base_model
             )
@@ -360,9 +360,9 @@ class LocalBackend(Backend):
             num_gradient_steps = int(
                 result.pop("num_gradient_steps", estimated_gradient_steps)
             )
-            assert (
-                num_gradient_steps == estimated_gradient_steps
-            ), f"num_gradient_steps {num_gradient_steps} != estimated_gradient_steps {estimated_gradient_steps}"
+            assert num_gradient_steps == estimated_gradient_steps, (
+                f"num_gradient_steps {num_gradient_steps} != estimated_gradient_steps {estimated_gradient_steps}"
+            )
             results.append(result)
             yield {**result, "num_gradient_steps": num_gradient_steps}
             pbar.update(1)
