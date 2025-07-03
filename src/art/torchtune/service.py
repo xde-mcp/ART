@@ -158,8 +158,9 @@ class TorchtuneService:
     async def get_train_process(self) -> asyncio.subprocess.Process:
         # Migrate existing checkpoints to new structure if needed
         from ..local.checkpoints import migrate_checkpoints_to_new_structure
+
         migrate_checkpoints_to_new_structure(self.output_dir)
-        
+
         Path(f"{self.output_dir}/batches.jsonl").unlink(missing_ok=True)
         checkpoint_dir = await self.get_checkpoint_dir()
         torchtune_args = self.torchtune_args
@@ -168,6 +169,18 @@ class TorchtuneService:
         safetensor_files = glob.glob(f"{checkpoint_dir}/*.safetensors")
         checkpoint_files = [os.path.basename(f) for f in safetensor_files]
         checkpoint_files_str = "[" + ", ".join(f'"{f}"' for f in checkpoint_files) + "]"
+
+        def model_dir(model: str) -> str:
+            for prefix in [
+                "llama3_1",
+                "llama3_2_vision",
+                "llama3_2",
+                "llama3_3",
+                "qwen2_5",
+            ]:
+                if model.startswith(prefix):
+                    return prefix
+            return model.split("_")[0]
 
         program_and_args = [
             "python",  # Use Python interpreter
@@ -178,7 +191,7 @@ class TorchtuneService:
             "art.torchtune.recipe.FullFinetuneRecipeDistributed",
             "--config",
             f"{os.path.dirname(__file__)}/config.yaml",
-            f"model._component_=torchtune.models.{torchtune_args['model'].split('_')[0]}.{torchtune_args['model']}",
+            f"model._component_=torchtune.models.{model_dir(torchtune_args['model'])}.{torchtune_args['model']}",
             f"checkpointer.checkpoint_dir={checkpoint_dir}",
             f"checkpointer.checkpoint_files={checkpoint_files_str}",
             f"checkpointer.model_type={torchtune_args['model_type']}",
@@ -245,6 +258,7 @@ class TorchtuneService:
 
     def get_last_checkpoint_dir(self) -> str | None:
         from ..local.checkpoints import get_last_checkpoint_dir
+
         return get_last_checkpoint_dir(self.output_dir)
 
 
