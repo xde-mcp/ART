@@ -7,6 +7,7 @@ import os
 from datetime import datetime
 from typing import List, Dict, Any
 from dotenv import load_dotenv
+import litellm
 
 import art
 from tau_bench.types import RunConfig, TauBenchPolicyConfig
@@ -120,12 +121,20 @@ def parse_args() -> tuple[RunConfig, argparse.Namespace]:
         default=1,
         help="Number of trials to run for each task",
     )
+    parser.add_argument(
+        "--litellm-drop-params",
+        action="store_true",
+        default=False,
+        help="Drop litellm params that are not supported by the model",
+    )
 
     # Output configuration
     parser.add_argument("--log-dir", type=str, default="benchmark_results")
     parser.add_argument("--seed", type=int, default=10)
 
     args = parser.parse_args()
+    if args.litellm_drop_params:
+        litellm.drop_params = True
 
     # Ensure model providers match models
     if len(args.model_providers) == 1 and len(args.models) > 1:
