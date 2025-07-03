@@ -156,6 +156,10 @@ class TorchtuneService:
         return asyncio.create_task(self.get_train_process())
 
     async def get_train_process(self) -> asyncio.subprocess.Process:
+        # Migrate existing checkpoints to new structure if needed
+        from ..local.checkpoints import migrate_checkpoints_to_new_structure
+        migrate_checkpoints_to_new_structure(self.output_dir)
+        
         Path(f"{self.output_dir}/batches.jsonl").unlink(missing_ok=True)
         checkpoint_dir = await self.get_checkpoint_dir()
         torchtune_args = self.torchtune_args
@@ -240,8 +244,8 @@ class TorchtuneService:
         return stdout.decode("utf-8").splitlines()[-1].strip()
 
     def get_last_checkpoint_dir(self) -> str | None:
-        dir = f"{self.output_dir}/{get_step_from_dir(self.output_dir):04d}"
-        return dir if os.path.isdir(dir) else None
+        from ..local.checkpoints import get_last_checkpoint_dir
+        return get_last_checkpoint_dir(self.output_dir)
 
 
 def sleep(
