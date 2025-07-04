@@ -48,8 +48,8 @@ trainable_models = {
 
 trainable_models["002"] = trainable_models["001"].model_copy(deep=True)
 assert trainable_models["002"].config.training_config is not None
-trainable_models["002"].name = "tau-bench-rl-002-tm"
-trainable_models["002"].config.training_config.trajectories_per_group = 15
+trainable_models["002"].name = "tau-bench-rl-002-tm-4"
+trainable_models["002"].config.training_config.trajectories_per_group = 32
 trainable_models["002"].config.training_config.groups_per_step = 4
 trainable_models["002"].config.training_config.training_dataset_size = 4
 trainable_models["002"].config.training_config.learning_rate = 5e-6
@@ -64,6 +64,22 @@ trainable_models["003"]._internal_config = art.dev.InternalModelConfig(
         max_grad_norm=1e-7,
     )
 )
+
+trainable_models["004"] = trainable_models["001"].model_copy(deep=True)
+trainable_models["004"].name = "tau-bench-rl-004-tm-2"
+assert trainable_models["004"].config.training_config is not None
+trainable_models["004"].config.training_config.trajectories_per_group = 64
+trainable_models["004"].config.training_config.groups_per_step = 4
+trainable_models["004"].config.training_config.training_dataset_size = 4
+trainable_models["004"].config.training_config.learning_rate = 1e-6
+
+trainable_models["005"] = trainable_models["001"].model_copy(deep=True)
+assert trainable_models["005"].config.training_config is not None
+trainable_models["005"].name = "tau-bench-rl-005-tm-5"
+trainable_models["005"].config.training_config.trajectories_per_group = 64
+trainable_models["005"].config.training_config.groups_per_step = 4
+trainable_models["005"].config.training_config.training_dataset_size = 4
+trainable_models["005"].config.training_config.learning_rate = 5e-6
 
 parser = argparse.ArgumentParser(
     description="Train one or more tau-bench RL models (comma separated)."

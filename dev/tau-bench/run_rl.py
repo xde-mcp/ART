@@ -401,7 +401,7 @@ def main():
     model_dict["config"] = TauBenchPolicyConfig(**model_dict["config"])
 
     # the nested "_internal_config" needs to be converted back into the proper pydantic model.
-    if "_internal_config" in model_dict:
+    if "_internal_config" in model_dict and model_dict["_internal_config"] is not None:
         model_dict["_internal_config"] = art.dev.InternalModelConfig(
             **model_dict["_internal_config"]
         )

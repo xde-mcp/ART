@@ -9,6 +9,7 @@ from art.utils.litellm import convert_litellm_choice_to_openai
 from tau_bench.agents.base import Agent
 from tau_bench.envs.base import Env
 from tau_bench.types import SolveResult, Action, RESPOND_ACTION_NAME
+from tau_bench.rl_utils import acompletion_with_limit_concurrency
 
 
 class ToolCallingAgent(Agent):
@@ -115,7 +116,7 @@ class ToolCallingRLAgent(ToolCallingAgent):
         self.choices = []
 
     async def llm_completion(self, messages: List[Dict[str, Any]]):
-        response = await acompletion(
+        response = await acompletion_with_limit_concurrency(
             messages=messages,
             model=self.model,
             custom_llm_provider=self.provider,
@@ -126,7 +127,7 @@ class ToolCallingRLAgent(ToolCallingAgent):
             max_completion_tokens=1024,
             logprobs=False if self.provider == "openai" else True,
             extra_body={"chat_template_kwargs": {"enable_thinking": False}}
-            if "Qwen3-" in self.base_model
+            if "qwen3-" in self.base_model.lower()
             else {},
         )
         choice = response.choices[0]  # type: ignore
@@ -141,7 +142,7 @@ class ToolCallingRLAgent(ToolCallingAgent):
         for message in messages:
             if message["role"] == "assistant":
                 choice = self.choices[choice_idx]
-                if "Qwen3-" in self.base_model:
+                if "qwen3-" in self.base_model.lower():
                     if (
                         hasattr(choice.message, "content")
                         and choice.message.content is None
@@ -150,7 +151,7 @@ class ToolCallingRLAgent(ToolCallingAgent):
                 messages_and_choices.append(choice)
                 choice_idx += 1
             else:
-                if "Qwen3-" in self.base_model:
+                if "qwen3-" in self.base_model.lower():
                     if "content" in message and message["content"] is None:
                         message["content"] = ""
                     for key in message.keys():

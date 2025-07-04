@@ -6,6 +6,8 @@ from litellm import acompletion
 
 from typing import Optional, List, Dict, Any, Union
 
+from tau_bench.rl_utils import acompletion_with_limit_concurrency
+
 
 class BaseUserSimulationEnv(abc.ABC):
     metadata = {}
@@ -43,7 +45,7 @@ class LLMUserSimulationEnv(BaseUserSimulationEnv):
         self.total_cost = 0.0
 
     async def generate_next_message(self, messages: List[Dict[str, Any]]) -> str:
-        res = await acompletion(
+        res = await acompletion_with_limit_concurrency(
             model=self.model, custom_llm_provider=self.provider, messages=messages
         )
         message = res.choices[0].message
