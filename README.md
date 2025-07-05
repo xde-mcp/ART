@@ -4,9 +4,11 @@
 <img alt="ART header" src="https://github.com/openpipe/art/raw/main/assets/ART_header.png" width="100%">
 </picture></a>
 
-<a href="https://colab.research.google.com/github/openpipe/art/blob/main/examples/2048/2048.ipynb"><img src="https://github.com/openpipe/art/raw/main/assets/Train_pill.png" height="48"></a>
-<a href="https://discord.gg/zbBHRUpwf4"><img src="https://github.com/openpipe/art/raw/main/assets/Discord_pill.png" height="48"></a>
-<a href="https://art.openpipe.ai"><img src="https://github.com/openpipe/art/raw/main/assets/Documentation_pill.png" height="50"></a>
+<p align="center">
+  <a href="https://colab.research.google.com/github/openpipe/art/blob/main/examples/2048/2048.ipynb"><img src="https://github.com/openpipe/art/raw/main/assets/Train_pill.png"  width="150"  alt="Train on Colab"></a>
+  <a href="https://discord.gg/zbBHRUpwf4"><img src="https://github.com/openpipe/art/raw/main/assets/Discord_pill.png" width="180" alt="Join Discord"></a>
+  <a href="https://art.openpipe.ai"><img src="https://github.com/openpipe/art/raw/main/assets/Documentation_pill.png" width="180" alt="Docs"></a>
+</p>
 
 ### Train GRPO-powered RL agents for real-world tasks!
 
