@@ -285,6 +285,8 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                     trajectory_groups,
                     config=art.TrainConfig(learning_rate=training_config.learning_rate),
                 )
+                if config.is_multi_gpu:
+                    await model.delete_checkpoints()
                 global_step += 1
         else:
             # Training iterator
@@ -356,6 +358,8 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                         else False
                     ),
                 )
+                if config.is_multi_gpu:
+                    await model.delete_checkpoints()
 
                 # Log progress
                 total_reward = sum(
@@ -396,16 +400,24 @@ def main():
     # The nested `config` needs to be converted back into the proper pydantic model.
     model_dict["config"] = TauBenchPolicyConfig(**model_dict["config"])
 
+    is_multi_gpu = False
+
     # the nested "_internal_config" needs to be converted back into the proper pydantic model.
-    if "_internal_config" in model_dict:
+    if "_internal_config" in model_dict and model_dict["_internal_config"] is not None:
         model_dict["_internal_config"] = art.dev.InternalModelConfig(
             **model_dict["_internal_config"]
         )
 
     model: art.TrainableModel[TauBenchPolicyConfig] = art.TrainableModel(**model_dict)
+    if model._internal_config is not None:
+        is_multi_gpu = (
+            model._internal_config.get("engine_args", {}).get("tensor_parallel_size", 1)
+            > 1
+        )
     model.config.run_config.model = (
         model.name
     )  # set run_config model name to model name
+    model.config.run_config.is_multi_gpu = is_multi_gpu
 
     print(model)
 

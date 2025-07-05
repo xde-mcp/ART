@@ -5,10 +5,16 @@ from litellm import Choices, acompletion
 from litellm.types.utils import ModelResponse
 from typing import List, Optional, Dict, Any
 
+from art.utils import limit_concurrency
 from art.utils.litellm import convert_litellm_choice_to_openai
 from tau_bench.agents.base import Agent
 from tau_bench.envs.base import Env
 from tau_bench.types import SolveResult, Action, RESPOND_ACTION_NAME
+
+
+@limit_concurrency(n=256)
+async def acompletion_with_limit_concurrency(*args, **kwargs):
+    return await acompletion(*args, **kwargs)
 
 
 class ToolCallingAgent(Agent):
@@ -115,7 +121,7 @@ class ToolCallingRLAgent(ToolCallingAgent):
         self.choices = []
 
     async def llm_completion(self, messages: List[Dict[str, Any]]):
-        response = await acompletion(
+        response = await acompletion_with_limit_concurrency(
             messages=messages,
             model=self.model,
             custom_llm_provider=self.provider,
