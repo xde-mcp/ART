@@ -18,7 +18,7 @@ from tau_bench.envs import get_env
 from tau_bench.run import agent_factory
 from tau_bench.agents.tool_calling_agent import ToolCallingRLAgent
 from tau_bench.types import TauBenchPolicyConfig
-from tau_bench.general_rm import create_general_rm_trajectory_groups
+from tau_bench.general_rm import create_general_rm_trajectory_groups, calculate_reward
 from tau_bench.rl_utils import (
     log_trajectory_to_openpipe,
     update_steps_for_openpipe_logs,
@@ -42,6 +42,7 @@ async def rollout_tau_bench_task(
     task_index: int,
     step: int = 0,
     phase: str = "train",
+    reward_type: str = "real",
     is_shadow: bool = False,
 ) -> art.Trajectory:
     """
@@ -100,16 +101,16 @@ async def rollout_tau_bench_task(
             task_index=task_index,
             max_num_steps=config.max_num_steps,
         )
+        outcome_correct = 1 if result.reward == 1 else 0
 
         # Convert result to trajectory format
-        updated_reward = -1 if result.info["forced_stop"] else result.reward
-        traj.reward = updated_reward
+        traj.reward, explanation = await calculate_reward(result, config)
         traj.metrics = {
             "total_steps": result.info["total_steps"],
             "final_prompt_tokens": result.info["final_prompt_tokens"],
             "avg_completion_tokens": result.info["avg_completion_tokens"],
             "max_completion_tokens": result.info["max_completion_tokens"],
-            "outcome_correct": 1 if traj.reward == 1 else 0,
+            "outcome_correct": outcome_correct,
             "forced_stop": result.info["forced_stop"],
         }
         traj.metadata.update(result.info)
@@ -117,6 +118,7 @@ async def rollout_tau_bench_task(
             "pending_general_rm" if config.reward_type == "general_rm" else traj.reward
         )
         traj.metadata["outcome_correct"] = traj.metrics["outcome_correct"]
+        traj.metadata["judge_explanation"] = explanation
 
         if config.messages_only:
             traj.messages_and_choices = clean_messages(result.messages)  # type: ignore
@@ -160,7 +162,9 @@ async def evaluate_model(
 
     trajectories = await art.gather_trajectories(
         (
-            rollout_tau_bench_task(model, val_task_index, step, "val")
+            rollout_tau_bench_task(
+                model, val_task_index, step, "val", reward_type=config.reward_type
+            )
             for val_task_index in val_task_indices
         )
     )
@@ -322,6 +326,7 @@ async def train(model: art.TrainableModel[TauBenchPolicyConfig]):
                                     task_index,
                                     batch.step,
                                     "train",
+                                    reward_type=config.reward_type,
                                     is_shadow=config.add_shadow_trajectory
                                     and rollout_idx
                                     % training_config.trajectories_per_group

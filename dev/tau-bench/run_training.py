@@ -99,6 +99,46 @@ trainable_models["009"]._internal_config = art.dev.InternalModelConfig(
     ),
 )
 
+trainable_models["010"] = trainable_models["001"].model_copy(deep=True)
+assert trainable_models["010"].config.training_config is not None
+trainable_models["010"].name = "tau-bench-rl-010-tm-too-big"
+trainable_models["010"].config.training_config.trajectories_per_group = 64
+trainable_models["010"].config.training_config.groups_per_step = 16
+trainable_models["010"].config.training_config.training_dataset_size = 32
+trainable_models["010"].config.training_config.learning_rate = 1e-6
+trainable_models["010"].config.run_config.skip_eval = False
+trainable_models["010"].config.run_config.reward_type = "real+llm"
+trainable_models["010"].config.run_config.judge_model = "o4-mini"
+trainable_models["010"].config.training_config.val_set_size = 60
+trainable_models["010"].config.training_config.eval_steps = 8
+trainable_models["010"]._internal_config = art.dev.InternalModelConfig(
+    engine_args=art.dev.EngineArgs(tensor_parallel_size=4, gpu_memory_utilization=0.75),
+    torchtune_args=art.dev.TorchtuneArgs(
+        model="qwen2_5_14b_instruct", model_type="QWEN2", async_weight_syncing=True
+    ),
+)
+
+
+# trainable_models["002"] = trainable_models["001"].model_copy(deep=True)
+# assert trainable_models["002"].config.training_config is not None
+# trainable_models["002"].name = "tau-bench-rl-002-tm-llm-reward-test"
+# trainable_models["002"].config.training_config.trajectories_per_group = 3
+# trainable_models["002"].config.training_config.groups_per_step = 3
+# trainable_models["002"].config.training_config.training_dataset_size = 32
+# trainable_models["002"].config.training_config.learning_rate = 1e-6
+# trainable_models["002"].config.run_config.skip_eval = True
+# trainable_models["002"].config.run_config.reward_type = "real+llm"
+# trainable_models["002"].config.run_config.judge_model = "o4-mini"
+# trainable_models["002"].config.training_config.val_set_size = 60
+# trainable_models["002"].config.training_config.eval_steps = 8
+# trainable_models["002"]._internal_config = art.dev.InternalModelConfig(
+#     engine_args=art.dev.EngineArgs(tensor_parallel_size=4, gpu_memory_utilization=0.75),
+#     torchtune_args=art.dev.TorchtuneArgs(
+#         model="qwen2_5_14b_instruct", model_type="QWEN2", async_weight_syncing=True
+#     ),
+# )
+
+
 parser = argparse.ArgumentParser(
     description="Train one or more tau-bench RL models (comma separated)."
 )

@@ -93,7 +93,7 @@ class RunConfig(BaseModel):
     api_key: Optional[str] = None
     base_url: Optional[str] = None
     reward_type: str = "real"
-    general_rm_model: str = "o3"
+    judge_model: str = "o3"
     max_num_steps: int = 30
     skip_eval: bool = False
     add_shadow_trajectory: bool = False
