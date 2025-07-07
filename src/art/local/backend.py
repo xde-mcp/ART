@@ -48,6 +48,7 @@ from .checkpoints import (
 from art.utils.s3 import (
     pull_model_from_s3,
     push_model_to_s3,
+    ExcludableOption,
 )
 
 
@@ -443,6 +444,7 @@ class LocalBackend(Backend):
         prefix: str | None = None,
         verbose: bool = False,
         delete: bool = False,
+        exclude: list[ExcludableOption] | None = None,
     ) -> None:
         """Download the model directory from S3 into local Backend storage. Right now this can be used to pull trajectory logs for processing or model checkpoints.
         Args:
@@ -452,7 +454,9 @@ class LocalBackend(Backend):
             prefix: The prefix to pull from S3. If None, the model name will be used.
             verbose: Whether to print verbose output.
             delete: Whether to delete the local model directory.
+            exclude: List of directories to exclude from sync. Valid options: "checkpoints", "logs", "trajectories".
         """
+
         await pull_model_from_s3(
             model_name=model.name,
             project=model.project,
@@ -462,6 +466,7 @@ class LocalBackend(Backend):
             verbose=verbose,
             delete=delete,
             art_path=self._path,
+            exclude=exclude,
         )
 
     async def _experimental_push_to_s3(

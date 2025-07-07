@@ -238,6 +238,7 @@ async def pull_model_trajectories(model: ArtModel) -> None:
             model,
             s3_bucket=bucket,
             verbose=True,
+            exclude=["checkpoints", "logs"],
         )
 
         print("Finished pulling trajectories.", flush=True)
