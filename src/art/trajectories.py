@@ -114,7 +114,6 @@ def get_messages(messages_and_choices: MessagesAndChoices) -> Messages:
 
 class TrajectoryGroup(pydantic.BaseModel):
     trajectories: list[Trajectory]
-    metadata: dict[str, MetadataValue] = {}
     exceptions: list[PydanticException] = []
 
     def __init__(
@@ -123,7 +122,6 @@ class TrajectoryGroup(pydantic.BaseModel):
             Iterable[Trajectory | BaseException] | Iterable[Awaitable[Trajectory]]
         ),
         *,
-        metadata: dict[str, MetadataValue] = {},
         exceptions: list[BaseException] = [],
     ) -> None:
         super().__init__(
@@ -133,7 +131,6 @@ class TrajectoryGroup(pydantic.BaseModel):
                 if isinstance(trajectory, Trajectory)
             ]
             or getattr(self, "trajectories", []),
-            metadata=metadata,
             exceptions=[
                 PydanticException(
                     type=str(type(exception)),
@@ -166,7 +163,6 @@ class TrajectoryGroup(pydantic.BaseModel):
         cls,
         trajectories: Iterable[Trajectory | BaseException],
         *,
-        metadata: dict[str, MetadataValue] = {},
         exceptions: list[BaseException] = [],
     ) -> "TrajectoryGroup": ...
 
@@ -175,7 +171,6 @@ class TrajectoryGroup(pydantic.BaseModel):
         cls,
         trajectories: Iterable[Awaitable[Trajectory]],
         *,
-        metadata: dict[str, MetadataValue] = {},
         exceptions: list[BaseException] = [],
     ) -> Awaitable["TrajectoryGroup"]: ...
 
@@ -185,7 +180,6 @@ class TrajectoryGroup(pydantic.BaseModel):
             Iterable[Trajectory | BaseException] | Iterable[Awaitable[Trajectory]]
         ),
         *,
-        metadata: dict[str, MetadataValue] = {},
         exceptions: list[BaseException] = [],
     ) -> "TrajectoryGroup | Awaitable[TrajectoryGroup]":
         ts = list(trajectories)
@@ -213,7 +207,6 @@ class TrajectoryGroup(pydantic.BaseModel):
                 return TrajectoryGroup(
                     trajectories=trajectories,
                     exceptions=exceptions,
-                    metadata=metadata,
                 )
 
             class CoroutineWithMetadata:
@@ -230,7 +223,6 @@ class TrajectoryGroup(pydantic.BaseModel):
             group = super().__new__(cls)
             group.__init__(
                 trajectories=cast(list[Trajectory | BaseException], ts),
-                metadata=metadata,
                 exceptions=exceptions,
             )
             return group
