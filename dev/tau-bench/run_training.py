@@ -118,6 +118,45 @@ trainable_models["010"]._internal_config = art.dev.InternalModelConfig(
     ),
 )
 
+trainable_models["011"] = trainable_models["001"].model_copy(deep=True)
+assert trainable_models["011"].config.training_config is not None
+trainable_models["011"].name = "tau-bench-rl-011-tm-too-big-2"
+trainable_models["011"].config.training_config.trajectories_per_group = 64
+trainable_models["011"].config.training_config.groups_per_step = 32
+trainable_models["011"].config.training_config.training_dataset_size = 32
+trainable_models["011"].config.training_config.learning_rate = 1e-6
+trainable_models["011"].config.run_config.skip_eval = False
+trainable_models["011"].config.run_config.reward_type = "real"
+trainable_models["011"].config.run_config.user_model = "gpt-4.1"
+trainable_models["011"].config.training_config.val_set_size = 60
+trainable_models["011"].config.training_config.eval_steps = 8
+trainable_models["011"]._internal_config = art.dev.InternalModelConfig(
+    engine_args=art.dev.EngineArgs(tensor_parallel_size=4, gpu_memory_utilization=0.75),
+    torchtune_args=art.dev.TorchtuneArgs(
+        model="qwen2_5_14b_instruct", model_type="QWEN2", async_weight_syncing=True
+    ),
+)
+
+trainable_models["012"] = trainable_models["001"].model_copy(deep=True)
+assert trainable_models["012"].config.training_config is not None
+trainable_models["012"].name = "tau-bench-rl-012-airline-multi"
+trainable_models["012"].config.training_config.trajectories_per_group = 32
+trainable_models["012"].config.training_config.groups_per_step = 16
+trainable_models["012"].config.training_config.training_dataset_size = 16
+trainable_models["012"].config.training_config.learning_rate = 1e-6
+trainable_models["012"].config.run_config.skip_eval = False
+trainable_models["012"].config.training_config.val_set_size = 32
+trainable_models["012"].config.training_config.eval_steps = 8
+trainable_models["012"].config.run_config.reward_type = "real"
+trainable_models["012"].config.run_config.user_model = "gpt-4.1"
+trainable_models["012"].config.run_config.env = "airline"
+trainable_models["012"]._internal_config = art.dev.InternalModelConfig(
+    engine_args=art.dev.EngineArgs(tensor_parallel_size=4, gpu_memory_utilization=0.75),
+    torchtune_args=art.dev.TorchtuneArgs(
+        model="qwen2_5_14b_instruct", model_type="QWEN2", async_weight_syncing=True
+    ),
+)
+
 
 # trainable_models["002"] = trainable_models["001"].model_copy(deep=True)
 # assert trainable_models["002"].config.training_config is not None
@@ -147,6 +186,12 @@ parser.add_argument(
     type=str,
     required=True,
     help="Comma-separated list of model keys to train (e.g. 001,002,003).",
+)
+parser.add_argument(
+    "--use-cluster-name",
+    type=str,
+    required=False,
+    help="Use a specific cluster name for the task.",
 )
 parser.add_argument(
     "--fast",
@@ -218,7 +263,7 @@ def launch_model(model_key: str):
     task.set_file_mounts({"~/ART": "../.."})
 
     # Generate cluster name
-    cluster_name = f"tau-bench-rl-{model_key}"
+    cluster_name = args.use_cluster_name or f"tau-bench-rl-{model_key}"
     print(f"Launching task on cluster: {cluster_name}")
 
     print("Checking for existing cluster and jobs…")
