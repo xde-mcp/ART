@@ -7,6 +7,7 @@ import os
 from datetime import datetime
 from typing import List, Dict, Any
 from dotenv import load_dotenv
+import litellm
 
 import art
 from tau_bench.types import RunConfig, TauBenchPolicyConfig
@@ -44,6 +45,18 @@ def parse_args() -> tuple[RunConfig, argparse.Namespace]:
         default=["openai"],
         choices=provider_list,
         help="List of model providers corresponding to each model",
+    )
+    parser.add_argument(
+        "--api-key",
+        type=str,
+        default=None,
+        help="API key for the model provider",
+    )
+    parser.add_argument(
+        "--base-url",
+        type=str,
+        default=None,
+        help="Base URL for the model provider",
     )
 
     # Environment configuration
@@ -108,12 +121,20 @@ def parse_args() -> tuple[RunConfig, argparse.Namespace]:
         default=1,
         help="Number of trials to run for each task",
     )
+    parser.add_argument(
+        "--litellm-drop-params",
+        action="store_true",
+        default=False,
+        help="Drop litellm params that are not supported by the model",
+    )
 
     # Output configuration
     parser.add_argument("--log-dir", type=str, default="benchmark_results")
     parser.add_argument("--seed", type=int, default=10)
 
     args = parser.parse_args()
+    if args.litellm_drop_params:
+        litellm.drop_params = True
 
     # Ensure model providers match models
     if len(args.model_providers) == 1 and len(args.models) > 1:
@@ -144,6 +165,9 @@ def parse_args() -> tuple[RunConfig, argparse.Namespace]:
         user_strategy=args.user_strategy,
         max_num_steps=args.max_num_steps,
         reward_type="real",
+        messages_only=True,
+        api_key=args.api_key,
+        base_url=args.base_url,
     )
 
     return run_config, args
@@ -167,6 +191,7 @@ async def benchmark_model(
 
     # Create a mock trainable model for evaluation
     model = art.Model(
+        project="tau_bench_rl",
         name=model_name,
         config=TauBenchPolicyConfig(
             run_config=config,
@@ -186,36 +211,40 @@ async def benchmark_model(
         total_reward = 0.0
 
         # Collect trajectories for all tasks in this trial
-        trajectories = []
-        for task_idx in task_indices:
-            traj = await rollout_tau_bench_task(
-                model=model,
-                task_index=task_idx,
-                step=0,
-                phase="eval",
-                is_shadow=False,
-            )
-            trajectories.append(traj)
+        trajectories = await art.gather_trajectories(
+            [
+                rollout_tau_bench_task(
+                    model=model,
+                    task_index=task_idx,
+                    step=0,
+                    phase="eval",
+                    is_shadow=False,
+                )
+                for task_idx in task_indices
+            ]
+        )
 
+        for task_idx in task_indices:
+            traj = trajectories[task_idx]
             # Track results
-            reward = traj.reward
+            reward = traj.metrics["outcome_correct"]
             total_reward += reward
 
             result = EnvRunResult(
                 task_id=task_idx,
                 reward=reward,
                 info=traj.metadata,
-                traj=[],  # We could extract messages if needed
+                traj=traj.messages_and_choices,
                 trial=trial,
             )
             trial_results.append(result)
             all_results.append(result)
 
-            print(
-                "" if reward == 1 else "L",
-                f"task_id={task_idx}",
-                f"reward={reward}",
-            )
+            # print(
+            #     "" if reward == 1 else "L",
+            #     f"task_id={task_idx}",
+            #     f"reward={reward}",
+            # )
 
         avg_reward = total_reward / len(task_indices)
         trial_rewards[trial] = avg_reward
@@ -316,3 +345,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+    # https://mqjymgipdsp3xw-8000.proxy.runpod.net/v1
