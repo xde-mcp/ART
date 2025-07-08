@@ -227,7 +227,7 @@ async def benchmark_model(
         for task_idx in task_indices:
             traj = trajectories[task_idx]
             # Track results
-            reward = traj.reward
+            reward = traj.metrics["outcome_correct"]
             total_reward += reward
 
             result = EnvRunResult(
