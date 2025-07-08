@@ -2,7 +2,14 @@ from pydantic import BaseModel
 from typing import Literal
 
 
-class TrainingConfig(BaseModel):
+class ProjectPolicyConfig(BaseModel):
+    max_turns: int = 10
+    max_tokens: int = 2048
+    log_to_openpipe: bool = False
+    stupid_simple_reward_fn: bool = False
+    include_qwen3_nothink: bool = False
+
+    # Training configuration fields (previously in TrainingConfig)
     trajectories_per_group: int = 6
     groups_per_step: int = 1
     learning_rate: float = 1.2e-5
@@ -21,13 +28,3 @@ class TrainingConfig(BaseModel):
     # choose its own default (e.g., derive from the current time).
     training_dataset_seed: int | None = None
     messages_only: bool = False
-
-
-class ProjectPolicyConfig(BaseModel):
-    max_turns: int = 10
-    max_tokens: int = 2048
-    log_to_openpipe: bool = False
-    stupid_simple_reward_fn: bool = False
-    include_qwen3_nothink: bool = False
-
-    training_config: TrainingConfig | None = None

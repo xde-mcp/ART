@@ -22,13 +22,12 @@ load_dotenv()
 async def train(model: art.TrainableModel[ProjectPolicyConfig]):
     generate_database()
 
-    if model.config.training_config is None:
-        raise ValueError("Training config is not set")
+    # Training config is now directly on the model config
 
-    if model.config.training_config.group_judge_model is not None:
-        judge_model = model.config.training_config.group_judge_model
+    if model.config.group_judge_model is not None:
+        judge_model = model.config.group_judge_model
 
-        if model.config.training_config.group_judge_model == "self":
+        if model.config.group_judge_model == "self":
             judge_model = model
         elif judge_model == "base_model":
             judge_model = model.base_model
@@ -49,16 +48,15 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
 
         print("Loading training data...")
         # Load the training data with deterministic shuffling if a seed is provided.
-        tc = model.config.training_config
-        seed = tc.training_dataset_seed if tc is not None else None
+        seed = model.config.training_dataset_seed
         train_scenarios: List[SyntheticQuery] = load_synthetic_queries(
             split="train",
-            limit=tc.training_dataset_size if tc is not None else None,
+            limit=model.config.training_dataset_size,
             seed=seed,
         )
         print("Loading validation data...")
         val_scenarios: List[SyntheticQuery] = load_synthetic_queries(
-            split="test", limit=model.config.training_config.val_set_size
+            split="test", limit=model.config.val_set_size
         )
 
         print(f"Training data size: {len(train_scenarios)}")
@@ -66,13 +64,13 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
 
         train_iterator = iterate_dataset(
             train_scenarios,
-            groups_per_step=model.config.training_config.groups_per_step,
-            num_epochs=model.config.training_config.num_epochs,
+            groups_per_step=model.config.groups_per_step,
+            num_epochs=model.config.num_epochs,
             initial_step=await model.get_step(),
         )
 
         for batch in train_iterator:
-            if batch.step % model.config.training_config.eval_steps == 0:
+            if batch.step % model.config.eval_steps == 0:
                 print(f"\n--- Evaluating at Iteration {batch.step} ---")
                 await benchmark_model(model, step=batch.step)
                 await model.delete_checkpoints()
@@ -87,7 +85,7 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
                         (
                             rollout(model, scenario)
                             for _ in range(
-                                model.config.training_config.trajectories_per_group
+                                model.config.trajectories_per_group
                             )
                         )
                     )
@@ -96,8 +94,7 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
             )
 
             # Optionally rescore each trajectory group with the LLM-judge before training.
-            training_cfg = model.config.training_config
-            if training_cfg.use_judge_group_variant is not None:
+            if model.config.use_judge_group_variant is not None:
                 judge_tasks = [
                     group_judge.judge(
                         cast(list[ProjectTrajectory], g.trajectories),
@@ -136,8 +133,8 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
 
             # Drop groups with reward standard deviation below threshold
             if (
-                training_cfg.minimum_reward_std_dev is not None
-                and training_cfg.minimum_reward_std_dev > 0
+                model.config.minimum_reward_std_dev is not None
+                and model.config.minimum_reward_std_dev > 0
             ):
                 filtered_groups = []
                 for grp_idx, g in enumerate(groups):
@@ -146,7 +143,7 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
                         std_dev = 0.0
                     else:
                         std_dev = statistics.pstdev(rewards)
-                    if std_dev < training_cfg.minimum_reward_std_dev:
+                    if std_dev < model.config.minimum_reward_std_dev:
                         print(
                             f"WARNING:REWARD_STD_DEV_TOO_LOW group={grp_idx} step={batch.step} stddev={std_dev:.4f}; dropping group",
                             flush=True,
@@ -168,11 +165,11 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
             await model.train(
                 groups,
                 config=art.TrainConfig(
-                    learning_rate=model.config.training_config.learning_rate
+                    learning_rate=model.config.learning_rate
                 ),
                 _config=art.dev.TrainConfig(
                     allow_training_without_logprobs=True
-                    if model.config.training_config.messages_only
+                    if model.config.messages_only
                     else False
                 ),
             )

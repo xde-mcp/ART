@@ -45,7 +45,6 @@ def launch_model(model_key: str):
     if (
         not model.config
         or not isinstance(model.config, ProjectPolicyConfig)
-        or not model.config.training_config
     ):
         raise ValueError(
             f"Training config not found or is invalid for model {model_key}"
@@ -53,7 +52,6 @@ def launch_model(model_key: str):
 
     # Assert type for linter
     assert isinstance(model.config, ProjectPolicyConfig)
-    assert model.config.training_config is not None
 
     setup_script = textwrap.dedent(
         """
