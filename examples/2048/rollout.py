@@ -3,6 +3,7 @@ import openai
 import time
 import math
 import requests
+import weave
 from openpipe.client import AsyncOpenPipe
 from dotenv import load_dotenv
 
@@ -23,6 +24,7 @@ load_dotenv()
 op_client = AsyncOpenPipe(os.getenv("OPENPIPE_API_KEY"))
 
 
+@weave.op
 @art.retry(exceptions=(openai.LengthFinishReasonError, requests.ReadTimeout))
 async def rollout(model: art.Model, step: int, is_validation: bool) -> art.Trajectory:
     game = generate_game()

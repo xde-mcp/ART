@@ -1,6 +1,5 @@
 import asyncio
 import json
-import logging
 import random
 import sqlite3
 from datetime import datetime, timedelta
@@ -10,7 +9,7 @@ from typing import List, Dict, Any, Coroutine
 import litellm
 from litellm.caching.caching import LiteLLMCacheType, Cache
 from dotenv import load_dotenv
-from pydantic import BaseModel, ValidationError, Field
+from pydantic import BaseModel, ValidationError
 from huggingface_hub import create_repo
 from datasets import Dataset, DatasetDict, Features, Sequence, Value
 from tqdm.asyncio import tqdm
@@ -220,6 +219,7 @@ async def generate_queries_for_batch(
                 how_realistic=q.how_realistic,
                 inbox_address=inbox_address,
                 query_date=query_date.strftime("%Y-%m-%d"),
+                split="train",
             )
         )
     print(
@@ -306,7 +306,6 @@ async def create_and_push_dataset(
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
     asyncio.run(
         create_and_push_dataset(
             num_train_inboxes=20,

@@ -4,9 +4,11 @@
 <img alt="ART header" src="https://github.com/openpipe/art/raw/main/assets/ART_header.png" width="100%">
 </picture></a>
 
-<a href="https://colab.research.google.com/github/openpipe/art/blob/main/examples/2048/2048.ipynb"><img src="https://github.com/openpipe/art/raw/main/assets/Train_pill.png" height="48"></a>
-<a href="https://discord.gg/zbBHRUpwf4"><img src="https://github.com/openpipe/art/raw/main/assets/Discord_pill.png" height="48"></a>
-<a href="https://openpipe.ai/blog/art-e-mail-agent"><img src="https://github.com/openpipe/art/raw/main/assets/ART_E_pill.png" height="48"></a>
+<p align="center">
+  <a href="https://colab.research.google.com/github/openpipe/art/blob/main/examples/2048/2048.ipynb"><img src="https://github.com/openpipe/art/raw/main/assets/Train_pill.png"  width="150"  alt="Train on Colab"></a>
+  <a href="https://discord.gg/zbBHRUpwf4"><img src="https://github.com/openpipe/art/raw/main/assets/Discord_pill.png" width="180" alt="Join Discord"></a>
+  <a href="https://art.openpipe.ai"><img src="https://github.com/openpipe/art/raw/main/assets/Documentation_pill.png" width="180" alt="Docs"></a>
+</p>
 
 ### Train GRPO-powered RL agents for real-world tasks!
 
@@ -20,12 +22,12 @@ ART is an open-source reinforcement training library for improving LLM performan
 
 ## 📒 Notebooks
 
-| Agent Task        | Example Notebook                                                                                                             | Description                               | Comparative Performance                                                                                                                                                                                                                      |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agent Task        | Example Notebook                                                                                                             | Description                               | Comparative Performance                                                                                                                                     |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **2048**          | [🏋️ Train agent](https://colab.research.google.com/github/openpipe/art/blob/main/examples/2048/2048.ipynb)                   | Qwen 2.5 3B learns to play 2048           | <img src="/assets/benchmarks/2048/accuracy-training-progress.svg" height="72"> [benchmarks](/examples/2048/benchmark_2048.ipynb)                            |
-| **Temporal Clue** | [🏋️ Train agent](https://colab.research.google.com/github/openpipe/art/blob/main/examples/temporal_clue/temporal-clue.ipynb) | Qwen 2.5 7B learns to solve Temporal Clue | [Link coming soon]                                                                                                                                                                                                                           |
+| **Temporal Clue** | [🏋️ Train agent](https://colab.research.google.com/github/openpipe/art/blob/main/examples/temporal_clue/temporal-clue.ipynb) | Qwen 2.5 7B learns to solve Temporal Clue | [Link coming soon]                                                                                                                                          |
 | **Tic Tac Toe**   | [🏋️ Train agent](https://colab.research.google.com/github/openpipe/art/blob/main/examples/tic_tac_toe/tic-tac-toe.ipynb)     | Qwen 2.5 3B learns to play Tic Tac Toe    | <img src="/assets/benchmarks/tic-tac-toe-local/accuracy-training-progress.svg" height="72"> [benchmarks](/examples/tic_tac_toe/benchmark_tic_tac_toe.ipynb) |
-| **Codenames**     | [🏋️ Train agent](https://colab.research.google.com/github/openpipe/art/blob/main/examples/codenames/Codenames_RL.ipynb)     | Qwen 2.5 3B learns to play Codenames    | <img src="/assets/benchmarks/codenames/win_rate_over_time.png" height="72"> [benchmarks](/examples/codenames/Codenames_RL.ipynb) |
+| **Codenames**     | [🏋️ Train agent](https://colab.research.google.com/github/openpipe/art/blob/main/examples/codenames/Codenames_RL.ipynb)      | Qwen 2.5 3B learns to play Codenames      | <img src="/assets/benchmarks/codenames/win_rate_over_time.png" height="72"> [benchmarks](/examples/codenames/Codenames_RL.ipynb)                            |
 
 ## 🤖 ART•E Agent
 
@@ -84,6 +86,7 @@ ART stands on the shoulders of giants. While we owe many of the ideas and early 
 - [Unsloth](https://github.com/unslothai/unsloth)
 - [vLLM](https://github.com/vllm-project/vllm)
 - [trl](https://github.com/huggingface/trl)
+- [torchtune](https://github.com/pytorch/torchtune)
 - [SkyPilot](https://github.com/skypilot-org/skypilot)
 
 Finally, thank you to our partners who've helped us test ART in the wild! We're excited to see what you all build with it.

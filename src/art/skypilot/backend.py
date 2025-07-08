@@ -4,6 +4,7 @@ import sky
 import os
 import semver
 from dotenv import dotenv_values
+from importlib.metadata import version, PackageNotFoundError
 
 from .utils import (
     is_task_created,
@@ -42,7 +43,9 @@ class SkyPilotBackend(Backend):
         self._art_server_job_id = None
 
         if env_path is not None:
-            self._envs = dotenv_values(env_path)
+            self._envs = {
+                k: v for k, v in dotenv_values(env_path).items() if v is not None
+            }
             print(f"Loading envs from {env_path}")
             print(f"{len(self._envs)} environment variables found")
 
@@ -164,28 +167,35 @@ class SkyPilotBackend(Backend):
         task.set_resources(resources)
         task.update_envs(self._envs)
 
-        # default to installing latest version of art
-        art_installation_command = "uv pip install openpipe-art"
-        if art_version is not None:
-            art_version_is_semver = False
-            # check if art_version is valid semver
-            if art_version is not None:
-                try:
-                    semver.Version.parse(art_version)
-                    art_version_is_semver = True
-                except Exception:
-                    pass
-
-            if art_version_is_semver:
-                art_installation_command = f"uv pip install openpipe-art=={art_version}"
-            elif os.path.exists(art_version):
-                # copy the contents of the art_path onto the new machine
-                task.workdir = art_version
-                art_installation_command = "uv sync"
-            else:
+        # default to installing the version of art that is used by the client
+        if art_version is None:
+            try:
+                art_version = version("openpipe-art")
+            except PackageNotFoundError:
                 raise ValueError(
-                    f"Invalid art_version: {art_version}. Must be a semver or a path to a local directory."
+                    "No version of openpipe-art installed in project. Please provide an art_version."
                 )
+
+        art_version_is_semver = False
+        # check if art_version is valid semver
+        try:
+            semver.Version.parse(art_version)
+            art_version_is_semver = True
+        except Exception:
+            pass
+
+        if art_version_is_semver:
+            art_installation_command = (
+                f"uv pip install openpipe-art[backend]=={art_version}"
+            )
+        elif os.path.exists(art_version):
+            # copy the contents of the art_path onto the new machine
+            task.workdir = art_version
+            art_installation_command = "uv sync"
+        else:
+            raise ValueError(
+                f"Invalid art_version: {art_version}. Must be a semver or a path to a local directory."
+            )
 
         setup_script = f"""
     curl -LsSf https://astral.sh/uv/install.sh | sh

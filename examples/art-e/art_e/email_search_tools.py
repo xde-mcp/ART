@@ -6,10 +6,6 @@ from dataclasses import dataclass
 from art_e.data.local_email_db import DEFAULT_DB_PATH
 from art_e.data.types_enron import Email
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-
 
 conn = None
 
@@ -148,7 +144,6 @@ def search_emails(
     formatted_results = [
         SearchResult(message_id=row[0], snippet=row[1]) for row in results
     ]
-    logging.info(f"Search found {len(formatted_results)} results.")
     return formatted_results
 
 

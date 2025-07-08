@@ -76,10 +76,10 @@ python -c "from email_deep_research.data.local_email_db import generate_database
 I used `skypilot` with the [Runpod](https://www.runpod.io/) backend to train these models. Once you've authenticated Runpod for use with skypilot, the following command should start a training job that replicates our reported results:
 
 ```bash
-uv run run_training_job.py 008 --fast
+uv run run_training.py --models=008 --fast
 ```
 
-You can see the other model variants I tried training in `train.py`.
+You can see the other model variants I tried training in `run_training.py`.
 
 ### Evaluating Models
 
@@ -92,12 +92,9 @@ import art
 
 # Create model
 model = art.Model(
-    name="gpt-4o",  # Can also use your trained models
+    name="gpt-4.1",  # Can also use your trained models
+    inference_model_name="openai/gpt-4.1"
     project="email_agent",
-    config=ProjectPolicyConfig(
-        litellm_model_name="openai/gpt-4o",
-        use_tools=True,
-    ),
 )
 
 # Run benchmark

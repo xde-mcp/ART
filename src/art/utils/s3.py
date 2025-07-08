@@ -4,7 +4,7 @@ import os
 import asyncio
 from asyncio.subprocess import DEVNULL
 import tempfile
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Literal
 import zipfile
 
 from art.errors import ForbiddenBucketCreationError
@@ -16,6 +16,8 @@ from art.utils.output_dirs import (
 from ..utils import limit_concurrency
 
 __all__: Sequence[str] = ("s3_sync",)
+
+ExcludableOption = Literal["checkpoints", "logs", "trajectories"]
 
 
 class S3SyncError(RuntimeError):
@@ -67,6 +69,7 @@ async def s3_sync(
     profile: Optional[str] = None,
     verbose: bool = False,
     delete: bool = False,
+    exclude: list[ExcludableOption] | None = None,
 ) -> None:
     """Synchronise *source* and *destination* using the AWS CLI.
 
@@ -82,6 +85,7 @@ async def s3_sync(
         profile: Optional AWS profile name to pass to the CLI.
         verbose: When *True*, the output of the AWS CLI is streamed to the
             calling process; otherwise it is suppressed.
+        exclude: List of directories to exclude from sync.
 
     Raises:
         S3SyncError: If the *aws s3 sync* command exits with a non‑zero status.
@@ -92,7 +96,7 @@ async def s3_sync(
         cmd += ["--profile", profile]
 
     cmd += ["s3"]
-    # us cp for files, sync for directories
+    # use cp for files, sync for directories
     if os.path.isfile(source):
         cmd += ["cp"]
     else:
@@ -100,6 +104,12 @@ async def s3_sync(
 
     if delete:
         cmd.append("--delete")
+
+    # Add exclude patterns for each excluded directory
+    if exclude:
+        for excluded_dir in exclude:
+            cmd.extend(["--exclude", f"{excluded_dir}/*"])
+
     cmd += [source, destination]
 
     # Suppress output unless verbose mode is requested.
@@ -156,6 +166,7 @@ async def pull_model_from_s3(
     verbose: bool = False,
     delete: bool = False,
     art_path: str | None = None,
+    exclude: list[ExcludableOption] | None = None,
 ) -> str:
     """Pull a model from S3 to the local directory.
 
@@ -169,6 +180,7 @@ async def pull_model_from_s3(
             calling process; otherwise it is suppressed.
         delete: When *True*, delete the local model directory if it exists.
         art_path: The path to the ART directory.
+        exclude: List of directories to exclude from sync.
 
     Returns:
         The local directory path.
@@ -179,11 +191,14 @@ async def pull_model_from_s3(
         art_path=art_path,
     )
     os.makedirs(local_model_dir, exist_ok=True)
-    local_dir = local_model_dir
+    # When pulling a specific step, we need to handle the old S3 structure
     if step is not None:
-        local_step_dir = get_step_checkpoint_dir(local_model_dir, step)
-        os.makedirs(local_step_dir, exist_ok=True)
-        local_dir = local_step_dir
+        # First, try to pull to the old structure location since that's what S3 has
+        old_step_dir = os.path.join(local_model_dir, f"{step:04d}")
+        os.makedirs(old_step_dir, exist_ok=True)
+        local_dir = old_step_dir
+    else:
+        local_dir = local_model_dir
 
     s3_path = build_s3_path(
         model_name=model_name,
@@ -193,7 +208,26 @@ async def pull_model_from_s3(
         prefix=prefix,
     )
     await ensure_bucket_exists(s3_bucket)
-    await s3_sync(s3_path, local_dir, verbose=verbose, delete=delete)
+    await s3_sync(s3_path, local_dir, verbose=verbose, delete=delete, exclude=exclude)
+
+    # After pulling, migrate to new structure if needed
+    if step is not None:
+        # Check if we need to migrate this specific step
+        old_step_dir = os.path.join(local_model_dir, f"{step:04d}")
+        new_step_dir = get_step_checkpoint_dir(local_model_dir, step)
+
+        if os.path.exists(old_step_dir) and not os.path.exists(new_step_dir):
+            # The checkpoint exists in old structure, migrate it
+            print(f"Migrating pulled checkpoint {step:04d} to new structure...")
+            os.makedirs(os.path.dirname(new_step_dir), exist_ok=True)
+            import shutil
+
+            shutil.move(old_step_dir, new_step_dir)
+    else:
+        # If pulling all steps, run the full migration
+        from ..local.checkpoints import migrate_checkpoints_to_new_structure
+
+        migrate_checkpoints_to_new_structure(local_model_dir)
 
     return local_model_dir
 

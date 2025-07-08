@@ -16,12 +16,14 @@ async def gather_trajectory_groups(
     pbar_desc: str | None = "gather",
     pbar_total_completion_tokens: bool = True,
     max_exceptions: int | float = 0,
+    max_metrics: int | None = None,
 ) -> list[TrajectoryGroup]:
     groups = list(groups)
     context = GatherContext(
         pbar=None,
         pbar_total_completion_tokens=pbar_total_completion_tokens,
         max_exceptions=max_exceptions,
+        max_metrics=max_metrics,
     )
     with set_gather_context(context):
         future = asyncio.gather(*[wrap_group_awaitable(g) for g in groups])
@@ -154,7 +156,8 @@ def record_metrics(context: "GatherContext", trajectory: Trajectory) -> None:
     ]
     if logprobs:
         trajectory.metrics["completion_tokens"] = sum(
-            len(l.content or l.refusal or []) for l in logprobs
+            len(l.content or l.refusal or [])
+            for l in logprobs  # noqa: E741
         ) / len(logprobs)
     context.metric_sums["reward"] += trajectory.reward  # type: ignore
     context.metric_divisors["reward"] += 1
@@ -167,25 +170,33 @@ class GatherContext:
     pbar: tqdm.tqdm | None = None
     metric_sums: Counter[str] = field(default_factory=Counter)
     metric_divisors: Counter[str] = field(default_factory=Counter)
+    max_metrics: int | None = None
     pbar_total_completion_tokens: bool = False
     max_exceptions: int | float = 0
+    increment_pbar: bool = True
 
     def update_pbar(self, n: int) -> None:
-        if self.pbar is not None:
+        if self.pbar is None:
+            return
+        if self.increment_pbar:
             self.pbar.update(n)
-            postfix = {}
-            for metric in self.metric_sums:
-                sum = self.metric_sums[metric]
-                divisor = max(1, self.metric_divisors[metric])
-                postfix[metric] = sum / divisor
-            for key in (
-                "prompt_tokens",
-                "completion_tokens",
-                "total_completion_tokens",
-            ):
-                if key in postfix:
-                    postfix[key] = postfix.pop(key)
-            self.pbar.set_postfix(postfix)
+        postfix = {}
+        included_metrics = self.metric_sums.keys()
+        if self.max_metrics is not None:
+            included_metrics = list(self.metric_sums.keys())[: self.max_metrics]
+        for metric in included_metrics:
+            sum = self.metric_sums[metric]
+            divisor = max(1, self.metric_divisors[metric])
+            postfix[metric] = sum / divisor
+        # move token metrics to the end
+        for key in (
+            "prompt_tokens",
+            "completion_tokens",
+            "total_completion_tokens",
+        ):
+            if key in postfix:
+                postfix[key] = postfix.pop(key)
+        self.pbar.set_postfix(postfix)
 
     def too_many_exceptions(self) -> bool:
         if (
@@ -195,6 +206,13 @@ class GatherContext:
         ) or self.metric_sums["exceptions"] <= self.max_exceptions:
             return False
         return True
+
+    def reset(self) -> None:
+        self.pbar = None
+        self.metric_sums = Counter()
+        self.metric_divisors = Counter()
+        self.pbar_total_completion_tokens = False
+        self.max_exceptions = 0
 
 
 gather_context_var = contextvars.ContextVar("gather_context", default=GatherContext())

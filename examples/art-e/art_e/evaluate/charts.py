@@ -2,13 +2,14 @@
 import polars as pl
 import matplotlib.pyplot as plt
 import seaborn as sns
+from typing import Sequence
 
 
 def training_progress_chart(
     df: pl.DataFrame,
     split: str,
     metric_name: str,
-    models: list[str | tuple[str, str]] | None = None,
+    models: Sequence[str | tuple[str, str]] | None = None,
     title: str | None = None,
     x_label: str | None = None,
     y_label: str | None = None,
@@ -303,7 +304,7 @@ def comparison_models_bar_chart(
     df: pl.DataFrame,
     split: str,
     metric_name: str,
-    models: list[str | tuple[str, str]] | None = None,
+    models: Sequence[str | tuple[str, str]] | None = None,
     title: str | None = None,
     y_label: str | None = None,
     perfect_score: float | None = None,
@@ -348,8 +349,6 @@ def comparison_models_bar_chart(
         The created figure so that it can be displayed inline in IPython /
         Jupyter notebooks.
     """
-    import os
-    from pathlib import Path
 
     import matplotlib.pyplot as plt
     import numpy as np
@@ -445,8 +444,6 @@ def comparison_models_bar_chart(
     fig, ax = plt.subplots(figsize=figsize if figsize is not None else (6, 4))
     ax.grid(False)
 
-    trained_set = {m for m, b, imp in model_stats if imp != 0}
-
     # ------------------------------------------------------------------
     # Colour scheme – match the example shared by the caller
     # ------------------------------------------------------------------
@@ -455,11 +452,6 @@ def comparison_models_bar_chart(
 
     # Colour assignment: use same approach (trained first) so the most
     # distinctive colours are given to the trained models.
-    ordered_for_palette = [m for m in plot_models if m in trained_set] + [
-        m for m in plot_models if m not in trained_set
-    ]
-    palette = sns.color_palette(n_colors=len(ordered_for_palette))
-    model_colors = {m: c for m, c in zip(ordered_for_palette, palette)}  # type: ignore
 
     bar_width = 0.7
     x_positions = np.arange(len(model_stats))
