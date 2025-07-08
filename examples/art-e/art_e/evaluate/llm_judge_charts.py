@@ -5,7 +5,7 @@ from art.utils.benchmarking.load_trajectories import (
     pull_model_trajectories,
 )
 from art_e.evaluate.charts import training_progress_chart, comparison_models_bar_chart
-from all_models import models
+from all_experiments import models
 import asyncio
 from art_e.data.query_iterators import load_synthetic_queries
 

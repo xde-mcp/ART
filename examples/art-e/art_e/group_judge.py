@@ -1,21 +1,15 @@
 from art_e.rollout import ProjectTrajectory
-from typing import List, Literal
+from typing import List
 import json
 from litellm import acompletion
 from textwrap import dedent
 from tqdm.asyncio import tqdm
 from pydantic import BaseModel, Field
 from rich import print
+import art
+import weave
 
-
-class Issue(BaseModel):
-    label: str = Field(description="A short label for the issue.")
-    explanation: str = Field(
-        description="A human-readable, actionable explanation of the issue."
-    )
-    severity: Literal["minor", "major", "fatal"] = Field(
-        description="The severity of the issue: 'minor', 'major', or 'fatal'."
-    )
+weave.init(project_name="email_agent")
 
 
 class RolloutScore(BaseModel):
@@ -24,15 +18,9 @@ class RolloutScore(BaseModel):
         description="A short explanation of why you gave this score."
     )
     score: float = Field(description="A score between 0 and 1.")
-    issues: List[str] = Field(
-        description="The list of labels for each issue identified for this rollout, including any new ones."
-    )
 
 
-class JudgeGroupResponse(BaseModel):
-    new_issues: List[Issue] = Field(
-        description="Any new issues identified on the rollouts in this group. Do not include issues that already exist in the list of existing issues."
-    )
+class GroupJudgeResponse(BaseModel):
     scores: List[RolloutScore] = Field(description="The scores for each rollout.")
 
 
@@ -62,26 +50,14 @@ class GroupJudge:
     def __init__(
         self,
         project: str,
-        judge_model: str = "openai/o3",
+        judge_model: str | art.Model = "openai/o3",
         rubric: str = DEFAULT_RUBRIC,
-        initial_issues: List[Issue] = [
-            Issue(
-                label="looping",
-                explanation="The assistant repeats itself unnnecessarily but is able to recover.",
-                severity="minor",
-            ),
-            Issue(
-                label="fatal_looping",
-                explanation="The assistant began repeating itself and is unable to recover.",
-                severity="fatal",
-            ),
-        ],
     ):
         self.project = project  # store for later use
         self.judge_model = judge_model
         self.rubric = rubric
-        self.all_issues = initial_issues
 
+    @weave.op()
     async def judge(
         self, rollouts: list[ProjectTrajectory], *, debug: bool = False
     ) -> list[ProjectTrajectory]:
@@ -96,7 +72,7 @@ class GroupJudge:
                     "Additional histories are not supported for the GroupJudge yet."
                 )
 
-        # First, gather the message lists for each rollout so we can detect any
+        # Gather the message lists for each rollout so we can detect any
         # common prefix messages that appear at the start of *every* rollout.
         message_lists: list[list] = []
         for traj in rollouts:
@@ -113,14 +89,13 @@ class GroupJudge:
         # If there is a non-empty common prefix, serialize it inside a <context>
         # tag so the judge model only sees it once, saving tokens.
         user_text = ""
-        common_prefix_messages: list = []
         if common_prefix_len > 0:
             common_prefix_messages = message_lists[0][:common_prefix_len]
             user_text += (
                 "<context>\n" + json.dumps(common_prefix_messages) + "\n</context>\n\n"
             )
 
-        # Now serialize the remainder of each rollout *without* the common prefix.
+        # Serialize the remainder of each rollout *without* the common prefix.
         serialized_rollouts: List[str] = []
         for idx, (traj, full_messages) in enumerate(
             zip(rollouts, message_lists), start=1
@@ -135,12 +110,6 @@ class GroupJudge:
                 + "\n</rollout>"
             )
 
-        # if debug:
-        #     print("\n[GroupJudge] Rollout metrics:")
-        #     for idx, traj in enumerate(rollouts, start=1):
-        #         print(f"\nRollout {idx} metrics:")
-        #         print(traj.metrics)
-
         user_text += "Rollouts:\n\n" + "\n\n".join(serialized_rollouts)
 
         judge_prompt = dedent(
@@ -149,11 +118,6 @@ class GroupJudge:
 
             Grading standards:
             {self.rubric}
-            
-            To aid in downstream debugging, you should also identify and label any issues you see in the rollouts. This will allow us to track the rates of specific issues and look for patterns. Here are the issues that have already been identified. If while reviewing the rollouts you see a new issue, you may return it and it will be added to the list.
-
-            Existing issues:
-            {json.dumps([issue.model_dump() for issue in self.all_issues], indent=2)}
             """
         )
 
@@ -162,10 +126,18 @@ class GroupJudge:
             {"role": "user", "content": user_text},
         ]
 
+        completion_params = {}
+        if isinstance(self.judge_model, art.Model):
+            completion_params = self.judge_model.litellm_completion_params()
+        else:
+            completion_params["model"] = self.judge_model
+
+        print("model is", self.judge_model)
         response = await acompletion(
+            # **completion_params,
             model=self.judge_model,
             messages=messages,
-            response_format=JudgeGroupResponse,
+            response_format=GroupJudgeResponse,
             caching=True,
         )
 
@@ -182,16 +154,8 @@ class GroupJudge:
                 print(f"[GroupJudge] Raw choice content: {raw_content}")
 
         content = first_choice.message.content or "{}"  # type: ignore[attr-defined]
-        parsed = JudgeGroupResponse.model_validate_json(content)
+        parsed = GroupJudgeResponse.model_validate_json(content)
         assert len(parsed.scores) == len(rollouts)
-
-        # Merge any newly discovered issues into our running list, avoiding duplicates.
-        if parsed.new_issues:
-            existing_labels = {fm.label for fm in self.all_issues}
-            for fm in parsed.new_issues:
-                if fm.label not in existing_labels:
-                    self.all_issues.append(fm)
-                    existing_labels.add(fm.label)
 
         for traj, score in zip(rollouts, parsed.scores):
             traj.metrics["group_judge_score"] = score.score
@@ -201,22 +165,6 @@ class GroupJudge:
                 else 0
             )
             traj.log(f"Judge group explanation: {score.explanation}")
-            # Record whether each predefined issue was detected in this rollout.
-            # We add a metric for every known issue (including any newly discovered
-            # ones) so downstream analysis can easily aggregate issue rates even
-            # when the issue did not occur.
-            for issue in self.all_issues:
-                metric_key = f"issues/{issue.severity}/{issue.label}"
-                traj.metrics[metric_key] = issue.label in score.issues
-
-            # ------------------------------------------------------------------
-            # Propagate judge-group information back onto the rollout's Weave
-            # Call so that it shows up inside the trace for easy inspection.
-            # We look for the call id that `rollout` stored under
-            # `traj.metadata['weave_call_id']` and, if present, attach the
-            # score/explanation/issue labels via `add_feedback` (legal even
-            # after the Call has finished).
-            # ------------------------------------------------------------------
 
         return rollouts
 
@@ -247,10 +195,9 @@ if __name__ == "__main__":
             models.append(
                 art.Model(
                     name=litellm_name,
+                    inference_model_name=litellm_name,
                     project="email_agent",
-                    config=ProjectPolicyConfig(
-                        litellm_model_name=litellm_name,
-                    ),
+                    config=ProjectPolicyConfig(),
                 )
             )
 
@@ -271,8 +218,12 @@ if __name__ == "__main__":
             for m, t in zip(models, rollouts):
                 print(f"  {m.name:10s}: {t.reward:.3f}")
 
-            # Judge the group of rollouts.
-            judge = GroupJudge(project="email_agent", judge_model="openai/o3")
+            judge = GroupJudge(
+                project="email_agent",
+                judge_model="openrouter/qwen/qwen3-32b",
+                # judge_model="openrouter/qwen/qwen3-14b",
+                # judge_model="openai/o3",
+            )
             judged_rollouts = await judge.judge(rollouts, debug=True)
 
             print("\nJudge-group rewards:")

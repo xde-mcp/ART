@@ -8,7 +8,7 @@ import traceback
 from dotenv import dotenv_values
 from sky import ClusterStatus
 
-from all_models import models
+from all_experiments import models
 
 # Usage:
 # uv run run_training.py --models=207 --fast

@@ -27,7 +27,7 @@ class ProjectPolicyConfig(BaseModel):
     max_turns: int = 10
     max_tokens: int = 2048
     log_to_openpipe: bool = False
-    litellm_model_name: str | None = None
     stupid_simple_reward_fn: bool = False
+    include_qwen3_nothink: bool = False
 
     training_config: TrainingConfig | None = None

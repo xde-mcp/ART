@@ -2,7 +2,7 @@ import art
 from art_e.project_types import ProjectPolicyConfig, TrainingConfig
 from typing import cast
 
-models = {
+models: dict[str, art.TrainableModel[ProjectPolicyConfig]] = {
     "002": art.TrainableModel(
         name="email-agent-002",
         project="email_agent",
@@ -158,3 +158,14 @@ models["215"].name = "email-agent-215"
 
 models["216"] = models["008"].model_copy(deep=True)
 models["216"].name = "email-agent-216-3"
+
+# Model 217: like 206 but with Qwen/Qwen3-14B base model and nothink option enabled
+models["217"] = models["206"].model_copy(deep=True)
+models["217"].name = "email-agent-217-2"
+models["217"].base_model = "Qwen/Qwen3-14B"
+models["217"].config.include_qwen3_nothink = True
+
+models["218"] = models["206"].model_copy(deep=True)
+models["218"].name = "email-agent-218"
+assert models["218"].config.training_config is not None
+models["218"].config.training_config.group_judge_model = "base_model"

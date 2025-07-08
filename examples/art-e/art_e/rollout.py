@@ -215,6 +215,9 @@ async def rollout(
     """
     )
 
+    if model.config.include_qwen3_nothink:
+        system_prompt += "\n/nothink"
+
     async def search_emails(keywords: list[str]) -> list[dict]:
         """
         Search the user's email inbox for emails that match the given keywords.
@@ -295,18 +298,11 @@ async def rollout(
             rubric.ran_out_of_turns = True
             break
 
-        litellm_model_name = model.config.litellm_model_name
-        if litellm_model_name is None:
-            litellm_model_name = f"hosted_vllm/{model.name}"
-
         async with traj.track_duration("llm_completion"):
             llm_response = await acompletion(
-                model=litellm_model_name,
-                base_url=model.inference_base_url,
+                **model.litellm_completion_params(),
                 messages=traj.messages(),
                 caching=not model.trainable,
-                # caching=False,
-                api_key=model.inference_api_key,
                 max_completion_tokens=model.config.max_tokens,
                 tools=traj.tools,
                 # tool_choice=None if model.trainable else "required",
@@ -393,9 +389,8 @@ if __name__ == "__main__":
             art.Model(
                 name="openrouter/qwen/qwen3-32b",
                 project="email_agent",
-                config=ProjectPolicyConfig(
-                    litellm_model_name="openrouter/qwen/qwen3-32b",
-                ),
+                inference_model_name="openrouter/qwen/qwen3-32b",
+                config=ProjectPolicyConfig(),
             ),
             scenario,
         )

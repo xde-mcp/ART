@@ -30,22 +30,22 @@ class Model(
 
     You can instantiate a prompted model like so:
 
-    ```python model = art.Model(
+    ``python model = art.Model(
         name="gpt-4.1", project="my-project",
         inference_api_key=os.getenv("OPENAI_API_KEY"),
         inference_base_url="https://api.openai.com/v1/",
     )
-    ```
+    ``
 
     Or, if you're pointing at OpenRouter:
 
-    ```python model = art.Model(
+    ``python model = art.Model(
         name="gemini-2.5-pro", project="my-project",
         inference_api_key=os.getenv("OPENROUTER_API_KEY"),
         inference_base_url="https://openrouter.ai/api/v1",
         inference_model_name="google/gemini-2.5-pro-preview-03-25",
     )
-    ```
+    ``
 
     For trainable (`art.TrainableModel`) models the inference values will be
     populated automatically by `model.register(api)` so you generally don't need
@@ -174,6 +174,18 @@ class Model(
 
         return self._openai_client
 
+    def litellm_completion_params(self) -> dict:
+        """Return the parameters that should be sent to litellm.completion."""
+        model_name = self.inference_model_name
+        if self.trainable:
+            model_name = f"hosted_vllm/{model_name}"
+        return {
+            "model": model_name,
+            "base_url": self.inference_base_url,
+            "api_key": self.inference_api_key,
+            "temperature": 1,  # Important for trainable models
+        }
+
     # ------------------------------------------------------------------
     # Inference name helpers
     # ------------------------------------------------------------------
@@ -181,8 +193,8 @@ class Model(
     def get_inference_name(self) -> str:
         """Return the name that should be sent to the inference endpoint.
 
-        If ``inference_model_name`` is provided we use that, otherwise we fall
-        back to the model's own ``name``.
+        If `inference_model_name` is provided we use that, otherwise we fall
+        back to the model's own `name`.
         """
         return self.inference_model_name or self.name
 

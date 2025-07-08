@@ -25,10 +25,18 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
     if model.config.training_config is None:
         raise ValueError("Training config is not set")
 
-    group_judge = GroupJudge(
-        project=model.project,
-        judge_model=model.config.training_config.group_judge_model,
-    )
+    if model.config.training_config.group_judge_model is not None:
+        judge_model = model.config.training_config.group_judge_model
+
+        if model.config.training_config.group_judge_model == "self":
+            judge_model = model
+        elif judge_model == "base_model":
+            judge_model = model.base_model
+
+        group_judge = GroupJudge(
+            project=model.project,
+            judge_model=judge_model,
+        )
 
     with LocalBackend() as backend:
         print(f"Pulling from S3 bucket: `{os.environ['BACKUP_BUCKET']}`")
