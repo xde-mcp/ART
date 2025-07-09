@@ -285,14 +285,14 @@ async def analyze_failed_task(
 
 
 async def log_rollout_analysis_to_openpipe(
-    task_id: int, 
-    rollout_analysis: ErrorAnalysisRollout, 
-    trajectory_data: Dict[str, Any], 
+    task_id: int,
+    rollout_analysis: ErrorAnalysisRollout,
+    trajectory_data: Dict[str, Any],
     rollout_index: int,
-    prompt: str
+    prompt: str,
 ) -> None:
     """Log an individual rollout analysis with its trajectory data to OpenPipe."""
-    
+
     try:
         # Create metadata that includes both trajectory info and analysis
         metadata = {
@@ -308,35 +308,38 @@ async def log_rollout_analysis_to_openpipe(
             "reward": str(trajectory_data["reward"]),
             "completion_id": f"rollout-{task_id}-{rollout_index}-{int(datetime.now().timestamp())}",
         }
-        
+
         # Create trajectory with enhanced metadata
         enhanced_trajectory = art.Trajectory(
             messages_and_choices=trajectory_data["traj"],
             reward=trajectory_data["reward"],
             metadata=metadata,
             tools=[],
-            metrics={}
+            metrics={},
         )
-        
+
         # Format analysis response
         response = f"Summary: {rollout_analysis.summary}\nReasoning: {rollout_analysis.reasoning}\nBlame: {rollout_analysis.blame_assignment}\nCategory: {rollout_analysis.category}"
-        
+
         # Get messages for logging
         messages = keep_only_messages(trajectory_data["traj"])
-        
+
         # Log to OpenPipe
-        await log_trajectory_to_openpipe(enhanced_trajectory, messages, response_str=response)
-        print(f"Logged rollout analysis for task {task_id}, rollout {rollout_index} to OpenPipe")
+        await log_trajectory_to_openpipe(
+            enhanced_trajectory, messages, response_str=response
+        )
+        print(
+            f"Logged rollout analysis for task {task_id}, rollout {rollout_index} to OpenPipe"
+        )
 
     except Exception as e:
-        print(f"Error logging rollout analysis for task {task_id}, rollout {rollout_index}: {e}")
+        print(
+            f"Error logging rollout analysis for task {task_id}, rollout {rollout_index}: {e}"
+        )
 
 
 async def log_full_analysis_to_openpipe(
-    task_id: int, 
-    analysis: ErrorAnalysis, 
-    prompt: str, 
-    response: str
+    task_id: int, analysis: ErrorAnalysis, prompt: str, response: str
 ) -> None:
     """Log the full error analysis (all rollouts) to OpenPipe."""
 
@@ -345,9 +348,13 @@ async def log_full_analysis_to_openpipe(
         blame_counts = {}
         category_counts = {}
         for rollout in analysis.error_analysis_rollouts:
-            blame_counts[rollout.blame_assignment] = blame_counts.get(rollout.blame_assignment, 0) + 1
-            category_counts[rollout.category] = category_counts.get(rollout.category, 0) + 1
-        
+            blame_counts[rollout.blame_assignment] = (
+                blame_counts.get(rollout.blame_assignment, 0) + 1
+            )
+            category_counts[rollout.category] = (
+                category_counts.get(rollout.category, 0) + 1
+            )
+
         metadata = {
             "task_id": str(task_id),
             "analysis_type": "error_analysis_full",
@@ -374,7 +381,9 @@ async def log_full_analysis_to_openpipe(
             {"role": "user", "content": prompt},
         ]
 
-        await log_trajectory_to_openpipe(summary_trajectory, messages, response_str=response)
+        await log_trajectory_to_openpipe(
+            summary_trajectory, messages, response_str=response
+        )
         print(f"Logged full analysis for task {task_id} to OpenPipe")
 
     except Exception as e:

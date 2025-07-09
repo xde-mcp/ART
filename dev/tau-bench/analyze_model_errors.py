@@ -390,49 +390,55 @@ async def main():
     # Log analysis results to OpenPipe
     if results["analysis_results"]:
         print("\nLogging analysis results to OpenPipe...")
-        
+
         for task_id, analysis_dict in results["analysis_results"].items():
             analysis = ErrorAnalysis(**analysis_dict)
-            
+
             # Find failed trajectories for this task from the stored results
-            failed_trajectories = [r for r in results["all_results"] if str(r["task_id"]) == str(task_id) and r["reward"] < 0.999]
-            
+            failed_trajectories = [
+                r
+                for r in results["all_results"]
+                if str(r["task_id"]) == str(task_id) and r["reward"] < 0.999
+            ]
+
             # 1. Log each failing trajectory separately with its rollout analysis
             for i, rollout_analysis in enumerate(analysis.error_analysis_rollouts):
                 if i < len(failed_trajectories):
                     trajectory_data = failed_trajectories[i]
-                    
+
                     # Create prompt for this specific rollout
-                    prompt = f"Error analysis for Task {task_id}, Rollout {i+1}"
-                    
+                    prompt = f"Error analysis for Task {task_id}, Rollout {i + 1}"
+
                     # Log individual rollout with its trajectory data
                     await log_rollout_analysis_to_openpipe(
                         task_id=int(task_id),
                         rollout_analysis=rollout_analysis,
                         trajectory_data=trajectory_data,
                         rollout_index=i,
-                        prompt=prompt
+                        prompt=prompt,
                     )
-            
+
             # 2. Log the full analysis summary for this task
             full_prompt = results["analysis_prompts"][task_id]
             full_response = f"Analysis of {len(analysis.error_analysis_rollouts)} failed rollouts for task {task_id}:\n\n"
-            
+
             for i, rollout_analysis in enumerate(analysis.error_analysis_rollouts):
-                full_response += f"ROLLOUT {i+1}:\n"
+                full_response += f"ROLLOUT {i + 1}:\n"
                 full_response += f"Summary: {rollout_analysis.summary}\n"
                 full_response += f"Reasoning: {rollout_analysis.reasoning}\n"
                 full_response += f"Blame: {rollout_analysis.blame_assignment}\n"
                 full_response += f"Category: {rollout_analysis.category}\n\n"
-            
+
             await log_full_analysis_to_openpipe(
                 task_id=int(task_id),
                 analysis=analysis,
                 prompt=full_prompt,
-                response=full_response
+                response=full_response,
             )
-            
-            print(f"Logged {len(analysis.error_analysis_rollouts)} rollouts + full analysis for task {task_id}")
+
+            print(
+                f"Logged {len(analysis.error_analysis_rollouts)} rollouts + full analysis for task {task_id}"
+            )
 
     # Save results
     time_str = datetime.now().strftime("%m%d%H%M%S")
@@ -457,7 +463,7 @@ async def main():
         print("\nBlame assignment distribution:")
         blame_counts = {}
         category_counts = {}
-        
+
         for analysis_dict in results["analysis_results"].values():
             analysis = ErrorAnalysis(**analysis_dict)
             for rollout_analysis in analysis.error_analysis_rollouts:
@@ -468,7 +474,7 @@ async def main():
 
         for blame, count in blame_counts.items():
             print(f"  {blame}: {count}")
-            
+
         print("\nFailure category distribution:")
         for category, count in category_counts.items():
             print(f"  {category}: {count}")
