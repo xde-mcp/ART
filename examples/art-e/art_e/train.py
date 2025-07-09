@@ -22,21 +22,6 @@ load_dotenv()
 async def train(model: art.TrainableModel[ProjectPolicyConfig]):
     generate_database()
 
-    # Training config is now directly on the model config
-
-    if model.config.group_judge_model is not None:
-        judge_model = model.config.group_judge_model
-
-        if model.config.group_judge_model == "self":
-            judge_model = model
-        elif judge_model == "base_model":
-            judge_model = model.base_model
-
-        group_judge = GroupJudge(
-            project=model.project,
-            judge_model=judge_model,
-        )
-
     with LocalBackend() as backend:
         print(f"Pulling from S3 bucket: `{os.environ['BACKUP_BUCKET']}`")
         await backend._experimental_pull_from_s3(
@@ -69,6 +54,18 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
             initial_step=await model.get_step(),
         )
 
+        if model.config.group_judge_model is not None:
+            judge_model = model.config.group_judge_model
+
+            if model.config.group_judge_model in ["self", "base_model"]:
+                judge_model = model
+
+            group_judge = GroupJudge(
+                project=model.project,
+                judge_model=judge_model,
+                judge_model_use_base_model=judge_model == "base_model",
+            )
+
         for batch in train_iterator:
             if batch.step % model.config.eval_steps == 0:
                 print(f"\n--- Evaluating at Iteration {batch.step} ---")
@@ -84,9 +81,7 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
                     art.TrajectoryGroup(
                         (
                             rollout(model, scenario)
-                            for _ in range(
-                                model.config.trajectories_per_group
-                            )
+                            for _ in range(model.config.trajectories_per_group)
                         )
                     )
                     for scenario in batch.items
@@ -164,9 +159,7 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
 
             await model.train(
                 groups,
-                config=art.TrainConfig(
-                    learning_rate=model.config.learning_rate
-                ),
+                config=art.TrainConfig(learning_rate=model.config.learning_rate),
                 _config=art.dev.TrainConfig(
                     allow_training_without_logprobs=True
                     if model.config.messages_only

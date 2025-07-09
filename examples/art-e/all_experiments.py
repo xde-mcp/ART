@@ -116,7 +116,9 @@ for _size in [1, 4, 16, 64, 256, 1024, 4096]:
     # Compute num_epochs so that total training steps ~= 600.
     # Approximation: total_steps ≈ num_epochs * (training_dataset_size / groups_per_step)
     # => num_epochs ≈ 600 * groups_per_step / training_dataset_size
-    models[key].config.num_epochs = max(1, round(600 * models[key].config.groups_per_step / _size))
+    models[key].config.num_epochs = max(
+        1, round(600 * models[key].config.groups_per_step / _size)
+    )
 
 # Model 210-16-s* variants: explore robustness to different data mixes by varying the random seed.
 for _seed in [1, 2, 3]:
@@ -149,5 +151,26 @@ models["217"].base_model = "Qwen/Qwen3-14B"
 models["217"].config.include_qwen3_nothink = True
 
 models["218"] = models["206"].model_copy(deep=True)
-models["218"].name = "email-agent-218"
+models["218"].name = "email-agent-218-5"
+models["218"].base_model = "Qwen/Qwen3-32B"
 models["218"].config.group_judge_model = "base_model"
+models["218"].config.include_qwen3_nothink = True
+
+# Model 219: like 008 but with custom internal config (low max_grad_norm) and high learning rate
+models["219"] = models["008"].model_copy(deep=True)
+models["219"].name = "email-agent-219"
+models["219"].config.learning_rate = 1e-2
+models["219"]._internal_config = art.dev.InternalModelConfig(
+    trainer_args=art.dev.TrainerArgs(
+        max_grad_norm=1e-7,
+    )
+)
+
+models["220"] = models["217"].model_copy(deep=True)
+models["220"].name = "email-agent-220"
+models["220"].base_model = "willcb/Qwen3-14B"
+
+models["221"] = models["008"].model_copy(deep=True)
+models["221"].name = "email-agent-221"
+models["221"].config.include_qwen3_nothink = True
+models["221"].base_model = "willcb/Qwen3-32B"
