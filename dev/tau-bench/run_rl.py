@@ -106,7 +106,7 @@ async def rollout_tau_bench_task(
         outcome_correct = 1 if result.reward == 1 else 0
 
         # Convert result to trajectory format
-        traj.reward, explanation = await calculate_reward(result, config)
+        traj.reward, explanation = await calculate_reward(result, config, env=env)
         traj.metrics = {
             "total_steps": result.info["total_steps"],
             "final_prompt_tokens": result.info["final_prompt_tokens"],

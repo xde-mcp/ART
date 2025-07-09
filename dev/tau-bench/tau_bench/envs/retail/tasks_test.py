@@ -3330,5 +3330,27 @@ TASKS_TEST = [
 ]
 
 if __name__ == "__main__":
+    from tau_bench.envs.retail.tools import DATABASE_CHANGING_TOOLS
+
     task_idx = 17
     print(TASKS_TEST[task_idx])
+
+    avg_database_changing_actions = []
+    for task in TASKS_TEST:
+        avg_database_changing_actions.append(
+            len(
+                [
+                    a
+                    for a in task.actions
+                    if a.name
+                    in [
+                        t.get_info()["function"]["name"]
+                        for t in DATABASE_CHANGING_TOOLS
+                    ]
+                ]
+            )
+        )
+    counts = {}
+    for actions in avg_database_changing_actions:
+        counts[actions] = counts.get(actions, 0) + 1
+    print(counts)

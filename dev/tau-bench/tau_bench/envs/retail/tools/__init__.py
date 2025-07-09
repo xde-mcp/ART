@@ -36,3 +36,14 @@ ALL_TOOLS = [
     Think,
     TransferToHumanAgents,
 ]
+
+DATABASE_CHANGING_TOOLS = [
+    ModifyPendingOrderAddress,
+    ModifyPendingOrderItems,
+    ModifyPendingOrderPayment,
+    ModifyUserAddress,
+    ReturnDeliveredOrderItems,
+    ExchangeDeliveredOrderItems,
+    CancelPendingOrder,
+    TransferToHumanAgents,
+]

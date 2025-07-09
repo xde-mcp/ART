@@ -157,6 +157,27 @@ trainable_models["012"]._internal_config = art.dev.InternalModelConfig(
     ),
 )
 
+trainable_models["013"] = trainable_models["001"].model_copy(deep=True)
+assert trainable_models["013"].config.training_config is not None
+trainable_models["013"].name = "tau-bench-rl-013-test"
+trainable_models["013"].config.training_config.trajectories_per_group = 3
+trainable_models["013"].config.training_config.groups_per_step = 3
+trainable_models["013"].config.training_config.training_dataset_size = 12
+trainable_models["013"].config.training_config.learning_rate = 2e-6
+trainable_models["013"].config.run_config.skip_eval = True
+trainable_models["013"].config.run_config.reward_type = "real_piecewise"
+trainable_models["013"].config.run_config.user_model = "gpt-4.1"
+
+
+# trainable_models["013"].config.training_config.val_set_size = 10
+# trainable_models["013"].config.training_config.eval_steps = 8
+# trainable_models["013"]._internal_config = art.dev.InternalModelConfig(
+#     engine_args=art.dev.EngineArgs(tensor_parallel_size=4, gpu_memory_utilization=0.75),
+#     torchtune_args=art.dev.TorchtuneArgs(
+#         model="qwen2_5_14b_instruct", model_type="QWEN2", async_weight_syncing=True
+#     ),
+# )
+
 
 # trainable_models["002"] = trainable_models["001"].model_copy(deep=True)
 # assert trainable_models["002"].config.training_config is not None

@@ -1,11 +1,15 @@
 import copy
-from tau_bench.types import RunConfig, SolveResult
+import json
+from tau_bench.types import Action, RunConfig, SolveResult
 import art
 from pydantic import BaseModel, Field
-from typing import Any, Dict, List, Tuple, Type, TypeVar
+from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar
 from openai.types.chat.chat_completion import Choice
 from openai import AsyncOpenAI
 from tau_bench.rl_utils import update_openpipe_log
+from tau_bench.agents.tool_calling_agent import ToolCallingRLAgent
+from tau_bench.envs import Env
+from tau_bench.envs.retail.tools import DATABASE_CHANGING_TOOLS
 
 T = TypeVar("T")
 
@@ -184,7 +188,47 @@ def create_correct_order_and_set_of_tools(actions: List[Dict[str, Any]]) -> str:
     return resp
 
 
-async def calculate_reward(result: SolveResult, config: RunConfig) -> Tuple[float, str]:
+def action_in_action_list(action: Action, action_list: List[Action]) -> bool:
+    """
+    Check if an action is in a list of actions.
+    """
+    for a in action_list:
+        if a.name == action.name and a.kwargs == action.kwargs:
+            print(
+                f"Correct action: {action.name} {json.dumps(action.kwargs, indent=4)}\n\naction_taken: {a.name} {json.dumps(a.kwargs, indent=4)}"
+            )
+            return True
+    return False
+
+
+def calculate_real_piecewise_reward(env: Optional[Env]) -> Tuple[float, float]:
+    """
+    Calculate the real piecewise reward for a rollout.
+    Check the fraction of "correct actions" defined in the environment that the agent took.
+    """
+    if env is None:
+        raise ValueError("Env must be provided")
+
+    all_correct_actions = env.task.actions
+    database_changing_actions = [
+        action
+        for action in all_correct_actions
+        if action.name
+        in [tool.get_info()["function"]["name"] for tool in DATABASE_CHANGING_TOOLS]
+    ]
+    all_actions_taken = env.actions
+    num_correct_actions = 0
+    for action in database_changing_actions:
+        if action_in_action_list(action, all_actions_taken):
+            num_correct_actions += 1
+    return num_correct_actions, len(database_changing_actions)
+
+
+async def calculate_reward(
+    result: SolveResult,
+    config: RunConfig,
+    env: Optional[Env] = None,
+) -> Tuple[float, str]:
     # If the agent was forced to stop, it should get a score of -1, regardless of the reward type
     if result.info["forced_stop"]:
         return -1, "Max token trajectory"
@@ -200,6 +244,19 @@ async def calculate_reward(result: SolveResult, config: RunConfig) -> Tuple[floa
 
     if config.reward_type == "real":
         return reward, "real_reward"
+
+    if config.reward_type == "real_piecewise":
+        if reward == 1:
+            return reward, "real_piecewise_reward_1"
+        else:
+            num_correct_actions, num_database_changing_actions = (
+                calculate_real_piecewise_reward(env)
+            )
+            reward = num_correct_actions / num_database_changing_actions
+            return (
+                reward,
+                f"real_piecewise_reward: {num_correct_actions}/{num_database_changing_actions}",
+            )
 
     if config.reward_type == "real+llm":
         try:
