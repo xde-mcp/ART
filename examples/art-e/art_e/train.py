@@ -2,7 +2,7 @@ import art
 from art.local import LocalBackend
 import asyncio
 from dotenv import load_dotenv
-from typing import List, cast
+from typing import List
 from rollout import rollout
 from art_e.data.query_iterators import load_synthetic_queries
 from art_e.data.types_enron import SyntheticQuery
@@ -10,11 +10,10 @@ from art_e.data.local_email_db import generate_database
 from art.utils import iterate_dataset
 from art_e.project_types import ProjectPolicyConfig
 from art_e.evaluate.benchmark import benchmark_model
-from art_e.rollout import ProjectTrajectory
 import os
 import statistics
 from report_trajectory import report_trajectory
-from group_judge import GroupJudge
+from art.rewards import art_ruler
 
 load_dotenv()
 
@@ -54,18 +53,6 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
             initial_step=await model.get_step(),
         )
 
-        if model.config.group_judge_model is not None:
-            judge_model = model.config.group_judge_model
-
-            if model.config.group_judge_model in ["self", "base_model"]:
-                judge_model = model
-
-            group_judge = GroupJudge(
-                project=model.project,
-                judge_model=judge_model,
-                judge_model_use_base_model=judge_model == "base_model",
-            )
-
         for batch in train_iterator:
             if batch.step % model.config.eval_steps == 0:
                 print(f"\n--- Evaluating at Iteration {batch.step} ---")
@@ -89,11 +76,9 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
             )
 
             # Optionally rescore each trajectory group with the LLM-judge before training.
-            if model.config.use_judge_group_variant is not None:
+            if model.config.group_judge_model is not None:
                 judge_tasks = [
-                    group_judge.judge(
-                        cast(list[ProjectTrajectory], g.trajectories),
-                    )
+                    art_ruler(g.trajectories, {"model": model.config.group_judge_model})
                     for g in groups
                 ]
 
@@ -187,6 +172,22 @@ if __name__ == "__main__":
 
     model_dict = json.loads(args.model_json)
     model_dict["config"] = ProjectPolicyConfig(**model_dict["config"])
+
+    # Add custom vLLM constructor args
+    if "_internal_config" not in model_dict:
+        model_dict["_internal_config"] = {}
+
+    if "engine_args" not in model_dict["_internal_config"]:
+        model_dict["_internal_config"]["engine_args"] = {}
+
+    if "additional_config" not in model_dict["_internal_config"]["engine_args"]:
+        model_dict["_internal_config"]["engine_args"]["additional_config"] = {}
+
+    # Pass the reasoning_parser argument
+    model_dict["_internal_config"]["engine_args"]["additional_config"][
+        "reasoning_parser"
+    ] = ""
+
     model: art.TrainableModel[ProjectPolicyConfig] = art.TrainableModel(
         **model_dict,
     )
