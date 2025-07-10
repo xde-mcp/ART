@@ -93,7 +93,10 @@ class Env(object):
         info = EnvInfo(task=self.task)
         reward = 0
         done = False
+        erroneous_action = False
         if action.name == RESPOND_ACTION_NAME:
+            if "<tool_call>" in action.kwargs["content"]:
+                erroneous_action = True
             observation = await self.user.step(action.kwargs["content"])
             info.source = "user"
             done = "###STOP###" in observation
@@ -104,19 +107,26 @@ class Env(object):
                 )
             except Exception as e:
                 observation = f"Error: {e}"
+                erroneous_action = True
             info.source = action.name
             if action.name in self.terminate_tools:
                 done = True
         else:
             observation = f"Unknown action {action.name}"
             info.source = action.name
-
+            erroneous_action = True
         if done:
             reward_res = await self.calculate_reward()
             reward = reward_res.reward
             info.reward_info = reward_res
             info.user_cost = self.user.get_total_cost()
-        return EnvResponse(observation=observation, reward=reward, done=done, info=info)
+        return EnvResponse(
+            observation=observation,
+            reward=reward,
+            done=done,
+            info=info,
+            erroneous_action=erroneous_action,
+        )
 
     def get_data_hash(self) -> str:
         return consistent_hash(to_hashable(self.data))

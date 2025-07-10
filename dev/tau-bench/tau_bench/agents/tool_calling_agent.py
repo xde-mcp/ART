@@ -1,5 +1,6 @@
 # Copyright Sierra
 
+import copy
 import json
 from litellm import Choices, acompletion
 from litellm.types.utils import ModelResponse
@@ -111,6 +112,8 @@ class ToolCallingAgent(Agent):
                 break
             if final_prompt_tokens > 20000 or res.choices[0].finish_reason == "length":
                 break
+            if env_response.erroneous_action:
+                break
         info["total_steps"] = curr_step_number + 1
         info["avg_completion_tokens"] = avg_completion_tokens / info["total_steps"]
         info["max_completion_tokens"] = max_completion_tokens
@@ -155,10 +158,14 @@ class ToolCallingRLAgent(ToolCallingAgent):
     def create_messages_and_choices(self):
         messages_and_choices = []
         choice_idx = 0
-        for message in self.messages:
+        messages_till_last_assistant = copy.deepcopy(self.messages)
+        # pop messages till last assistant
+        while messages_till_last_assistant[-1]["role"] != "assistant":
+            messages_till_last_assistant.pop()
+        for message in messages_till_last_assistant:
             if message["role"] == "assistant":
                 choice = self.choices[choice_idx]
-                if "Qwen3-" in self.base_model:
+                if "Qwen3-" in self.base_model:  # type: ignore
                     if (
                         hasattr(choice.message, "content")
                         and choice.message.content is None
@@ -167,7 +174,7 @@ class ToolCallingRLAgent(ToolCallingAgent):
                 messages_and_choices.append(choice)
                 choice_idx += 1
             else:
-                if "Qwen3-" in self.base_model:
+                if "Qwen3-" in self.base_model:  # type: ignore
                     if "content" in message and message["content"] is None:
                         message["content"] = ""
                     for key in message.keys():

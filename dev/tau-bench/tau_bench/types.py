@@ -55,6 +55,7 @@ class EnvResponse(BaseModel):
     reward: float
     done: bool
     info: EnvInfo
+    erroneous_action: Optional[bool] = None
 
 
 class EnvResetResponse(BaseModel):

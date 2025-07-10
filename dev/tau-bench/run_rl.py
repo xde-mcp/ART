@@ -123,7 +123,7 @@ async def rollout_tau_bench_task(
         traj.metadata["judge_explanation"] = explanation
 
         if config.messages_only:
-            traj.messages_and_choices = clean_messages(result.messages)  # type: ignore
+            traj.messages_and_choices = clean_messages(agent.messages)  # type: ignore
         else:
             traj.messages_and_choices = agent.create_messages_and_choices()  # type: ignore
     except Exception as e:
@@ -142,7 +142,7 @@ async def rollout_tau_bench_task(
 
     # Log to langfuse/openpipe
     try:
-        await log_trajectory_to_openpipe(traj, result.messages)
+        await log_trajectory_to_openpipe(traj, agent.messages)
     except Exception as e:
         print(f"Error logging trajectory to openpipe: {e}")
 
