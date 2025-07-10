@@ -193,7 +193,9 @@ class LocalBackend(Backend):
             )
             return None
         if plot_tensors:
-            plot_packed_tensors(packed_tensors)
+            plot_packed_tensors(
+                packed_tensors, get_model_dir(model=model, art_path=self._path)
+            )
         else:
             print(
                 f"Packed {len(tokenized_results)} trajectories into {packed_tensors['tokens'].shape[0]} sequences of length {packed_tensors['tokens'].shape[1]}"
@@ -332,7 +334,7 @@ class LocalBackend(Backend):
             allow_training_without_logprobs=dev_config.get(
                 "allow_training_without_logprobs", False
             ),
-            plot_tensors=False,
+            plot_tensors=dev_config.get("plot_tensors", False),
         )
         if packed_tensors is None:
             print(
