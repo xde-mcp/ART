@@ -126,12 +126,6 @@ async def qwen_rollout(
     Returns:
         The contents of the assistant's final response.
     """
-    print(
-        "DEBUG: instance_prompt",
-        instance_prompt.format(
-            problem_statement=problem_statement, working_dir="/testbed"
-        ),
-    )
     messages: list[ChatCompletionMessageParam] = [
         {
             "role": "system",
@@ -148,7 +142,7 @@ async def qwen_rollout(
         print(f"\n[Step {step + 1}/{max_steps}]")
         try:
             response = await client.chat.completions.create(
-                model="Qwen/Qwen3-32B",
+                model="willcb/Qwen3-32B",
                 messages=messages,
                 tools=tools,
                 tool_choice="auto",
@@ -337,7 +331,12 @@ async def test_qwen_rollout(instance_idx: int) -> None:
             f"PASS_TO_PASS: {p2p_passed} passed, {p2p_failed} failed (out of {len(instance['PASS_TO_PASS'])})"
         )
 
-        if f2p_failed == 0 and p2p_failed == 0:
+        if (
+            f2p_failed == 0
+            and f2p_passed == len(instance["FAIL_TO_PASS"])
+            and p2p_failed == 0
+            and p2p_passed == len(instance["PASS_TO_PASS"])
+        ):
             print("\n✅ SUCCESS: All tests passing!")
         else:
             print("\n❌ FAILURE: Some tests still failing")
@@ -346,4 +345,4 @@ async def test_qwen_rollout(instance_idx: int) -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(test_qwen_rollout(instance_idx=0))
+    asyncio.run(test_qwen_rollout(instance_idx=5))

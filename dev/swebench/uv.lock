@@ -3287,6 +3287,7 @@ dependencies = [
     { name = "openpipe-art", extra = ["backend", "plotting"] },
     { name = "sweagent" },
     { name = "swebench" },
+    { name = "tenacity" },
 ]
 
 [package.dev-dependencies]
@@ -3308,6 +3309,7 @@ requires-dist = [
     { name = "openpipe-art", extras = ["backend", "plotting"], editable = "../../" },
     { name = "sweagent", git = "https://github.com/bradhilton/SWE-agent" },
     { name = "swebench", specifier = ">=4.0.3" },
+    { name = "tenacity", specifier = ">=9.1.2" },
 ]
 
 [package.metadata.requires-dev]
