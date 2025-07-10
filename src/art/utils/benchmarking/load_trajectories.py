@@ -1,8 +1,13 @@
-import polars as pl
+try:
+    import polars as pl
+except ImportError:
+    raise ImportError(
+        "Plotting dependencies are not installed. Please install them with: "
+        "pip install openpipe-art[plotting]"
+    )
 import yaml
 import json
 from pathlib import Path
-from panza import SQLiteCache
 import os
 from tqdm.auto import tqdm
 
@@ -17,10 +22,8 @@ from art.utils.output_dirs import (
 
 cache_path = Path(get_repo_root_path()) / "data" / "cache.db"
 cache_path.parent.mkdir(parents=True, exist_ok=True)
-cache = SQLiteCache(str(cache_path))
 
 
-@cache.cache()
 async def load_trajectories(
     project_name: str,
     models: list[str] | None = None,
