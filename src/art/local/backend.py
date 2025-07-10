@@ -400,7 +400,7 @@ class LocalBackend(Backend):
 
             # Enabling the following line will cause W&B to use the training_step metric as the x-axis for all metrics
             # wandb.define_metric(f"{split}/*", step_metric="training_step")
-            run.log({"training_step": step, **metrics})
+            run.log({"training_step": step, **metrics}, step=step)
 
     def _get_wandb_run(self, model: Model) -> Run | None:
         if "WANDB_API_KEY" not in os.environ:
