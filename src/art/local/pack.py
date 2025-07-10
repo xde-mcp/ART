@@ -173,7 +173,7 @@ def plot_packed_tensors(packed_tensors: PackedTensors) -> None:
             "Plotting dependencies are not installed. Please install them with: "
             "pip install openpipe-art[plotting]"
         )
-    
+
     plt.figure(figsize=(15, 24))
 
     for tensor, label, title, subplot_idx in (

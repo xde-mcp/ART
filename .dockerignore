@@ -1,6 +1,6 @@
 __pycache__/
 .art/
-.env
+# .env
 .venv/
 grpo_trainer_lora_model/
 logs/
@@ -13,7 +13,6 @@ dist/
 replays/
 trajectories/
 .DS_Store
-.local/
-.claude/
+# .local/
+# .claude/
 .vscode/
-.ruff_cache/
