@@ -173,21 +173,6 @@ if __name__ == "__main__":
     model_dict = json.loads(args.model_json)
     model_dict["config"] = ProjectPolicyConfig(**model_dict["config"])
 
-    # Add custom vLLM constructor args
-    if "_internal_config" not in model_dict:
-        model_dict["_internal_config"] = {}
-
-    if "engine_args" not in model_dict["_internal_config"]:
-        model_dict["_internal_config"]["engine_args"] = {}
-
-    if "additional_config" not in model_dict["_internal_config"]["engine_args"]:
-        model_dict["_internal_config"]["engine_args"]["additional_config"] = {}
-
-    # Pass the reasoning_parser argument
-    model_dict["_internal_config"]["engine_args"]["additional_config"][
-        "reasoning_parser"
-    ] = ""
-
     model: art.TrainableModel[ProjectPolicyConfig] = art.TrainableModel(
         **model_dict,
     )
