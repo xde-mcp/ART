@@ -17,13 +17,6 @@ fi
 echo "🔍 Running code quality checks..."
 echo
 
-# Check if ruff is installed
-if ! command -v ruff &> /dev/null; then
-    echo -e "${RED}❌ ruff is not installed${NC}"
-    echo "Please install ruff with: pip install ruff"
-    exit 1
-fi
-
 # Check if uv is installed
 if ! command -v uv &> /dev/null; then
     echo -e "${RED}❌ uv is not installed${NC}"
@@ -37,16 +30,16 @@ CHECKS_PASSED=true
 # Run format check
 echo "📝 Checking code formatting..."
 if [[ -n "$FIX_FLAG" ]]; then
-    echo "  Running: ruff format ."
-    if ruff format .; then
+    echo "  Running: uv run ruff format ."
+    if uv run ruff format .; then
         echo -e "${GREEN}✅ Code formatted successfully${NC}"
     else
         echo -e "${RED}❌ Format fixing failed${NC}"
         CHECKS_PASSED=false
     fi
 else
-    echo "  Running: ruff format --check ."
-    if ruff format --check .; then
+    echo "  Running: uv run ruff format --check ."
+    if uv run ruff format --check .; then
         echo -e "${GREEN}✅ Code formatting looks good${NC}"
     else
         echo -e "${YELLOW}⚠️  Code formatting issues found${NC}"
@@ -59,16 +52,16 @@ echo
 # Run linting check
 echo "🔎 Checking code linting..."
 if [[ -n "$FIX_FLAG" ]]; then
-    echo "  Running: ruff check --fix ."
-    if ruff check --fix .; then
+    echo "  Running: uv run ruff check --fix ."
+    if uv run ruff check --fix .; then
         echo -e "${GREEN}✅ Linting issues fixed${NC}"
     else
         echo -e "${YELLOW}⚠️  Some linting issues could not be auto-fixed${NC}"
         CHECKS_PASSED=false
     fi
 else
-    echo "  Running: ruff check ."
-    if ruff check .; then
+    echo "  Running: uv run ruff check ."
+    if uv run ruff check .; then
         echo -e "${GREEN}✅ No linting issues found${NC}"
     else
         echo -e "${YELLOW}⚠️  Linting issues found${NC}"
