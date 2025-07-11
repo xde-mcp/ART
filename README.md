@@ -23,7 +23,7 @@ Train multi-step agents for real-world tasks using GRPO.
 
 ## Overview
 
-ART is an open-source reinforcement learning framework for improving **LLM agent reliability**. ART utilizes the GRPO reinforcement learning algorithm to let models **learn from experience**. For a quick hands-on introduction, run one of the notebooks below. When you're ready to learn more, take a look at our [docs](https://art.openpipe.ai).
+ART is an open-source reinforcement learning framework for improving **LLM agent reliability**. ART utilizes the GRPO reinforcement learning algorithm to help models **learn from experience**. For a quick hands-on introduction, run one of the notebooks below. When you're ready to learn more, check out the [docs](https://art.openpipe.ai).
 
 ## 📒 Notebooks
 
