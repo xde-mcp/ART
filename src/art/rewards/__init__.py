@@ -1,3 +1,3 @@
-from .ruler import ruler, art_ruler
+from .ruler import ruler, ruler_score_group
 
-__all__ = ["ruler", "art_ruler"]
+__all__ = ["ruler", "ruler_score_group"]

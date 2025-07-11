@@ -5,7 +5,7 @@ from art_e.project_types import ProjectPolicyConfig
 from art_e.data.query_iterators import load_synthetic_queries
 from art_e.rollout import rollout
 from tqdm.asyncio import tqdm
-from art.rewards import art_ruler
+from art.rewards import ruler_score_group
 
 load_dotenv()
 
@@ -49,15 +49,19 @@ async def main():
         for m, t in zip(models, rollouts):
             print(f"  {m.name:10s}: {t.reward:.3f}")
 
-        judged_rollouts = await art_ruler(
-            rollouts,
-            {"model": "openai/o3"},
+        # Create a TrajectoryGroup from the rollouts
+        group = art.TrajectoryGroup(rollouts)
+
+        judged_group = await ruler_score_group(
+            group,
+            "openai/o3",
             debug=True,
         )
 
-        print("\nGroup-judge rewards:")
-        for m, t in zip(models, judged_rollouts):
-            print(f"  {m.name:10s}: {t.reward:.3f}")
+        if judged_group:
+            print("\nRULER rewards:")
+            for m, t in zip(models, judged_group.trajectories):
+                print(f"  {m.name:10s}: {t.reward:.3f}")
 
 
 asyncio.run(main())
