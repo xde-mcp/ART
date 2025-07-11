@@ -33,9 +33,43 @@ uv run ruff check --fix .
 
 These checks are automatically run in CI for all pull requests. You can also install ruff as a pre-commit hook if desired.
 
-Then follow the SkyPilot or Local Training instructions below.
+### Release Process
 
-> **Warning:** There is currently a bug with tool use functionality. The issue appears to be that vLLM does not return all the token log probabilities for tool use. Further investigation is needed to determine the exact cause. For now, teaching use case-specific tool use with non-tool use models is the recommended workaround.
+To create a new release:
+
+1. **Decide on version bump type**:
+
+   - `patch`: Bug fixes and minor changes (0.3.13 → 0.3.14)
+   - `minor`: New features and non-breaking changes (0.3.13 → 0.4.0)
+   - `major`: Breaking changes (0.3.13 → 1.0.0)
+
+2. **Run the version bump script**:
+
+   ```bash
+   python scripts/bump_version.py patch  # or minor/major
+   ```
+
+3. **Commit and tag the version**:
+
+   ```bash
+   git add pyproject.toml
+   git commit -m "Bump version to X.Y.Z"
+   git tag vX.Y.Z
+   git push origin main vX.Y.Z
+   ```
+
+4. **GitHub Actions will automatically**:
+
+   - Create a GitHub release with auto-generated notes listing all merged PRs
+   - Build and publish the package to PyPI
+
+5. **Update release notes** (recommended):
+   - Go to the [releases page](https://github.com/OpenPipe/ART/releases)
+   - Click "Edit" on the latest release
+   - Add highlights, breaking changes, or other important information
+   - The auto-generated PR list provides a good starting point, but manual curation improves clarity
+
+Then follow the SkyPilot or Local Training instructions below.
 
 ### SkyPilot
 
