@@ -83,7 +83,7 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
 
                 return await ruler_score_group(
                     group,
-                    {"model": model.config.group_judge_model},
+                    model.config.group_judge_model,
                     swallow_exceptions=True,
                 )
 

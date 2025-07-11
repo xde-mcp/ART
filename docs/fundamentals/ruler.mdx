@@ -46,7 +46,7 @@ group = art.TrajectoryGroup([...])  # List of art.Trajectory objects
 # Use RULER to score them
 judged_group = await ruler_score_group(
     group,
-    {"model": "openai/o3"},
+    "openai/o3",
     debug=True  # Shows the judge's reasoning
 )
 
@@ -111,7 +111,7 @@ async def main():
     
     # Create a TrajectoryGroup and use RULER to score
     group = art.TrajectoryGroup([good_trajectory, mediocre_trajectory, off_topic_trajectory])
-    judged_group = await ruler_score_group(group, {"model": "openai/o3"}, debug=True)
+    judged_group = await ruler_score_group(group, "openai/o3", debug=True)
     
     # Display rankings
     if judged_group:
@@ -164,13 +164,33 @@ You can use any LLM supported by LiteLLM as the judge:
 
 ```python
 # Using o4-mini
-await ruler_score_group(group, {"model": "openai/o4-mini"})
+await ruler_score_group(group, "openai/o4-mini")
 
 # Using Claude
-await ruler_score_group(group, {"model": "anthropic/claude-sonnet-4-20250514"})
+await ruler_score_group(group, "anthropic/claude-sonnet-4-20250514")
 
 # Using local models
-await ruler_score_group(group, {"model": "ollama/qwen3:32b"})
+await ruler_score_group(group, "ollama/qwen3:32b")
+```
+
+### Extra LiteLLM Parameters
+
+You can pass additional parameters to LiteLLM for fine-tuning the judge behavior:
+
+```python
+# Adjust temperature and max tokens
+await ruler_score_group(
+    group,
+    "openai/o3",
+    extra_litellm_params={"temperature": 0.7, "max_tokens": 1000}
+)
+
+# Use custom API base for local models
+await ruler_score_group(
+    group,
+    "openai/gpt-4",
+    extra_litellm_params={"api_base": "http://localhost:8000"}
+)
 ```
 
 ### Custom Rubric
@@ -186,7 +206,7 @@ custom_rubric = """
 
 await ruler_score_group(
     group,
-    {"model": "openai/o3"},
+    "openai/o3",
     rubric=custom_rubric
 )
 ```
@@ -210,7 +230,7 @@ message_lists = [
 
 scores = await ruler(
     message_lists,
-    {"model": "openai/o3"}
+    "openai/o3"
 )
 
 for score in scores:
@@ -245,7 +265,7 @@ groups = await art.gather_trajectory_groups(
     ),
     after_each=lambda group: ruler_score_group(
         group,
-        {"model": "openai/o3"},
+        "openai/o3",
         swallow_exceptions=True  # Return None on error, filtering out the group
     )
 )

@@ -50,7 +50,8 @@ as RULER extracts task understanding from the system prompts in the trajectories
 
 async def ruler(
     message_lists: list[list[ChatCompletionMessageParam]],
-    litellm_completion_params: dict = {"model": "openai/o3"},
+    judge_model: str = "openai/o3",
+    extra_litellm_params: dict | None = None,
     rubric: str = DEFAULT_RUBRIC,
     *,
     debug: bool = False,
@@ -71,10 +72,12 @@ async def ruler(
     Args:
         message_lists: A list where each item is a list of ChatCompletionMessageParam
             dicts representing a single trajectory.
-        litellm_completion_params: Parameters for the judge model. Common options:
-            - {"model": "openai/gpt-4o-mini"} - Fast and cost-effective
-            - {"model": "openai/o3"} - Most capable but expensive
-            - {"model": "anthropic/claude-3-opus-20240229"} - Alternative judge
+        judge_model: The model to use for judging. Common options:
+            - "openai/gpt-4o-mini" - Fast and cost-effective
+            - "openai/o3" - Most capable but expensive (default)
+            - "anthropic/claude-3-opus-20240229" - Alternative judge
+        extra_litellm_params: Additional parameters to pass to LiteLLM completion.
+            Can include temperature, max_tokens, etc.
         rubric: The grading rubric. The default rubric works well for most tasks.
         debug: If True, pretty-print the judge's reasoning to help understand scores.
 
@@ -147,10 +150,11 @@ async def ruler(
     ]
 
     response = await acompletion(
-        **litellm_completion_params,
+        model=judge_model,
         messages=messages,
         response_format=Response,
         caching=False,
+        **extra_litellm_params if extra_litellm_params else {},
     )
     assert isinstance(response, ModelResponse)
 
@@ -176,7 +180,8 @@ async def ruler(
 
 async def ruler_score_group(
     group: art.TrajectoryGroup,
-    litellm_completion_params: dict = {"model": "openai/o3"},
+    judge_model: str = "openai/o3",
+    extra_litellm_params: dict | None = None,
     rubric: str = DEFAULT_RUBRIC,
     *,
     swallow_exceptions: bool = False,
@@ -196,7 +201,8 @@ async def ruler_score_group(
 
     Args:
         group: A TrajectoryGroup containing trajectories to score.
-        litellm_completion_params: Judge model parameters. See `ruler` for options.
+        judge_model: The model to use for judging. See `ruler` for options.
+        extra_litellm_params: Additional parameters to pass to LiteLLM completion.
         rubric: Custom rubric or use the default which works well for most tasks.
         swallow_exceptions: If True, returns None on errors instead of raising.
             This is recommended for production to handle API failures gracefully.
@@ -211,7 +217,7 @@ async def ruler_score_group(
         >>> groups = await art.gather_trajectory_groups(
         ...     (art.TrajectoryGroup(rollout(model, scenario) for _ in range(4))
         ...      for scenario in scenarios),
-        ...     after_each=lambda g: ruler_score_group(g, {"model": "openai/o3"},
+        ...     after_each=lambda g: ruler_score_group(g, "openai/o3",
         ...                                               swallow_exceptions=True)
         ... )
 
@@ -236,7 +242,8 @@ async def ruler_score_group(
         # Call the core ruler function to get scores
         scores = await ruler(
             message_lists,
-            litellm_completion_params=litellm_completion_params,
+            judge_model=judge_model,
+            extra_litellm_params=extra_litellm_params,
             rubric=rubric,
             debug=debug,
         )

@@ -54,7 +54,7 @@ async def main():
 
         judged_group = await ruler_score_group(
             group,
-            {"model": "openai/o3"},
+            "openai/o3",
             debug=True,
         )
 
