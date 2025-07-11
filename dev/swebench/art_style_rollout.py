@@ -17,7 +17,6 @@ class ARTModelConfig(BaseModel):
     max_steps: int = 40
     max_output_length: int = 1000
     temperature: float = 1.0
-    max_tokens: int = 40_960
     system_prompt: str = (
         "You are a helpful assistant that can interact with a computer to solve tasks."
     )
@@ -146,17 +145,18 @@ async def art_style_rollout(
                 ),
             },
         ],
+        tools=tools,
         reward=0.0,
         metrics={
-            "instance_id": instance["instance_id"],
             "resolved": False,
             "progress": 0.0,
             "maintenance": 0.0,
             "regression": 0.0,
             "steps_taken": 0,
         },
-        tools=tools,
-        logs=[],
+        metadata={
+            "instance_id": instance["instance_id"],
+        }
     )
 
     # Get OpenAI client
@@ -173,14 +173,13 @@ async def art_style_rollout(
                 messages=trajectory.messages(),
                 tools=tools,
                 tool_choice="auto",
-                temperature=model.config.temperature,
-                max_tokens=model.config.max_tokens,
+                temperature=model.config.temperature
             )
         except Exception as e:
             error_msg = f"Error getting completion: {type(e).__name__}: {str(e)}"
             trajectory.logs.append(error_msg)
             print(error_msg)
-            raise
+            break
 
         # Extract assistant message
         assistant_message = response.choices[0].message
@@ -358,5 +357,15 @@ async def art_style_rollout(
         trajectory.logs.append(error_msg)
         print(error_msg)
         traceback.print_exc()
+
+
+    # DEBUG
+    # Serialize trajectory to file
+    import os
+    trajectory_path = f"./trajectories/{instance['instance_id']}.json"
+    os.makedirs(os.path.dirname(trajectory_path), exist_ok=True)
+    with open(trajectory_path, 'w') as f:
+        f.write(trajectory.model_dump_json(indent=2))
+    trajectory.logs.append(f"Trajectory saved to {trajectory_path}")
 
     return trajectory
