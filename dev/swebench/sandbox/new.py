@@ -3,7 +3,12 @@ from contextlib import asynccontextmanager
 import daytona_sdk
 import modal
 from typing import AsyncIterator
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_message
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_message,
+)
 
 from .daytona import DaytonaSandbox
 from .modal import ModalSandbox
@@ -20,7 +25,7 @@ modal.enable_output()
 create_sandbox_retry = retry(
     stop=stop_after_attempt(5),
     wait=wait_exponential(multiplier=2, min=2, max=30),
-    retry=retry_if_exception_message(match="No available runners|timeout|504 Gateway")
+    retry=retry_if_exception_message(match="No available runners|timeout|504 Gateway"),
 )
 
 

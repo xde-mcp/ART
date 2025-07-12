@@ -256,10 +256,10 @@ async def test_claude_rollout(instance_idx: int) -> None:
         .pipe(as_instances_iter)
     )
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Testing instance: {instance.get('instance_id', 'Unknown')}")
     print(f"Repository: {instance.get('repo', 'Unknown')}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     # Calculate dynamic timeout based on number of tests
     # Formula: base_timeout + num_tests * per_test_time
@@ -321,7 +321,7 @@ async def test_claude_rollout(instance_idx: int) -> None:
             instance["PASS_TO_PASS"], pass_to_pass_timeout
         )
 
-        print(f"\nFinal results:")
+        print("\nFinal results:")
         print(
             f"FAIL_TO_PASS: {f2p_passed} passed, {f2p_failed} failed (out of {len(instance['FAIL_TO_PASS'])})"
         )

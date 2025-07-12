@@ -20,8 +20,7 @@ class ARTModelConfig(BaseModel):
     system_prompt: str = (
         "You are a helpful assistant that can interact with a computer to solve tasks."
     )
-    instance_prompt_template: str = (
-        """
+    instance_prompt_template: str = """
 <uploaded_files>
 {working_dir}
 </uploaded_files>
@@ -42,7 +41,6 @@ Follow these steps to resolve the issue:
 5. Think about edgecases and make sure your fix handles them as well
 Your thinking should be thorough and so it's fine if it's very long.
 """.strip()
-    )
 
 
 # Tool definitions
@@ -156,7 +154,7 @@ async def art_style_rollout(
         },
         metadata={
             "instance_id": instance["instance_id"],
-        }
+        },
     )
 
     # Get OpenAI client
@@ -173,7 +171,7 @@ async def art_style_rollout(
                 messages=trajectory.messages(),
                 tools=tools,
                 tool_choice="auto",
-                temperature=model.config.temperature
+                temperature=model.config.temperature,
             )
         except Exception as e:
             error_msg = f"Error getting completion: {type(e).__name__}: {str(e)}"
@@ -358,13 +356,13 @@ async def art_style_rollout(
         print(error_msg)
         traceback.print_exc()
 
-
     # DEBUG
     # Serialize trajectory to file
     import os
+
     trajectory_path = f"./trajectories/{instance['instance_id']}.json"
     os.makedirs(os.path.dirname(trajectory_path), exist_ok=True)
-    with open(trajectory_path, 'w') as f:
+    with open(trajectory_path, "w") as f:
         f.write(trajectory.model_dump_json(indent=2))
     trajectory.logs.append(f"Trajectory saved to {trajectory_path}")
 

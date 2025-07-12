@@ -6,10 +6,8 @@ Aggregates by instance_id, taking the last occurrence.
 
 import json
 import polars as pl
-from pathlib import Path
 from collections import Counter
 import re
-from datetime import datetime
 
 
 def load_test_results(
@@ -75,7 +73,7 @@ def print_basic_stats(df: pl.DataFrame):
     # Count instances with errors
     has_error = df.filter(pl.col("error").is_not_null())
     print(
-        f"Instances with top-level errors: {len(has_error):,} ({len(has_error)/len(df)*100:.1f}%)"
+        f"Instances with top-level errors: {len(has_error):,} ({len(has_error) / len(df) * 100:.1f}%)"
     )
 
     # Count instances with test errors
@@ -85,7 +83,7 @@ def print_basic_stats(df: pl.DataFrame):
         | (pl.col("p2p_error").is_not_null())
     )
     print(
-        f"Instances with test errors: {len(has_test_error):,} ({len(has_test_error)/len(df)*100:.1f}%)"
+        f"Instances with test errors: {len(has_test_error):,} ({len(has_test_error) / len(df) * 100:.1f}%)"
     )
 
 
@@ -419,9 +417,6 @@ def main():
             (pl.col("instance_id").str.contains(repo)) & (pl.col("error").is_not_null())
         ).height
         print(f"  {repo:40} {rate:5.1f}% ({errors}/{total})")
-
-    # Specific failure patterns
-    failures = analyze_failure_patterns(df)
 
     print("\n" + "=" * 80)
     print("SPECIFIC INSTANCE ANALYSIS")

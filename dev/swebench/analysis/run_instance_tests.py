@@ -7,8 +7,7 @@ Runs up to 256 sandboxes concurrently using the Daytona provider.
 import asyncio
 import json
 import os
-from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from datetime import datetime
 from dotenv import load_dotenv
 import daytona_sdk
@@ -45,7 +44,7 @@ async def cleanup_all_sandboxes() -> None:
 
 async def load_existing_results() -> tuple[set[str], set[str]]:
     """Load existing results and identify perfect passes to skip.
-    
+
     Returns:
         - Set of instance IDs that passed perfectly (to skip)
         - Set of all instance IDs that have been attempted (for stats)
@@ -64,15 +63,18 @@ async def load_existing_results() -> tuple[set[str], set[str]]:
                     instance_id = result.get("instance_id")
                     if instance_id:
                         all_instances.add(instance_id)
-                        
+
                         # Check if this is a perfect pass
-                        if (not result.get('error') and
-                            result.get('f2p_initial', {}).get('failed') == 0 and
-                            result.get('f2p_initial', {}).get('passed') is not None and
-                            result.get('f2p_post_patch', {}).get('passed') == 0 and
-                            result.get('f2p_post_patch', {}).get('failed') is not None and
-                            result.get('p2p', {}).get('failed') == 0 and
-                            result.get('p2p', {}).get('passed') is not None):
+                        if (
+                            not result.get("error")
+                            and result.get("f2p_initial", {}).get("failed") == 0
+                            and result.get("f2p_initial", {}).get("passed") is not None
+                            and result.get("f2p_post_patch", {}).get("passed") == 0
+                            and result.get("f2p_post_patch", {}).get("failed")
+                            is not None
+                            and result.get("p2p", {}).get("failed") == 0
+                            and result.get("p2p", {}).get("passed") is not None
+                        ):
                             perfect_passes.add(instance_id)
                 except json.JSONDecodeError:
                     continue

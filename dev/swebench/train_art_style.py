@@ -101,9 +101,9 @@ async def train_inference_model(
     all_trajectories = []
 
     for i, instance in enumerate(instances):
-        print(f"\n{'='*60}")
-        print(f"Instance {i+1}/{len(instances)}: {instance['instance_id']}")
-        print(f"{'='*60}")
+        print(f"\n{'=' * 60}")
+        print(f"Instance {i + 1}/{len(instances)}: {instance['instance_id']}")
+        print(f"{'=' * 60}")
 
         # Run multiple rollouts for this instance
         trajectory_group = await art.gather_trajectories(
@@ -119,17 +119,17 @@ async def train_inference_model(
 
         print(f"Rewards: {rewards}")
         print(f"Resolved: {sum(resolved)}/{len(resolved)}")
-        print(f"Average reward: {sum(rewards)/len(rewards):.3f}")
+        print(f"Average reward: {sum(rewards) / len(rewards):.3f}")
 
         all_trajectories.extend(trajectory_group)
 
     # Summary statistics
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("SUMMARY")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Total trajectories: {len(all_trajectories)}")
     print(
-        f"Average reward: {sum(t.reward for t in all_trajectories)/len(all_trajectories):.3f}"
+        f"Average reward: {sum(t.reward for t in all_trajectories) / len(all_trajectories):.3f}"
     )
     print(
         f"Resolved: {sum(t.metrics.get('resolved', False) for t in all_trajectories)}/{len(all_trajectories)}"
@@ -199,9 +199,9 @@ async def train_trainable_model(
 
     # Training loop
     for epoch in range(num_epochs):
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"EPOCH {epoch + 1}/{num_epochs}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         # Process instances in batches
         for batch_start in range(0, len(instances), batch_size):
@@ -209,7 +209,7 @@ async def train_trainable_model(
             batch_instances = instances[batch_start:batch_end]
 
             print(
-                f"\nBatch {batch_start//batch_size + 1}: instances {batch_start}-{batch_end-1}"
+                f"\nBatch {batch_start // batch_size + 1}: instances {batch_start}-{batch_end - 1}"
             )
 
             # Gather trajectory groups for this batch
@@ -221,7 +221,7 @@ async def train_trainable_model(
                     )
                     for instance in batch_instances
                 ),
-                pbar_desc=f"Batch {batch_start//batch_size + 1}",
+                pbar_desc=f"Batch {batch_start // batch_size + 1}",
             )
 
             # Log batch statistics

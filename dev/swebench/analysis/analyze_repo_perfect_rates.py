@@ -133,7 +133,7 @@ def print_analysis(repo_stats):
     total_instances = sum(r["total"] for r in repo_stats)
     total_perfect = sum(r["perfect"] for r in repo_stats)
     print(
-        f"Overall perfect pass rate: {total_perfect}/{total_instances} ({total_perfect/total_instances*100:.1f}%)"
+        f"Overall perfect pass rate: {total_perfect}/{total_instances} ({total_perfect / total_instances * 100:.1f}%)"
     )
 
     # Repos with 0% perfect pass rate

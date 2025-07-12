@@ -53,7 +53,8 @@ async def test_single_rollout():
         # Verify tests are broken
         print("\nVerifying tests are broken after patch...")
         failed, passed = await sandbox.run_tests(
-            instance["FAIL_TO_PASS"][:1], timeout=60  # Test just one for speed
+            instance["FAIL_TO_PASS"][:1],
+            timeout=60,  # Test just one for speed
         )
         print(f"FAIL_TO_PASS after patch: {failed} failed, {passed} passed")
         assert failed > 0, "Tests should be failing after patch"
