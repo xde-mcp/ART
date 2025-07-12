@@ -38,6 +38,13 @@ def get_model_config(
         max_lora_rank=8,
         use_async=True,
     )
+    if config.get("_decouple_vllm_and_unsloth", False):
+        init_args["fast_inference"] = False
+        init_args.pop("disable_log_stats")
+        init_args.pop("enable_prefix_caching")
+        init_args.pop("gpu_memory_utilization")
+        init_args.pop("max_lora_rank")
+        init_args.pop("use_async")
     engine_args = EngineArgs(
         disable_log_requests=True,
         # Multi-step processing is not supported for the Xformers attention backend
@@ -45,6 +52,7 @@ def get_model_config(
         num_scheduler_steps=(
             16
             if config.get("torchtune_args") is None
+            and not config.get("_decouple_vllm_and_unsloth", False)
             and torch.cuda.get_device_capability()[0] >= 8
             else 1
         ),
@@ -58,6 +66,8 @@ def get_model_config(
         if config.get("torchtune_args") is not None:
             engine_args["model"] = last_checkpoint_dir
     elif config.get("torchtune_args") is not None:
+        engine_args["model"] = base_model
+    if config.get("_decouple_vllm_and_unsloth", False):
         engine_args["model"] = base_model
     peft_args = PeftArgs(
         r=8,  # Choose any number > 0 ! Suggested 8, 16, 32, 64, 128
@@ -105,6 +115,7 @@ def get_model_config(
         peft_args=peft_args,
         trainer_args=trainer_args,
         torchtune_args=torchtune_args,
+        _decouple_vllm_and_unsloth=config.get("_decouple_vllm_and_unsloth", False),
     )
 
 
@@ -123,6 +134,7 @@ class InternalModelConfig(TypedDict, total=False):
     peft_args: "PeftArgs"
     trainer_args: "TrainerArgs"
     torchtune_args: TorchtuneArgs | None
+    _decouple_vllm_and_unsloth: bool
 
 
 class InitArgs(TypedDict, total=False):

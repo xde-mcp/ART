@@ -112,6 +112,7 @@ class LocalBackend(Backend):
     async def _get_service(self, model: TrainableModel) -> ModelService:
         from ..torchtune.service import TorchtuneService
         from ..unsloth.service import UnslothService
+        from ..unsloth.decoupled_service import DecoupledUnslothService
 
         if model.name not in self._services:
             config = dev.get_model_config(
@@ -119,22 +120,25 @@ class LocalBackend(Backend):
                 output_dir=get_model_dir(model=model, art_path=self._path),
                 config=model._internal_config,
             )
-            service_class = (
-                TorchtuneService
-                if config.get("torchtune_args") is not None
-                else UnslothService
-            )
+            if config.get("torchtune_args") is not None:
+                service_class = TorchtuneService
+            elif config.get("_decouple_vllm_and_unsloth", False):
+                service_class = DecoupledUnslothService
+            else:
+                service_class = UnslothService
             self._services[model.name] = service_class(
                 model_name=model.name,
                 base_model=model.base_model,
                 config=config,
                 output_dir=get_model_dir(model=model, art_path=self._path),
             )
-
             if not self._in_process:
                 # Kill all "model-service" processes to free up GPU memory
                 subprocess.run(["pkill", "-9", "model-service"])
-                if isinstance(self._services[model.name], UnslothService):
+                if isinstance(
+                    self._services[model.name],
+                    (UnslothService, DecoupledUnslothService),
+                ):
                     # To enable sleep mode, import peft before unsloth
                     # Unsloth will issue warnings, but everything appears to be okay
                     if config.get("engine_args", {}).get("enable_sleep_mode", False):
