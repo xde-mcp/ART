@@ -1,6 +1,6 @@
 [project]
 name = "openpipe-art"
-version = "0.3.11"
+version = "0.3.11.post2"
 description = "The OpenPipe Agent Reinforcement Training (ART) library"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -25,6 +25,9 @@ dependencies = [
     "hf-xet>=1.1.0",
     "panza",
     "semver>=3.0.4",
+    "accelerate==1.7.0",
+    "setproctitle",
+    "weave",
 ]
 
 [project.scripts]
