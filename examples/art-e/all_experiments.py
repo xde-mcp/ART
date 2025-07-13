@@ -204,3 +204,4 @@ models["223"]._internal_config = art.dev.InternalModelConfig(
 models["224"] = models["223"].model_copy(deep=True)
 models["224"].name = "email-agent-224"
 models["224"].config.learning_rate = 1e-6
+models["224"].config.num_epochs = 6
