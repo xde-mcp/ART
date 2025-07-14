@@ -205,3 +205,6 @@ models["224"] = models["223"].model_copy(deep=True)
 models["224"].name = "email-agent-224"
 models["224"].config.learning_rate = 1e-6
 models["224"].config.num_epochs = 6
+
+models["225"] = models["224"].model_copy(deep=True)
+models["225"].name = "email-agent-225"
