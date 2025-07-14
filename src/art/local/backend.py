@@ -112,29 +112,34 @@ class LocalBackend(Backend):
     async def _get_service(self, model: TrainableModel) -> ModelService:
         from ..torchtune.service import TorchtuneService
         from ..unsloth.service import UnslothService
+        from ..unsloth.decoupled_service import DecoupledUnslothService
+        from ..dev.get_model_config import get_model_config
 
         if model.name not in self._services:
-            config = dev.get_model_config(
+            config = get_model_config(
                 base_model=model.base_model,
                 output_dir=get_model_dir(model=model, art_path=self._path),
                 config=model._internal_config,
             )
-            service_class = (
-                TorchtuneService
-                if config.get("torchtune_args") is not None
-                else UnslothService
-            )
+            if config.get("torchtune_args") is not None:
+                service_class = TorchtuneService
+            elif config.get("_decouple_vllm_and_unsloth", False):
+                service_class = DecoupledUnslothService
+            else:
+                service_class = UnslothService
             self._services[model.name] = service_class(
                 model_name=model.name,
                 base_model=model.base_model,
                 config=config,
                 output_dir=get_model_dir(model=model, art_path=self._path),
             )
-
             if not self._in_process:
                 # Kill all "model-service" processes to free up GPU memory
                 subprocess.run(["pkill", "-9", "model-service"])
-                if isinstance(self._services[model.name], UnslothService):
+                if isinstance(
+                    self._services[model.name],
+                    (UnslothService, DecoupledUnslothService),
+                ):
                     # To enable sleep mode, import peft before unsloth
                     # Unsloth will issue warnings, but everything appears to be okay
                     if config.get("engine_args", {}).get("enable_sleep_mode", False):
@@ -193,7 +198,9 @@ class LocalBackend(Backend):
             )
             return None
         if plot_tensors:
-            plot_packed_tensors(packed_tensors)
+            plot_packed_tensors(
+                packed_tensors, get_model_dir(model=model, art_path=self._path)
+            )
         else:
             print(
                 f"Packed {len(tokenized_results)} trajectories into {packed_tensors['tokens'].shape[0]} sequences of length {packed_tensors['tokens'].shape[1]}"
@@ -261,7 +268,7 @@ class LocalBackend(Backend):
 
         # Get the file name for the current iteration, or default to 0 for non-trainable models
         iteration = self.__get_step(model) if isinstance(model, TrainableModel) else 0
-        file_name = f"{iteration:04d}.yaml"
+        file_name = f"{iteration:04d}.jsonl"
 
         # Write the logs to the file
         with open(f"{parent_dir}/{file_name}", "w") as f:
@@ -332,7 +339,7 @@ class LocalBackend(Backend):
             allow_training_without_logprobs=dev_config.get(
                 "allow_training_without_logprobs", False
             ),
-            plot_tensors=False,
+            plot_tensors=dev_config.get("plot_tensors", False),
         )
         if packed_tensors is None:
             print(
@@ -400,7 +407,7 @@ class LocalBackend(Backend):
 
             # Enabling the following line will cause W&B to use the training_step metric as the x-axis for all metrics
             # wandb.define_metric(f"{split}/*", step_metric="training_step")
-            run.log({"training_step": step, **metrics})
+            run.log({"training_step": step, **metrics}, step=step)
 
     def _get_wandb_run(self, model: Model) -> Run | None:
         if "WANDB_API_KEY" not in os.environ:
