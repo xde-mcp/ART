@@ -40,6 +40,7 @@ def get_compute_loss_fn(trainer: "GRPOTrainer") -> Callable[..., torch.Tensor]:
     ) -> torch.Tensor:
         config: TrainConfig = inputs.pop("config")  # type: ignore
         _config: dev.TrainConfig = inputs.pop("_config")  # type: ignore
+        return_new_logprobs: bool = inputs.pop("return_new_logprobs", False)  # type: ignore
 
         if optimizer := trainer.optimizer:
             optimizer = getattr(optimizer, "optimizer", optimizer)
@@ -52,8 +53,9 @@ def get_compute_loss_fn(trainer: "GRPOTrainer") -> Callable[..., torch.Tensor]:
 
         # Move tensors to the correct device
         inputs = {
-            key: tensor.to(trainer.accelerator.device) for key, tensor in inputs.items()
-        }  # type: ignore
+            key: tensor.to(trainer.accelerator.device)  # type: ignore
+            for key, tensor in inputs.items()
+        }
 
         # Unsloth code
         autocast_dtype = (
@@ -94,8 +96,12 @@ def get_compute_loss_fn(trainer: "GRPOTrainer") -> Callable[..., torch.Tensor]:
             next_input_ids,
             lm_head_t,
             chunk_size=chunk_size,
+            inference_mode=return_new_logprobs,
+            no_grad=return_new_logprobs,
             reference_logprobs=False,
         )
+        if return_new_logprobs:
+            return torch.nn.functional.pad(new_logprobs[:, :-1], (1, 0), value=0.0)
         if config.beta > 0.0:
             ref_logprobs, _ = calculate_logprobs(
                 autocast_dtype,
@@ -105,6 +111,8 @@ def get_compute_loss_fn(trainer: "GRPOTrainer") -> Callable[..., torch.Tensor]:
                 next_input_ids,
                 lm_head_t,
                 chunk_size=chunk_size,
+                inference_mode=True,
+                no_grad=False,
                 reference_logprobs=True,
             )
         else:
@@ -244,13 +252,16 @@ def calculate_logprobs(
     next_input_ids: torch.Tensor,
     lm_head_t: torch.Tensor,
     chunk_size: int,
+    inference_mode: bool,
+    no_grad: bool,
     reference_logprobs: bool,
 ) -> tuple[
     torch.Tensor, torch.Tensor
 ]:  # Returns (log_probs, entropy) both shape [B, S]
     with (
         torch.amp.autocast_mode.autocast(device_type="cuda", dtype=autocast_dtype),
-        torch.inference_mode() if reference_logprobs else nullcontext(),
+        torch.inference_mode() if inference_mode else nullcontext(),
+        torch.no_grad() if no_grad else nullcontext(),
         (
             trainer.accelerator.unwrap_model(
                 trainer.model, keep_fp32_wrapper=False
@@ -259,7 +270,7 @@ def calculate_logprobs(
             else nullcontext()
         ),
     ):
-        hidden_states = trainer.model(
+        hidden_states = trainer.model(  # type: ignore
             input_ids=input_ids, causal_mask=causal_mask
         ).logits  # Shape [B, S, H]
     return _calculate_logprobs(lm_head_t, hidden_states, next_input_ids, chunk_size)
