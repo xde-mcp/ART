@@ -28,3 +28,4 @@ class ProjectPolicyConfig(BaseModel):
     # choose its own default (e.g., derive from the current time).
     training_dataset_seed: int | None = None
     messages_only: bool = False
+    precalculate_logprobs: bool = False

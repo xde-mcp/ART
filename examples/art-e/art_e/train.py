@@ -143,9 +143,8 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
                 groups,
                 config=art.TrainConfig(learning_rate=model.config.learning_rate),
                 _config=art.dev.TrainConfig(
-                    allow_training_without_logprobs=True
-                    if model.config.messages_only
-                    else False
+                    allow_training_without_logprobs=model.config.messages_only,
+                    precalculate_logprobs=model.config.precalculate_logprobs,
                 ),
             )
 

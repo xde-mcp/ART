@@ -32,6 +32,7 @@ def adjust_lr(
         learning_rate: The base learning rate.
         warmup_length: Either an int (number of steps) or float (ratio of total steps). Defaults to 0.
         cooldown_length: Either an int (number of steps) or float (ratio of total steps). Defaults to 0.
+                         If negative, specifies the step at which cooldown starts (e.g., -20 means cooldown starts at step 20).
 
     Returns:
         The adjusted learning rate for the current batch.
@@ -45,22 +46,31 @@ def adjust_lr(
     else:
         warmup_steps = warmup_length
 
-    # Convert cooldown_length to steps if it's a ratio
-    if isinstance(cooldown_length, float):
-        cooldown_steps = int(cooldown_length * total_steps)
+    # Handle cooldown_length
+    if cooldown_length < 0:
+        # Negative value means cooldown starts at that step
+        cooldown_start = int(-cooldown_length)
+        cooldown_steps = total_steps - cooldown_start
     else:
-        cooldown_steps = cooldown_length
+        # Convert cooldown_length to steps if it's a ratio
+        if isinstance(cooldown_length, float):
+            cooldown_steps = int(cooldown_length * total_steps)
+        else:
+            cooldown_steps = cooldown_length
+        cooldown_start = total_steps - cooldown_steps
 
-    # Ensure warmup + cooldown don't exceed total steps
+    # Ensure warmup doesn't exceed total steps
     warmup_steps = min(warmup_steps, total_steps)
-    cooldown_steps = min(cooldown_steps, total_steps - warmup_steps)
+
+    # Ensure cooldown_start is after warmup
+    cooldown_start = max(cooldown_start, warmup_steps)
+    cooldown_steps = total_steps - cooldown_start
 
     # Warmup phase
     if current_step < warmup_steps:
         return learning_rate * (current_step + 1) / warmup_steps
 
     # Cooldown phase
-    cooldown_start = total_steps - cooldown_steps
     if current_step >= cooldown_start and cooldown_steps > 0:
         steps_into_cooldown = current_step - cooldown_start
         remaining_ratio = 1.0 - (steps_into_cooldown + 1) / cooldown_steps
