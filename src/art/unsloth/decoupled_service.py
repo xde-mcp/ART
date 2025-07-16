@@ -198,6 +198,16 @@ class DecoupledUnslothService:
 
         if verbose:
             print("Saving new LoRA adapter...")
+
+        import debugpy
+
+        debugpy.listen(5678)
+        debugpy.wait_for_client()
+
+        self._free_memory()
+        self._move_model_to_cpu()
+        self._free_memory()
+
         # Save checkpoint after training
         next_step = get_step_from_dir(self.output_dir) + 1
         checkpoint_dir = get_step_checkpoint_dir(self.output_dir, next_step)
@@ -228,6 +238,14 @@ class DecoupledUnslothService:
 
         if verbose:
             print("DecoupledUnslothService.train complete")
+
+    def _move_model_to_cpu(self) -> None:
+        for module in self._state.model._modules.values():
+            if module is not None and hasattr(module, "to"):
+                try:
+                    module.to(torch.device("cpu"))
+                except Exception:
+                    pass
 
     def _free_memory(self) -> None:
         """Free GPU memory."""
