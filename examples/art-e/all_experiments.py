@@ -212,4 +212,9 @@ models["226"].config.precalculate_logprobs = True
 
 models["227"] = models["008"].model_copy(deep=True)
 models["227"].name = "email-agent-227"
-models["220"].base_model = "willcb/Qwen3-14B"
+models["227"].base_model = "willcb/Qwen3-14B"
+
+models["228"] = models["008"].model_copy(deep=True)
+models["228"].name = "email-agent-228"
+models["228"].config.warmup_length = 20
+models["228"].config.cooldown_length = -20

@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Literal
+from typing import Literal, Union
 
 
 class ProjectPolicyConfig(BaseModel):
@@ -13,6 +13,8 @@ class ProjectPolicyConfig(BaseModel):
     trajectories_per_group: int = 6
     groups_per_step: int = 1
     learning_rate: float = 1.2e-5
+    warmup_length: Union[int, float] = 0
+    cooldown_length: Union[int, float] = 0
     eval_steps: int = 30
     val_set_size: int = 100
     training_dataset_size: int = 4000
