@@ -1,7 +1,7 @@
 import math
 import random
 from dataclasses import dataclass
-from typing import List, Generator, TypeVar, Generic
+from typing import List, Generator, TypeVar, Generic, Union
 from tqdm.auto import tqdm
 
 T = TypeVar("T")
@@ -15,6 +15,59 @@ class DatasetBatch(Generic[T]):
     step: int
     epoch: int
     epoch_step: int
+    total_steps: int
+
+
+def adjust_lr(
+    batch: DatasetBatch,
+    learning_rate: float,
+    warmup_length: Union[int, float] = 0,
+    cooldown_length: Union[int, float] = 0,
+) -> float:
+    """
+    Calculate the learning rate for a given batch based on the schedule.
+
+    Args:
+        batch: The DatasetBatch containing step and total_steps information.
+        learning_rate: The base learning rate.
+        warmup_length: Either an int (number of steps) or float (ratio of total steps). Defaults to 0.
+        cooldown_length: Either an int (number of steps) or float (ratio of total steps). Defaults to 0.
+
+    Returns:
+        The adjusted learning rate for the current batch.
+    """
+    current_step = batch.step
+    total_steps = batch.total_steps
+
+    # Convert warmup_length to steps if it's a ratio
+    if isinstance(warmup_length, float):
+        warmup_steps = int(warmup_length * total_steps)
+    else:
+        warmup_steps = warmup_length
+
+    # Convert cooldown_length to steps if it's a ratio
+    if isinstance(cooldown_length, float):
+        cooldown_steps = int(cooldown_length * total_steps)
+    else:
+        cooldown_steps = cooldown_length
+
+    # Ensure warmup + cooldown don't exceed total steps
+    warmup_steps = min(warmup_steps, total_steps)
+    cooldown_steps = min(cooldown_steps, total_steps - warmup_steps)
+
+    # Warmup phase
+    if current_step < warmup_steps:
+        return learning_rate * (current_step + 1) / warmup_steps
+
+    # Cooldown phase
+    cooldown_start = total_steps - cooldown_steps
+    if current_step >= cooldown_start and cooldown_steps > 0:
+        steps_into_cooldown = current_step - cooldown_start
+        remaining_ratio = 1.0 - (steps_into_cooldown + 1) / cooldown_steps
+        return learning_rate * remaining_ratio
+
+    # Main phase (between warmup and cooldown)
+    return learning_rate
 
 
 def iterate_dataset(
@@ -82,7 +135,11 @@ def iterate_dataset(
             batch_indices = indices[i : i + groups_per_step]
             items = [dataset[idx] for idx in batch_indices]
             yield DatasetBatch(
-                items=items, epoch=epoch, step=global_step, epoch_step=epoch_step
+                items=items,
+                epoch=epoch,
+                step=global_step,
+                epoch_step=epoch_step,
+                total_steps=total_steps,
             )
 
             # Update progress bar after yielding
