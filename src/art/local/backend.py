@@ -158,6 +158,7 @@ class LocalBackend(Backend):
         model: TrainableModel,
         trajectory_groups: list[TrajectoryGroup],
         allow_training_without_logprobs: bool,
+        scale_rewards: bool,
         plot_tensors: bool,
     ) -> PackedTensors | None:
         if model.base_model not in self._tokenizers:
@@ -170,6 +171,7 @@ class LocalBackend(Backend):
                 tokenizer,
                 trajectory_groups,
                 allow_training_without_logprobs,
+                scale_rewards,
             )
         )
         if not tokenized_results:
@@ -339,6 +341,7 @@ class LocalBackend(Backend):
             allow_training_without_logprobs=dev_config.get(
                 "allow_training_without_logprobs", False
             ),
+            scale_rewards=dev_config.get("scale_rewards", True),
             plot_tensors=dev_config.get("plot_tensors", False),
         )
         if packed_tensors is None:
