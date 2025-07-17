@@ -28,3 +28,8 @@ class ProjectPolicyConfig(BaseModel):
     # choose its own default (e.g., derive from the current time).
     training_dataset_seed: int | None = None
     messages_only: bool = False
+
+    # Fork configuration
+    fork_from_model: str | None = None
+    fork_from_project: str | None = None
+    fork_not_after_step: int | None = None

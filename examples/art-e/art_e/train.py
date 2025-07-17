@@ -22,12 +22,28 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
     generate_database()
 
     with LocalBackend() as backend:
-        print(f"Pulling from S3 bucket: `{os.environ['BACKUP_BUCKET']}`")
+        print(
+            f"Pulling latest checkpoint from S3 bucket: `{os.environ['BACKUP_BUCKET']}`"
+        )
         await backend._experimental_pull_from_s3(
             model,
             s3_bucket=os.environ["BACKUP_BUCKET"],
             verbose=True,
+            only_step="latest",  # Only pull the latest checkpoint
+            exclude=["trajectories"],  # Exclude trajectories to save space/time
         )
+
+        # Handle fork configuration if specified
+        if model.config.fork_from_model:
+            print(f"Forking from model: {model.config.fork_from_model}")
+            await backend._experimental_fork_checkpoint(
+                model,
+                from_model=model.config.fork_from_model,
+                from_s3_bucket=os.environ["BACKUP_BUCKET"],
+                not_after_step=model.config.fork_not_after_step,
+                verbose=True,
+            )
+
         await model.register(backend)
 
         print("Loading training data...")

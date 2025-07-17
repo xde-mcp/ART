@@ -205,3 +205,9 @@ models["224"].config.num_epochs = 6
 
 models["225"] = models["224"].model_copy(deep=True)
 models["225"].name = "email-agent-225"
+
+# Model 229: Fork from 224 not after step 1381
+models["229"] = models["224"].model_copy(deep=True)
+models["229"].name = "email-agent-229"
+models["229"].config.fork_from_model = "email-agent-224"
+models["229"].config.fork_not_after_step = 1381
