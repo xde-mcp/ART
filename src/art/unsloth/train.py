@@ -133,7 +133,7 @@ def get_compute_loss_fn(trainer: "GRPOTrainer") -> Callable[..., torch.Tensor]:
             old_logprobs,
         )
 
-        eta = _config.get("eta", 0.2)
+        eta = _config.get("eta", 4.0)
         policy_loss = ((new_logprobs - old_logprobs) / eta - advantages) ** 2
         mean_policy_loss = (policy_loss * weights * assistant_mask).sum() / (
             assistant_mask.sum() + 1e-6
