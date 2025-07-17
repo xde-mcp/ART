@@ -84,9 +84,9 @@ def get_compute_loss_fn(trainer: "GRPOTrainer") -> Callable[..., torch.Tensor]:
         next_input_ids = shift_tensor(inputs["tokens"], 0)
         chunk_size = _config.get("logprob_calculation_chunk_size", 1024)
         # Assert that sequence length is evenly divisible by the chunk size
-        assert seq_len % chunk_size == 0, (
-            f"Sequence length ({seq_len}) must be evenly divisible by chunk size ({chunk_size})"
-        )
+        assert (
+            seq_len % chunk_size == 0
+        ), f"Sequence length ({seq_len}) must be evenly divisible by chunk size ({chunk_size})"
         os.environ["UNSLOTH_RETURN_HIDDEN_STATES"] = "1"
         new_logprobs, entropies = calculate_logprobs(
             autocast_dtype,
@@ -137,10 +137,17 @@ def get_compute_loss_fn(trainer: "GRPOTrainer") -> Callable[..., torch.Tensor]:
         epsilon_high = _config.get("epsilon_high", epsilon)
         if epsilon_high is None:
             epsilon_high = epsilon
-        policy_loss = -torch.min(
-            prob_ratio * advantages,
-            torch.clip(prob_ratio, 1 - epsilon, 1 + epsilon_high) * advantages,
-        )
+        if _config.get("cispo", True):
+            policy_loss = (
+                torch.clip(prob_ratio, 1 - epsilon, 1 + epsilon_high)
+                * advantages
+                * new_logprobs
+            )
+        else:
+            policy_loss = -torch.min(
+                prob_ratio * advantages,
+                torch.clip(prob_ratio, 1 - epsilon, 1 + epsilon_high) * advantages,
+            )
         if ref_logprobs is not None:
             kl_div = (
                 torch.exp(ref_logprobs - new_logprobs)
@@ -306,7 +313,9 @@ def _calculate_logprobs(
         chunk_logits = torch.matmul(chunk_hs, lm_head_t)  # [B, chunk_size, V]
         chunk_selected_logits = torch.gather(
             chunk_logits, dim=-1, index=chunk_input_ids.unsqueeze(-1)
-        ).squeeze(-1)  # [B, chunk_size]
+        ).squeeze(
+            -1
+        )  # [B, chunk_size]
         chunk_logsumexp = torch.logsumexp(chunk_logits, dim=-1)  # [B, chunk_size]
         log_probs[:, i : i + chunk_size] = chunk_selected_logits - chunk_logsumexp
 
