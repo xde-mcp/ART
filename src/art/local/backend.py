@@ -10,6 +10,8 @@ from art.utils.old_benchmarking.calculate_step_metrics import calculate_step_std
 from art.utils.output_dirs import (
     get_default_art_path,
     get_model_dir,
+    get_output_dir_from_model_properties,
+    get_step_checkpoint_dir,
     get_trajectories_split_dir,
 )
 from art.utils.trajectory_logging import serialize_trajectory_groups
@@ -22,7 +24,7 @@ import torch
 from transformers.models.auto.tokenization_auto import AutoTokenizer
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from tqdm import auto as tqdm
-from typing import AsyncIterator, cast
+from typing import AsyncIterator, cast, Literal
 import wandb
 from wandb.sdk.wandb_run import Run
 import weave
@@ -455,17 +457,54 @@ class LocalBackend(Backend):
         verbose: bool = False,
         delete: bool = False,
         exclude: list[ExcludableOption] | None = None,
+        latest_only: bool = False,
+        only_step: int | Literal["latest"] | None = None,
     ) -> None:
         """Download the model directory from S3 into local Backend storage. Right now this can be used to pull trajectory logs for processing or model checkpoints.
         Args:
             model: The model to pull from S3.
-            step: A specific step to pull from S3. If None, all steps will be pulled.
+            step: DEPRECATED. Use only_step instead.
             s3_bucket: The S3 bucket to pull from. If None, the default bucket will be used.
             prefix: The prefix to pull from S3. If None, the model name will be used.
             verbose: Whether to print verbose output.
             delete: Whether to delete the local model directory.
             exclude: List of directories to exclude from sync. Valid options: "checkpoints", "logs", "trajectories".
+            latest_only: DEPRECATED. Use only_step="latest" instead.
+            only_step: If specified, only pull this specific step. Can be an int for a specific step,
+                      or "latest" to pull only the latest checkpoint. If None, pulls all steps.
         """
+
+        # Handle backward compatibility and new only_step parameter
+        if only_step is None and latest_only:
+            only_step = "latest"
+
+        # Handle the only_step parameter
+        if only_step is not None and step is None:
+            if only_step == "latest":
+                from art.utils.s3_checkpoint_utils import (
+                    get_latest_checkpoint_step_from_s3,
+                )
+
+                latest_step = await get_latest_checkpoint_step_from_s3(
+                    model_name=model.name,
+                    project=model.project,
+                    s3_bucket=s3_bucket,
+                    prefix=prefix,
+                )
+
+                if latest_step is not None:
+                    step = latest_step
+                    if verbose:
+                        print(f"Found latest checkpoint at step {step}")
+                else:
+                    if verbose:
+                        print("No checkpoints found in S3")
+                    return
+            else:
+                # only_step is an int
+                step = only_step
+                if verbose:
+                    print(f"Pulling specific checkpoint at step {step}")
 
         await pull_model_from_s3(
             model_name=model.name,
@@ -497,6 +536,181 @@ class LocalBackend(Backend):
             delete=delete,
             art_path=self._path,
         )
+
+    async def _experimental_fork_checkpoint(
+        self,
+        model: Model,
+        from_model: str,
+        from_project: str | None = None,
+        from_s3_bucket: str | None = None,
+        not_after_step: int | None = None,
+        verbose: bool = False,
+        prefix: str | None = None,
+    ) -> None:
+        """Fork a checkpoint from another model to initialize this model.
+
+        Args:
+            model: The model to fork to.
+            from_model: The name of the model to fork from.
+            from_project: The project of the model to fork from. Defaults to model.project.
+            from_s3_bucket: Optional S3 bucket to pull the checkpoint from. If provided,
+                will pull from S3 first. Otherwise, will fork from local disk.
+            not_after_step: Optional step number. If provided, will copy the last saved
+                checkpoint that is <= this step. Otherwise, copies the latest checkpoint.
+            verbose: Whether to print verbose output.
+            prefix: Optional S3 prefix for the bucket.
+        """
+        # Default from_project to model.project if not provided
+        from_project = from_project or model.project
+
+        # Get source and destination directories
+        source_model_dir = get_output_dir_from_model_properties(
+            project=from_project,
+            name=from_model,
+            art_path=self._path,
+        )
+        dest_model_dir = get_output_dir_from_model_properties(
+            project=model.project,
+            name=model.name,
+            art_path=self._path,
+        )
+
+        # If S3 bucket is provided, pull from S3 first
+        if from_s3_bucket is not None:
+            if verbose:
+                print(
+                    f"DEBUG: Fork checkpoint - from_s3_bucket={from_s3_bucket}, not_after_step={not_after_step}"
+                )
+
+            # Determine which checkpoint to pull
+            if not_after_step is None:
+                # Pull only the latest checkpoint
+                if verbose:
+                    print(
+                        f"Pulling latest checkpoint for model {from_model} from S3 bucket {from_s3_bucket}..."
+                    )
+                await self._experimental_pull_from_s3(
+                    Model(name=from_model, project=from_project),
+                    s3_bucket=from_s3_bucket,
+                    verbose=verbose,
+                    exclude=["logs", "trajectories"],
+                    only_step="latest",
+                )
+            else:
+                # Find the right checkpoint not after the specified step
+                from art.utils.s3_checkpoint_utils import (
+                    get_checkpoint_step_not_after_from_s3,
+                )
+
+                if verbose:
+                    print(
+                        f"Finding checkpoint not after step {not_after_step} for model {from_model} in S3..."
+                    )
+
+                # Find which step to pull
+                target_step = await get_checkpoint_step_not_after_from_s3(
+                    model_name=from_model,
+                    project=from_project,
+                    not_after_step=not_after_step,
+                    s3_bucket=from_s3_bucket,
+                    prefix=prefix,
+                )
+
+                if target_step is None:
+                    raise ValueError(
+                        f"No checkpoints found not after step {not_after_step} for model {from_model} in S3"
+                    )
+
+                if verbose:
+                    print(
+                        f"Found checkpoint at step {target_step}, pulling only this checkpoint..."
+                    )
+
+                # Pull only the specific checkpoint we need
+                await pull_model_from_s3(
+                    model_name=from_model,
+                    project=from_project,
+                    step=target_step,
+                    s3_bucket=from_s3_bucket,
+                    verbose=verbose,
+                    art_path=self._path,
+                    exclude=["logs", "trajectories"],  # Only need checkpoints
+                )
+
+        # Find the checkpoint to fork
+        checkpoint_base_dir = os.path.join(source_model_dir, "checkpoints")
+        if not os.path.exists(checkpoint_base_dir):
+            raise FileNotFoundError(
+                f"No checkpoints found for model {from_model} in project {from_project}"
+            )
+
+        if verbose:
+            print(f"DEBUG: Checkpoint base dir: {checkpoint_base_dir}")
+            print(
+                f"DEBUG: Contents: {os.listdir(checkpoint_base_dir) if os.path.exists(checkpoint_base_dir) else 'Does not exist'}"
+            )
+
+        # Get all available checkpoint steps
+        available_steps = sorted(
+            int(d)
+            for d in os.listdir(checkpoint_base_dir)
+            if os.path.isdir(os.path.join(checkpoint_base_dir, d)) and d.isdigit()
+        )
+
+        if not available_steps:
+            raise FileNotFoundError(
+                f"No checkpoint directories found for model {from_model}"
+            )
+
+        # Determine which step to use
+        if not_after_step is None:
+            # Use the latest checkpoint
+            selected_step = available_steps[-1]
+        else:
+            # Find the last checkpoint not after the specified step
+            valid_steps = [s for s in available_steps if s <= not_after_step]
+            if not valid_steps:
+                raise ValueError(
+                    f"No checkpoints found not after step {not_after_step}. "
+                    f"Available steps: {available_steps}"
+                )
+            selected_step = valid_steps[-1]
+
+        # Create destination checkpoint directory
+        dest_checkpoint_dir = get_step_checkpoint_dir(dest_model_dir, selected_step)
+        os.makedirs(os.path.dirname(dest_checkpoint_dir), exist_ok=True)
+
+        # Copy the checkpoint
+        source_checkpoint_dir = os.path.join(
+            checkpoint_base_dir, f"{selected_step:04d}"
+        )
+        if verbose:
+            print(
+                f"Copying checkpoint from {source_checkpoint_dir} to {dest_checkpoint_dir}"
+            )
+            print(f"DEBUG: Source dir exists: {os.path.exists(source_checkpoint_dir)}")
+            if os.path.exists(source_checkpoint_dir):
+                print(
+                    f"DEBUG: Source dir contents: {os.listdir(source_checkpoint_dir)}"
+                )
+                print(
+                    f"DEBUG: Source dir is empty: {len(os.listdir(source_checkpoint_dir)) == 0}"
+                )
+
+        import shutil
+
+        # Remove destination if it already exists (empty directory from previous attempts)
+        if os.path.exists(dest_checkpoint_dir):
+            if verbose:
+                print("DEBUG: Destination already exists, removing it first")
+            shutil.rmtree(dest_checkpoint_dir)
+
+        shutil.copytree(source_checkpoint_dir, dest_checkpoint_dir)
+
+        if verbose:
+            print(
+                f"Successfully forked checkpoint from {from_model} (step {selected_step}) to {model.name}"
+            )
 
     async def _experimental_deploy(
         self,

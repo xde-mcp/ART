@@ -39,7 +39,8 @@ def build_s3_path(
     prefix_part = f"{prefix.strip('/')}/" if prefix else ""
     path = f"s3://{s3_bucket}/{prefix_part}{project}/models/{model_name}"
     if step is not None:
-        path += f"/{step:04d}"
+        # Use the new checkpoint structure in S3
+        path += f"/checkpoints/{step:04d}"
     return path
 
 
@@ -191,12 +192,12 @@ async def pull_model_from_s3(
         art_path=art_path,
     )
     os.makedirs(local_model_dir, exist_ok=True)
-    # When pulling a specific step, we need to handle the old S3 structure
+    # Use the new checkpoint structure
     if step is not None:
-        # First, try to pull to the old structure location since that's what S3 has
-        old_step_dir = os.path.join(local_model_dir, f"{step:04d}")
-        os.makedirs(old_step_dir, exist_ok=True)
-        local_dir = old_step_dir
+        # Pull directly to the new checkpoint structure
+        checkpoint_dir = get_step_checkpoint_dir(local_model_dir, step)
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        local_dir = checkpoint_dir
     else:
         local_dir = local_model_dir
 
@@ -208,26 +209,13 @@ async def pull_model_from_s3(
         prefix=prefix,
     )
     await ensure_bucket_exists(s3_bucket)
+    if verbose:
+        print(f"DEBUG: S3 sync from {s3_path} to {local_dir}")
     await s3_sync(s3_path, local_dir, verbose=verbose, delete=delete, exclude=exclude)
-
-    # After pulling, migrate to new structure if needed
-    if step is not None:
-        # Check if we need to migrate this specific step
-        old_step_dir = os.path.join(local_model_dir, f"{step:04d}")
-        new_step_dir = get_step_checkpoint_dir(local_model_dir, step)
-
-        if os.path.exists(old_step_dir) and not os.path.exists(new_step_dir):
-            # The checkpoint exists in old structure, migrate it
-            print(f"Migrating pulled checkpoint {step:04d} to new structure...")
-            os.makedirs(os.path.dirname(new_step_dir), exist_ok=True)
-            import shutil
-
-            shutil.move(old_step_dir, new_step_dir)
-    else:
-        # If pulling all steps, run the full migration
-        from ..local.checkpoints import migrate_checkpoints_to_new_structure
-
-        migrate_checkpoints_to_new_structure(local_model_dir)
+    if verbose:
+        print(
+            f"DEBUG: After sync, local_dir contents: {os.listdir(local_dir) if os.path.exists(local_dir) else 'Does not exist'}"
+        )
 
     return local_model_dir
 

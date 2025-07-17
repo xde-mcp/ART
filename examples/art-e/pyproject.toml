@@ -51,4 +51,7 @@ art-e = { workspace = true }
 openpipe-art = { path = "../../", editable = true }
 
 [dependency-groups]
-dev = ["art-e"]
+dev = [
+    "art-e",
+    "ruff>=0.12.3",
+]
