@@ -5,15 +5,23 @@ description: Learn how to fork training from existing model checkpoints
 
 # Checkpoint Forking
 
-<Note>
-This feature is marked as experimental (`_experimental_fork_checkpoint`) because we're still refining the API shape. However, the core functionality will remain stable.
-</Note>
+<Frame caption="Run 206 had a catastrophic failure. We fixed it by forking into run 230 before the point of collapse.">
+  <img
+    src="/images/forked-run.webp"
+    alt="Checkpoint forking example"
+    style={{ maxWidth: "100%", height: "auto" }}
+  />
+</Frame>
 
 Checkpoint forking allows you to create a new training run that starts from an existing model's checkpoint. This is particularly useful when:
 
 - Training has gone off track and you want to restart from a known good checkpoint
 - You want to experiment with different hyperparameters from a specific point
 - You need to branch off multiple experiments from the same checkpoint
+
+<Note>
+This feature is marked as experimental because we're still refining the API shape. However, the core functionality will remain stable.
+</Note>
 
 ## Basic Usage
 
@@ -83,7 +91,7 @@ Whether to print detailed progress information during the forking process.
 3. **Checkpoint Copy**: The checkpoint is copied to your new model's directory at the same step number
 4. **Training Continuation**: Your model can now continue training from this checkpoint
 
-## Example: Experimenting with Learning Rates
+## Example: Lowering the Learning Rate
 
 Here's a practical example of using checkpoint forking to test a lower learning rate:
 
