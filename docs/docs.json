@@ -63,7 +63,8 @@
       {
         "group": "Features",
         "pages": [
-          "features/checkpoint-forking"
+          "features/checkpoint-forking",
+          "features/additional-histories"
         ]
       },
       {
