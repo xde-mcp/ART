@@ -316,25 +316,31 @@ async def rollout(
         choice = llm_response.choices[0]
         assert isinstance(choice, Choices)
 
-        # Our rollout is only set up to handle one tool call at a time, so just ignore any parallel tool calls.
-        if choice.message.tool_calls is not None and len(choice.message.tool_calls) > 1:
-            choice.message.tool_calls = choice.message.tool_calls[:1]
-
         traj.messages_and_choices.append(convert_litellm_choice_to_openai(choice))  # type: ignore
 
         if choice.message.tool_calls is None:
             rubric.bad_tool_call_name = True
+            traj.messages_and_choices.append(
+                {
+                    "role": "user",
+                    "content": "You did not call any tools. This is not allowed.",
+                }
+            )
             break
 
         for tool_call in choice.message.tool_calls:
-            if tool_call is None:
-                rubric.bad_tool_call_args = True
-                break
             try:
                 tool_args = json.loads(tool_call.function.arguments)
                 assert isinstance(tool_args, dict)
             except Exception:
                 rubric.bad_tool_call_args = True
+                traj.messages_and_choices.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": f"Error parsing arguments for {tool_call.function.name}. Cannot continue.",
+                    }
+                )
                 break
 
             for tool_fn in tools:
@@ -353,6 +359,13 @@ async def rollout(
                         rubric.bad_tool_call_args = True
                         traj.logs.append(
                             f"Invalid args for {tool_call.function.name}: {e}"
+                        )
+                        traj.messages_and_choices.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tool_call.id,
+                                "content": f"Invalid args for {tool_call.function.name}: {e}",
+                            }
                         )
                         break
                     break

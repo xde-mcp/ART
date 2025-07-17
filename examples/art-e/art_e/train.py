@@ -12,8 +12,8 @@ from art_e.project_types import ProjectPolicyConfig
 from art_e.evaluate.benchmark import benchmark_model
 import os
 import statistics
-from report_trajectory import report_trajectory
-from art.rewards import art_ruler
+from art.rewards import ruler_score_group
+import tenacity
 
 load_dotenv()
 
@@ -22,12 +22,28 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
     generate_database()
 
     with LocalBackend() as backend:
-        print(f"Pulling from S3 bucket: `{os.environ['BACKUP_BUCKET']}`")
+        print(
+            f"Pulling latest checkpoint from S3 bucket: `{os.environ['BACKUP_BUCKET']}`"
+        )
         await backend._experimental_pull_from_s3(
             model,
             s3_bucket=os.environ["BACKUP_BUCKET"],
             verbose=True,
+            only_step="latest",  # Only pull the latest checkpoint
+            exclude=["trajectories"],  # Exclude trajectories to save space/time
         )
+
+        # Handle fork configuration if specified
+        if model.config.fork_from_model:
+            print(f"Forking from model: {model.config.fork_from_model}")
+            await backend._experimental_fork_checkpoint(
+                model,
+                from_model=model.config.fork_from_model,
+                from_s3_bucket=os.environ["BACKUP_BUCKET"],
+                not_after_step=model.config.fork_not_after_step,
+                verbose=True,
+            )
+
         await model.register(backend)
 
         print("Loading training data...")
@@ -63,6 +79,30 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
                     s3_bucket=os.environ["BACKUP_BUCKET"],
                 )
 
+            @tenacity.retry(
+                stop=tenacity.stop_after_attempt(3),
+            )
+            async def judge_after_each(
+                group: art.TrajectoryGroup,
+            ) -> art.TrajectoryGroup | None:
+                """Optionally judge a trajectory group and report its trajectories.
+
+                If `model.config.group_judge_model` is set, run `art_ruler` to score
+                the group. On success, report each trajectory and return the group.
+                If the judge raises an exception, print a warning and return None so
+                the group is filtered out by `gather_trajectory_groups`.
+                If no judge is configured, simply return the group as-is.
+                """
+
+                if model.config.ruler_judge_model is None:
+                    return group
+
+                return await ruler_score_group(
+                    group,
+                    model.config.ruler_judge_model,
+                    swallow_exceptions=True,
+                )
+
             groups = await art.gather_trajectory_groups(
                 (
                     art.TrajectoryGroup(
@@ -72,44 +112,17 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
                         )
                     )
                     for scenario in batch.items
-                )
+                ),
+                after_each=judge_after_each,
             )
 
-            # Optionally rescore each trajectory group with the LLM-judge before training.
-            if model.config.group_judge_model is not None:
-                judge_tasks = [
-                    art_ruler(g.trajectories, {"model": model.config.group_judge_model})
-                    for g in groups
-                ]
-
-                results = await asyncio.gather(*judge_tasks, return_exceptions=True)
-
-                # Determine which groups succeeded.
-                successful_groups = []
-                for grp_idx, (g, res) in enumerate(zip(groups, results)):
-                    if isinstance(res, Exception):
-                        print(
-                            f"WARNING:JUDGE_GROUP_FAILED group={grp_idx} step={batch.step}: {res!r}",
-                            flush=True,
-                        )
-                    else:
-                        successful_groups.append(g)
-
-                # Replace `groups` with the subset that passed judgement so
-                # that training only uses trajectories with judge rewards.
-                groups = successful_groups
-
-                for g in groups:
-                    for t in g.trajectories:
-                        report_trajectory(model, t, batch.step)
-
-                # If every group failed, skip this training step entirely.
-                if not groups:
-                    print(
-                        f"WARNING:ALL_JUDGE_GROUPS_FAILED step={batch.step}; skipping training step",
-                        flush=True,
-                    )
-                    continue  # Proceed to next batch/epoch without training.
+            # If every group failed, skip this training step entirely.
+            if not groups:
+                print(
+                    f"WARNING:ALL_JUDGE_GROUPS_FAILED step={batch.step}; skipping training step",
+                    flush=True,
+                )
+                continue  # Proceed to next batch/epoch without training.
 
             # Drop groups with reward standard deviation below threshold
             if (
@@ -146,9 +159,8 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
                 groups,
                 config=art.TrainConfig(learning_rate=model.config.learning_rate),
                 _config=art.dev.TrainConfig(
-                    allow_training_without_logprobs=True
-                    if model.config.messages_only
-                    else False
+                    allow_training_without_logprobs=model.config.messages_only,
+                    scale_rewards=model.config.scale_rewards,
                 ),
             )
 
@@ -172,21 +184,6 @@ if __name__ == "__main__":
 
     model_dict = json.loads(args.model_json)
     model_dict["config"] = ProjectPolicyConfig(**model_dict["config"])
-
-    # Add custom vLLM constructor args
-    if "_internal_config" not in model_dict:
-        model_dict["_internal_config"] = {}
-
-    if "engine_args" not in model_dict["_internal_config"]:
-        model_dict["_internal_config"]["engine_args"] = {}
-
-    if "additional_config" not in model_dict["_internal_config"]["engine_args"]:
-        model_dict["_internal_config"]["engine_args"]["additional_config"] = {}
-
-    # Pass the reasoning_parser argument
-    model_dict["_internal_config"]["engine_args"]["additional_config"][
-        "reasoning_parser"
-    ] = ""
 
     model: art.TrainableModel[ProjectPolicyConfig] = art.TrainableModel(
         **model_dict,

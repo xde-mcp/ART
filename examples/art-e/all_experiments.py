@@ -61,32 +61,17 @@ models["014"].config.stupid_simple_reward_fn = True
 models["201"] = models["008"].model_copy(deep=True)
 models["201"].name = "email-agent-201"
 
-# Model 202: like 008 but with judge-group rescoring during training
-models["202"] = models["008"].model_copy(deep=True)
-models["202"].name = "email-agent-202"
-# Enable the new flag
-models["202"].config.use_judge_group_variant = "v1"
-
-models["203"] = models["201"].model_copy(deep=True)
-models["203"].name = "email-agent-203"
-
-# Model 204: like 202 but with judge-group rescoring variant v2
-models["204"] = models["202"].model_copy(deep=True)
-models["204"].name = "email-agent-204"
-# Enable the v2 flag
-models["204"].config.use_judge_group_variant = "v2"
-
-# Model 205: like 204 but using Gemini 2.5 Flash as the judge-group model
-models["205"] = models["204"].model_copy(deep=True)
+# Model 205: like 201 but using Gemini 2.5 Flash as the judge-group model
+models["205"] = models["201"].model_copy(deep=True)
 models["205"].name = "email-agent-205"
 # Set the judge group model
-models["205"].config.group_judge_model = "gemini/gemini-2.5-flash"
+models["205"].config.ruler_judge_model = "gemini/gemini-2.5-flash"
 
 # Model 206: like 204 but using Qwen3 32B as the judge-group model
 models["206"] = models["204"].model_copy(deep=True)
 models["206"].name = "email-agent-206"
 # Set the judge group model
-models["206"].config.group_judge_model = "openrouter/qwen/qwen3-32b"
+models["206"].config.ruler_judge_model = "openrouter/qwen/qwen3-32b"
 
 # Model 207: like 205 but only uses 12 training examples total
 models["207"] = models["205"].model_copy(deep=True)
@@ -136,7 +121,7 @@ models["212"].name = "email-agent-212-30"
 
 models["213"] = models["206"].model_copy(deep=True)
 models["213"].name = "email-agent-213"
-models["213"].config.group_judge_model = "openai/o3"
+models["213"].config.ruler_judge_model = "openai/o3"
 
 models["215"] = models["008"].model_copy(deep=True)
 models["215"].name = "email-agent-215"
@@ -146,14 +131,14 @@ models["216"].name = "email-agent-216-3"
 
 # Model 217: like 206 but with Qwen/Qwen3-14B base model and nothink option enabled
 models["217"] = models["206"].model_copy(deep=True)
-models["217"].name = "email-agent-217-2"
+models["217"].name = "email-agent-217-3"
 models["217"].base_model = "Qwen/Qwen3-14B"
 models["217"].config.include_qwen3_nothink = True
 
 models["218"] = models["206"].model_copy(deep=True)
 models["218"].name = "email-agent-218-5"
 models["218"].base_model = "Qwen/Qwen3-32B"
-models["218"].config.group_judge_model = "base_model"
+models["218"].config.ruler_judge_model = "base_model"
 models["218"].config.include_qwen3_nothink = True
 
 # Model 219: like 008 but with custom internal config (low max_grad_norm) and high learning rate
@@ -188,7 +173,7 @@ models["222"]._internal_config = art.dev.InternalModelConfig(
         num_scheduler_steps=1,
     )
 )
-models["222"].config.group_judge_model = "base_model"
+models["222"].config.ruler_judge_model = "base_model"
 models["222"].config.include_qwen3_nothink = True
 
 models["223"] = models["206"].model_copy(deep=True)
@@ -203,4 +188,25 @@ models["223"]._internal_config = art.dev.InternalModelConfig(
 
 models["224"] = models["223"].model_copy(deep=True)
 models["224"].name = "email-agent-224"
-models["224"].config.learning_rate = 2e-6
+models["224"].config.learning_rate = 1e-6
+models["224"].config.num_epochs = 6
+
+models["225"] = models["224"].model_copy(deep=True)
+models["225"].name = "email-agent-225"
+
+# Model 229: Fork from 224 not after step 1381
+models["229"] = models["224"].model_copy(deep=True)
+models["229"].name = "email-agent-229"
+models["229"].config.fork_from_model = "email-agent-224"
+models["229"].config.fork_not_after_step = 1381
+
+# Model 230: Fork from 206 not after step 90
+models["230"] = models["206"].model_copy(deep=True)
+models["230"].name = "email-agent-230"
+models["230"].config.fork_from_model = "email-agent-206"
+models["230"].config.fork_not_after_step = 90
+
+# Model 231: Like 206 but with scale_rewards=False
+models["231"] = models["206"].model_copy(deep=True)
+models["231"].name = "email-agent-231"
+models["231"].config.scale_rewards = False

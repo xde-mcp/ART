@@ -1,6 +1,7 @@
 import asyncio
 from dataclasses import dataclass
 import functools
+import os
 import torch
 from typing import AsyncIterator, TYPE_CHECKING
 
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
 class TrainInputs(PackedTensors):
     config: types.TrainConfig
     _config: dev.TrainConfig
+    return_new_logprobs: bool
 
 
 @dataclass
@@ -48,7 +50,6 @@ class UnslothService:
         lora_path = get_last_checkpoint_dir(self.output_dir)
         if lora_path is None:
             from ..utils.output_dirs import get_step_checkpoint_dir
-            import os
 
             lora_path = get_step_checkpoint_dir(self.output_dir, 0)
             os.makedirs(os.path.dirname(lora_path), exist_ok=True)
@@ -93,10 +94,33 @@ class UnslothService:
             warmup = True
         else:
             warmup = False
+        precalculate_logprobs = _config.get("precalculate_logprobs", False)
         # Enter training mode
         async with self.state.vllm.train_mode():
             for offset in range(0, packed_tensors["tokens"].shape[0]):
                 for _ in range(2 if warmup else 1):
+                    if precalculate_logprobs and not warmup:
+                        packed_tensors["logprobs"] = torch.cat(
+                            [
+                                self.state.trainer.compute_loss(
+                                    self.state.peft_model,
+                                    TrainInputs(
+                                        **{
+                                            k: v[_offset : _offset + 1]
+                                            for k, v in packed_tensors.items()
+                                            if isinstance(v, torch.Tensor)
+                                        },
+                                        config=config,
+                                        _config=_config,
+                                        return_new_logprobs=True,
+                                    ),  # type: ignore
+                                )
+                                for _offset in range(
+                                    0, packed_tensors["tokens"].shape[0]
+                                )
+                            ]
+                        ).to("cpu")
+                        precalculate_logprobs = False
                     self.state.inputs_queue.put_nowait(
                         TrainInputs(
                             **{
@@ -116,6 +140,7 @@ class UnslothService:
                                 else config
                             ),
                             _config=_config,
+                            return_new_logprobs=False,
                         )
                     )
                     # Wait for a result from the queue or for the training task to,
@@ -153,8 +178,6 @@ class UnslothService:
 
             next_step = get_step_from_dir(self.output_dir) + 1
             checkpoint_dir = get_step_checkpoint_dir(self.output_dir, next_step)
-            import os
-
             os.makedirs(os.path.dirname(checkpoint_dir), exist_ok=True)
             self.state.trainer.save_model(checkpoint_dir)
             if verbose:
