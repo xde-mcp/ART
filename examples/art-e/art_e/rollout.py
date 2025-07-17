@@ -332,7 +332,7 @@ async def rollout(
             try:
                 tool_args = json.loads(tool_call.function.arguments)
                 assert isinstance(tool_args, dict)
-            except Exception as e:
+            except Exception:
                 rubric.bad_tool_call_args = True
                 traj.messages_and_choices.append(
                     {

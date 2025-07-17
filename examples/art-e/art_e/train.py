@@ -94,12 +94,12 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
                 If no judge is configured, simply return the group as-is.
                 """
 
-                if model.config.group_judge_model is None:
+                if model.config.ruler_judge_model is None:
                     return group
 
                 return await ruler_score_group(
                     group,
-                    model.config.group_judge_model,
+                    model.config.ruler_judge_model,
                     swallow_exceptions=True,
                 )
 
@@ -159,9 +159,8 @@ async def train(model: art.TrainableModel[ProjectPolicyConfig]):
                 groups,
                 config=art.TrainConfig(learning_rate=model.config.learning_rate),
                 _config=art.dev.TrainConfig(
-                    allow_training_without_logprobs=True
-                    if model.config.messages_only
-                    else False
+                    allow_training_without_logprobs=model.config.messages_only,
+                    scale_rewards=model.config.scale_rewards,
                 ),
             )
 
