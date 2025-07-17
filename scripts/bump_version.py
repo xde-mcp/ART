@@ -11,6 +11,7 @@ Usage:
 import re
 import sys
 from pathlib import Path
+import subprocess
 
 
 def get_current_version():
@@ -49,6 +50,9 @@ def update_version(new_version):
 
     pyproject_path.write_text(new_content)
 
+    # run uv sync
+    subprocess.run(["uv", "sync"])
+
 
 def main():
     if len(sys.argv) != 2 or sys.argv[1] not in ["major", "minor", "patch"]:
@@ -66,7 +70,7 @@ def main():
         print("✓ Updated pyproject.toml")
         print("\nNext steps:")
         print(
-            f"1. Commit the change: git add pyproject.toml && git commit -m 'Bump version to {new}'"
+            f"1. Commit the change: git add pyproject.toml uv.lock && git commit -m 'Bump version to {new}'"
         )
         print(f"2. Create and push tag: git tag v{new} && git push origin v{new}")
         print(
