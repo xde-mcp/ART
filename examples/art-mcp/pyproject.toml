@@ -5,9 +5,10 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "agents>=1.4.0",
     "asyncio>=3.4.3",
     "mcp>=1.11.0",
     "openai>=1.74.0",
+    "openpipe-art[skypilot]>=0.4.4",
     "python-dotenv>=1.1.1",
+    "weave>=0.51.56",
 ]
