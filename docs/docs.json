@@ -61,6 +61,12 @@
         ]
       },
       {
+        "group": "Features",
+        "pages": [
+          "features/checkpoint-forking"
+        ]
+      },
+      {
         "group": "Tutorials",
         "pages": ["tutorials/summarizer"]
       },

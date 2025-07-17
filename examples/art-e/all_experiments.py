@@ -211,3 +211,9 @@ models["229"] = models["224"].model_copy(deep=True)
 models["229"].name = "email-agent-229"
 models["229"].config.fork_from_model = "email-agent-224"
 models["229"].config.fork_not_after_step = 1381
+
+# Model 230: Fork from 206 not after step 90
+models["230"] = models["206"].model_copy(deep=True)
+models["230"].name = "email-agent-230"
+models["230"].config.fork_from_model = "email-agent-206"
+models["230"].config.fork_not_after_step = 90
