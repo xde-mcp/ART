@@ -168,6 +168,19 @@ def get_compute_loss_fn(trainer: "GRPOTrainer") -> Callable[..., torch.Tensor]:
         trainer._metrics["train"]["entropy"].append(mean_entropy.item())  # type: ignore
         if config.beta > 0.0:
             trainer._metrics["train"]["kl_div"].append(mean_kl.item())
+        if _config.get("importance_sampling", True):
+            trainer._metrics["train"]["importance_sampling_weight"].append(
+                (
+                    (prob_ratio * weights * assistant_mask).sum()
+                    / (assistant_mask.sum() + 1e-6)
+                ).item()
+            )
+            trainer._metrics["train"]["abs_prob_ratio_diff"].append(
+                (
+                    (torch.abs(prob_ratio - 1.0) * weights * assistant_mask).sum()
+                    / (assistant_mask.sum() + 1e-6)
+                ).item()
+            )
         return mean_policy_loss + config.beta * mean_kl
 
     return compute_loss
