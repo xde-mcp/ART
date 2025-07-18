@@ -152,7 +152,13 @@ def get_compute_loss_fn(trainer: "GRPOTrainer") -> Callable[..., torch.Tensor]:
 
         policy_loss = policy_loss * weights * assistant_mask
         if _config.get("importance_sampling", True):
-            policy_loss *= prob_ratio
+            is_weight_mean = (prob_ratio * weights * assistant_mask).sum() / (
+                assistant_mask.sum() + 1e-6
+            )
+            is_weight_mean = torch.clamp(is_weight_mean, min=0.1)
+            policy_loss *= torch.clamp(
+                prob_ratio / is_weight_mean, max=1 + epsilon_high
+            ).detach()
         kl_div = kl_div * weights * assistant_mask
         mean_policy_loss = policy_loss.sum() / (assistant_mask.sum() + 1e-6)
         mean_kl = kl_div.sum() / (assistant_mask.sum() + 1e-6)
