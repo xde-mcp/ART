@@ -16,7 +16,7 @@ load_dotenv()
 
 # Model configuration
 model = art.TrainableModel(
-    name="mcp-001",
+    name="mcp-002",
     project="mcp-agent-training",
     base_model="Qwen/Qwen2.5-7B-Instruct",
 )
@@ -38,8 +38,13 @@ async def train_mcp_agent():
         "Get technical analysis indicators for Amazon (AMZN)",
     ]
 
-    # Start AlphaVantage MCP server
-    async with AlphaMcpServer(api_key=os.getenv("ALPHAVANTAGE_API_KEY")) as mcp_server:
+    # Create AlphaVantage MCP server
+    mcp_server = AlphaMcpServer(api_key=os.getenv("ALPHAVANTAGE_API_KEY", "demo"))
+
+    # Start the server
+    await mcp_server.start()
+
+    try:
         # Define training scenarios with the server
         train_scenarios = [
             McpScenario(
@@ -48,15 +53,6 @@ async def train_mcp_agent():
                 max_turns=3,
             )
             for task_description in task_descriptions[:4]
-        ]
-
-        validation_scenarios = [
-            McpScenario(
-                task_description=task_description,
-                mcp_server=mcp_server,
-                max_turns=3,
-            )
-            for task_description in task_descriptions[4:]
         ]
 
         backend = await SkyPilotBackend().initialize_cluster(
@@ -73,7 +69,7 @@ async def train_mcp_agent():
         groups = await art.gather_trajectory_groups(
             (
                 art.TrajectoryGroup(
-                    rollout(model, scenario, True)
+                    rollout(model, scenario, False)
                     for _ in range(4)  # 4 trajectories per scenario
                 )
                 for scenario in train_scenarios
@@ -87,6 +83,10 @@ async def train_mcp_agent():
         )
 
         await model.train(groups)
+
+    finally:
+        # Clean up the server session
+        await mcp_server.stop()
 
 
 def main():

@@ -58,10 +58,16 @@ async def rollout(
     system_prompt = """You are an MCP (Model Context Protocol) agent.\n\nYou have access to MCP tools through the server. Use them to complete your task.\n\nWhen you believe you have completed the task, call the 'complete_task' function with a summary of what you accomplished."""
 
     try:
-        # Get available tools from the server
-        tool_schemas = await scenario.mcp_server.get_tools()
-        available_tools = [tool["function"]["name"] for tool in tool_schemas]
-        print(f"Available MCP tools: {available_tools}")
+        try:
+            # Get available tools from the server
+            tool_schemas = await scenario.mcp_server.get_tools()
+        except Exception as e:
+            print(f"Error getting tools from MCP server: {e}")
+            raise e
+
+        if debug:
+            available_tools = [tool["function"]["name"] for tool in tool_schemas]
+            print(f"Available MCP tools: {available_tools}")
 
         # Add completion tool schema
         tool_schemas.append(
@@ -107,12 +113,12 @@ async def rollout(
             try:
                 # Get LLM response
                 async with traj.track_duration("llm_completion"):
-                    from openai import AsyncOpenAI
-
-                    client = AsyncOpenAI()
+                    client = model.openai_client()
 
                     response = await client.chat.completions.create(
-                        model=model.name,
+                        model=model.inference_model_name
+                        if model.inference_model_name
+                        else model.name,
                         messages=traj.messages(),
                         tools=tool_schemas,
                         max_tokens=getattr(model.config, "max_tokens", 1000),
@@ -181,7 +187,12 @@ async def rollout(
 
 
 async def test_rollout():
-    async with AlphaMcpServer(api_key=os.getenv("ALPHAVANTAGE_API_KEY")) as mcp_server:
+    mcp_server = AlphaMcpServer(api_key=os.getenv("ALPHAVANTAGE_API_KEY"))
+
+    # Start the server explicitly
+    await mcp_server.start()
+
+    try:
         model = art.Model(
             name="gpt-4o-mini",
             project="mcp-agent-training",
@@ -195,7 +206,16 @@ async def test_rollout():
         )
         traj = await rollout(model, scenario, debug=True)
         print(traj)
+    finally:
+        # Clean up the server session
+        await mcp_server.stop()
+
+
+async def main():
+    """Run test scenario."""
+    print("=== Testing AlphaMcpServer ===")
+    await test_rollout()
 
 
 if __name__ == "__main__":
-    asyncio.run(test_rollout())
+    asyncio.run(main())
