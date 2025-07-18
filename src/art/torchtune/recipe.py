@@ -20,6 +20,7 @@ from pydantic import ValidationError
 import setproctitle
 import torch
 from torch.distributed import destroy_process_group, init_process_group
+from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed.fsdp import FSDPModule
 from torch.distributed.tensor import DTensor
 from torch.distributed.tensor.parallel import parallelize_module
@@ -144,12 +145,14 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
         # Set up the backend for distributed training (NCCL, GLOO, etc.)
         self._enable_async_checkpointing = cfg.enable_async_checkpointing
         self.fsdp_cpu_offload = cfg.fsdp_cpu_offload
+        self.is_distributed = os.getenv("WORLD_SIZE", "1") != "1"
         self.distributed_backend = training.get_distributed_backend(
             device_type,
             offload_ops_to_cpu=self.fsdp_cpu_offload
             or self._enable_async_checkpointing,
         )
-        init_process_group(self.distributed_backend)
+        if self.is_distributed:
+            init_process_group(self.distributed_backend)
 
         # Initialize distributed variables
         self.world_size, self.rank = utils.get_world_size_and_rank()
@@ -175,7 +178,11 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
             cp=self.cp_degree,
             world_size=self.world_size,
         )
-        self.world_mesh = self.parallel_dims.build_mesh(device_type=device_type)
+        self.world_mesh = (
+            self.parallel_dims.build_mesh(device_type=device_type)
+            if self.is_distributed
+            else DeviceMesh(device_type="xla", mesh=[0])
+        )
         if self.parallel_dims.dp_enabled:
             dp_mesh = self.world_mesh["dp"]
             self.dp_degree, self.dp_rank = (
@@ -488,7 +495,10 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
         )
         init_start = time.perf_counter()
 
-        with training.set_default_dtype(self._dtype), torch.device("meta"):
+        with (
+            training.set_default_dtype(self._dtype),
+            torch.device("meta") if self.is_distributed else self._device,
+        ):
             model = config.instantiate(cfg_model.model_dump(by_alias=True))
 
         if self._compile_model:
@@ -586,17 +596,16 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
                 if hasattr(m, "rope_init"):
                     m.rope_init()  # type: ignore
 
-        assert isinstance(model, FSDPModule)
-
-        # This method will convert the full model state dict into a sharded state
-        # dict and load into the model
-        training.load_from_full_model_state_dict(
-            model,
-            model_state_dict,
-            self._device,
-            strict=True,
-            cpu_offload=fsdp_cpu_offload,
-        )
+        if isinstance(model, FSDPModule):
+            # This method will convert the full model state dict into a sharded state
+            # dict and load into the model
+            training.load_from_full_model_state_dict(
+                model,
+                model_state_dict,
+                self._device,
+                strict=True,
+                cpu_offload=fsdp_cpu_offload,
+            )
 
         # activation offloading
         self.activations_handling_ctx = training.get_act_offloading_ctx_manager(
@@ -615,8 +624,9 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
             memory_stats = training.get_memory_stats(device=self._device)
             training.log_memory_stats(memory_stats)
 
-        # synchronize before training begins
-        torch.distributed.barrier(device_ids=[self._device.index])
+        if self.is_distributed:
+            # synchronize before training begins
+            torch.distributed.barrier(device_ids=[self._device.index])
 
         return model
 
@@ -626,7 +636,6 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
         optimizer_in_bwd: bool = False,
         opt_state_dict: Optional[dict[str, Any]] = None,
     ) -> Optional[Optimizer]:
-        assert isinstance(self._model, FSDPModule)
         if optimizer_in_bwd:
             # Maintain a dict of optims for every parameter.
             optim_dict = {
@@ -647,7 +656,7 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
             # Load optimizer states for each param. If optimizer states are being restored in an optimizer in
             # backward run, these need to have been saved with the same setting. Cannot restore from runs that
             # did not use optimizer in backward.
-            if opt_state_dict is not None:
+            if opt_state_dict is not None and isinstance(self._model, FSDPModule):
                 for param in opt_state_dict.keys():
                     try:
                         training.load_from_full_optimizer_state_dict(
@@ -667,7 +676,7 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
             optimizer = config.instantiate(
                 cfg_optimizer.model_dump(by_alias=True), self._model.parameters()
             )
-            if opt_state_dict:
+            if opt_state_dict and isinstance(self._model, FSDPModule):
                 training.load_from_full_optimizer_state_dict(
                     self._model,
                     optimizer,
@@ -842,7 +851,9 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
             )  # [chunk_size, vocab_size]
             selected_logits = torch.gather(
                 logits, dim=-1, index=next_token_ids.unsqueeze(-1)
-            ).squeeze(-1)  # [chunk_size]
+            ).squeeze(
+                -1
+            )  # [chunk_size]
             logsumexp = torch.logsumexp(logits, dim=-1)  # [chunk_size]
             new_logprobs = selected_logits - logsumexp
             old_logprobs = torch.where(
