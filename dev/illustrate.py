@@ -21,7 +21,7 @@ def illustrate(
 
     Args:
         tokens_and_values: A list of tuples of token, value pairs. The tokens are word or subword language model tokens.
-        The values are floats and will be normalized with zero mean and unit variance.
+        The values are floats and will be normalized by scaling to [-1, 1] based on max absolute value.
         gradient: Color gradient to use. Options: "one-dark", "one-dark-simple", "fire", "ocean", "forest", "sunset", "monochrome", "plasma"
 
     Returns:
@@ -34,13 +34,15 @@ def illustrate(
     tokens = [t[0] for t in tokens_and_values]
     values = np.array([t[1] for t in tokens_and_values])
 
-    # Normalize values to zero mean and unit variance
-    if len(values) > 1:
-        mean = values.mean()
-        std = values.std()
-        normalized_values = (values - mean) / std if std > 0 else values - mean
+    # Normalize values by scaling to [-1, 1] range based on max absolute value
+    max_abs_val = max(abs(values.max()), abs(values.min())) if len(values) > 0 else 1.0
+    if max_abs_val > 0:
+        normalized_values = values / max_abs_val  # Now in range [-1, 1]
     else:
         normalized_values = values
+
+    # Map to [0, 1] range where -1 → 0, 0 → 0.5, 1 → 1
+    normalized_01 = (normalized_values + 1) / 2
 
     # Define gradient color stops in HSL space for smooth interpolation
     gradients = {
@@ -103,13 +105,20 @@ def illustrate(
     }
 
     def interpolate_hsl(val, gradient_stops, gradient_name):
-        """Interpolate HSL color based on normalized value (-3 to 3 range)"""
-        # Map from [-3, 3] to [0, 1]
-        t = np.clip((val + 3) / 6, 0, 1)
+        """Interpolate HSL color based on value in [0, 1] range"""
+        # Value is already in [0, 1] range
+        t = np.clip(val, 0, 1)
 
         # Apply non-linear transformation for one-dark-simple
         if gradient_name == "one-dark-simple":
-            t = 0.5 * (2 * t) ** 2.5 if t < 0.5 else 1 - 0.5 * (2 * (1 - t)) ** 2.5
+            # Apply power curve that accelerates toward extremes
+            # This keeps middle values (around 0.5) gray longer
+            if t < 0.5:
+                # For negative values (0 to 0.5), apply curve
+                t = 0.5 * (2 * t) ** 2.5
+            else:
+                # For positive values (0.5 to 1), apply curve
+                t = 1 - 0.5 * (2 * (1 - t)) ** 2.5
 
         # Find the two stops to interpolate between
         for i in range(len(gradient_stops) - 1):
@@ -151,7 +160,7 @@ def illustrate(
     result = []
 
     # Add header with value statistics
-    stats = f"Stats: μ={values.mean():6.3f}, σ={values.std() if len(values) > 1 else 0:6.3f}, min={values.min():6.3f}, max={values.max():6.3f}"
+    stats = f"Stats: scale={max_abs_val:6.3f}, min={values.min():6.3f}, max={values.max():6.3f}, mean={values.mean():6.3f}"
     box_width = 63
     padded_stats = stats.center(box_width - 4)
 
@@ -160,7 +169,7 @@ def illustrate(
     result.append(f"\033[90m╚{'═' * (box_width - 2)}╝\033[0m\n\n")
 
     # Add colored tokens
-    for token, norm_val in zip(tokens, normalized_values):
+    for token, norm_val in zip(tokens, normalized_01):
         color = interpolate_hsl(norm_val, gradient_stops, gradient)
         result.append(f"{color}{token}\033[0m")
     result.append("\n\n")
@@ -169,10 +178,10 @@ def illustrate(
     result.append("Value Distribution:\n")
     max_token_len = max(len(token) for token in tokens)
 
-    for token, orig_val, norm_val in zip(tokens, values, normalized_values):
+    for token, orig_val, norm_val in zip(tokens, values, normalized_01):
         # Build the bar
         bar_width = 20
-        bar_pos = np.clip(int((norm_val + 3) / 6 * bar_width), 0, bar_width - 1)
+        bar_pos = np.clip(int(norm_val * bar_width), 0, bar_width - 1)
         bar = "".join(
             (
                 "│"
@@ -197,7 +206,7 @@ def illustrate(
     result.append(f"Gradient ({gradient}): ")
 
     for i in range(20):
-        t = (i / 19) * 6 - 3  # Map to [-3, 3]
+        t = i / 19  # Already in [0, 1] range
         color = interpolate_hsl(t, gradient_stops, gradient)
         result.append(f"{color}█\033[0m")
 
