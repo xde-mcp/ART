@@ -182,20 +182,29 @@ def tokenize_trajectory(
         if isinstance(message_or_choice, dict):
             continue
         choice = message_or_choice
-        assert choice.logprobs or allow_training_without_logprobs, (
-            "Chat completion choices must have logprobs"
-        )
+        assert (
+            choice.logprobs or allow_training_without_logprobs
+        ), "Chat completion choices must have logprobs"
         if not choice.logprobs:
             continue
         token_logprobs = choice.logprobs.content or choice.logprobs.refusal or []
         sentinal_index = token_ids.index(sentinal_token_id)
-        token_ids[sentinal_index : sentinal_index + 1] = (
+        if (
+            bytes(token_logprobs[0].bytes or []).decode("utf-8")
+            == "<think>"
+            == tokenizer.decode(token_ids[sentinal_index - 4])
+        ):
+            start = sentinal_index - 4
+        else:
+            start = sentinal_index
+        end = sentinal_index + 1
+        token_ids[start:end] = (
             int(token_logprob.token.split(":")[1]) for token_logprob in token_logprobs
         )
-        logprobs[sentinal_index : sentinal_index + 1] = (
+        logprobs[start:end] = (
             token_logprob.logprob for token_logprob in token_logprobs
         )
-        assistant_mask[sentinal_index : sentinal_index + 1] = [1] * len(token_logprobs)
+        assistant_mask[start:end] = [1] * len(token_logprobs)
     return TokenizedResult(
         advantage=advantage,
         chat=chat,

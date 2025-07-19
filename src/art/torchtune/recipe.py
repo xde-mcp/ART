@@ -606,6 +606,8 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
                 strict=True,
                 cpu_offload=fsdp_cpu_offload,
             )
+        else:
+            model.load_state_dict(model_state_dict)
 
         # activation offloading
         self.activations_handling_ctx = training.get_act_offloading_ctx_manager(

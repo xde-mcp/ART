@@ -174,32 +174,33 @@ def illustrate(
         result.append(f"{color}{token}\033[0m")
     result.append("\n\n")
 
-    # Add value distribution bar chart
-    result.append("Value Distribution:\n")
-    max_token_len = max(len(token) for token in tokens)
+    if False:
+        # Add value distribution bar chart
+        result.append("Value Distribution:\n")
+        max_token_len = max(len(token) for token in tokens)
 
-    for token, orig_val, norm_val in zip(tokens, values, normalized_01):
-        # Build the bar
-        bar_width = 20
-        bar_pos = np.clip(int(norm_val * bar_width), 0, bar_width - 1)
-        bar = "".join(
-            (
-                "│"
-                if i == bar_width // 2
-                else (
-                    f"{interpolate_hsl(norm_val, gradient_stops, gradient)}█\033[0m"
-                    if i == bar_pos
-                    else "─"
+        for token, orig_val, norm_val in zip(tokens, values, normalized_01):
+            # Build the bar
+            bar_width = 20
+            bar_pos = np.clip(int(norm_val * bar_width), 0, bar_width - 1)
+            bar = "".join(
+                (
+                    "│"
+                    if i == bar_width // 2
+                    else (
+                        f"{interpolate_hsl(norm_val, gradient_stops, gradient)}█\033[0m"
+                        if i == bar_pos
+                        else "─"
+                    )
                 )
+                for i in range(bar_width)
             )
-            for i in range(bar_width)
-        )
 
-        # Format the line
-        color = interpolate_hsl(norm_val, gradient_stops, gradient)
-        result.append(
-            f"  {color}{token.ljust(max_token_len)}\033[0m  [{bar}]  {orig_val:7.3f}\n"
-        )
+            # Format the line
+            color = interpolate_hsl(norm_val, gradient_stops, gradient)
+            result.append(
+                f"  {color}{token.ljust(max_token_len)}\033[0m  [{bar}]  {orig_val:7.3f}\n"
+            )
 
     # Add gradient legend
     result.append(f"\n\033[90m{'─' * 60}\033[0m\n")
