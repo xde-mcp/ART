@@ -6,10 +6,11 @@ from art.rewards import ruler_score_group
 from dotenv import load_dotenv
 import os
 import weave
-
 from art.skypilot.backend import SkyPilotBackend
-from mcp_server import AlphaMcpServer
-from rollout import rollout, McpScenario
+
+
+from servers.python.mcp_alphavantage.server_params import server_params
+from .rollout import rollout, McpScenario
 
 load_dotenv()
 
@@ -38,30 +39,23 @@ async def train_mcp_agent():
         "Get technical analysis indicators for Amazon (AMZN)",
     ]
 
-    # Create AlphaVantage MCP server
-    mcp_server = AlphaMcpServer(api_key=os.getenv("ALPHAVANTAGE_API_KEY", "demo"))
+    backend = await SkyPilotBackend().initialize_cluster(
+        cluster_name="mcp-agent-training", gpu="H100"
+    )
+    await model.register(backend)
 
-    # Start the server
-    await mcp_server.start()
-
-    try:
+    for step in range(await model.get_step(), 5):
         # Define training scenarios with the server
         train_scenarios = [
             McpScenario(
                 task_description=task_description,
-                mcp_server=mcp_server,
+                server_params=server_params,
                 max_turns=3,
             )
             for task_description in task_descriptions[:4]
         ]
 
-        backend = await SkyPilotBackend().initialize_cluster(
-            cluster_name="mcp-agent-training", gpu="H100"
-        )
-        await model.register(backend)
-
         print("Gathering trajectory groups with RULER scoring...")
-
         print(f"Num train scenarios: {len(train_scenarios)}")
 
         # Use gather_trajectory_groups with ruler_score_group
@@ -74,7 +68,7 @@ async def train_mcp_agent():
                 )
                 for scenario in train_scenarios
             ),
-            pbar_desc="Training MCP Agent",
+            pbar_desc=f"gather step {step}",
             after_each=lambda group: ruler_score_group(
                 group,
                 judge_model="openai/gpt-4o-mini",  # Cost-effective judge model
@@ -83,10 +77,6 @@ async def train_mcp_agent():
         )
 
         await model.train(groups)
-
-    finally:
-        # Clean up the server session
-        await mcp_server.stop()
 
 
 def main():

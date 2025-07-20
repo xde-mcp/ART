@@ -313,7 +313,7 @@ class AlphaMcpServer(LocalMcpServer):
             StdioServerParameters for AlphaVantage server
         """
         return StdioServerParameters(
-            command="node",
-            args=["servers/mcp-alphavantage/build/index.js"],
+            command="python",
+            args=["servers/python/mcp_alphavantage/server.py", "--api-key", self.api_key],
             env={"ALPHAVANTAGE_API_KEY": self.api_key},
         )

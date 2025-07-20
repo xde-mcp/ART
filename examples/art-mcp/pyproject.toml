@@ -7,6 +7,7 @@ requires-python = ">=3.10"
 dependencies = [
     "aiohttp>=3.12.14",
     "asyncio>=3.4.3",
+    "click>=8.1.8",
     "mcp>=1.11.0",
     "openai>=1.74.0",
     "openpipe-art[skypilot]>=0.4.4",
