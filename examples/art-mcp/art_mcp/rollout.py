@@ -17,6 +17,7 @@ from mcp.client.stdio import stdio_client
 
 from servers.python.mcp_alphavantage.server_params import server_params
 from .utils import get_content_text
+from .checks import check_successful
 
 load_dotenv()
 
@@ -53,6 +54,7 @@ async def rollout(
         metadata={"task": scenario.task_description},
         metrics={
             "task_completed": False,
+            "success": False,
         },
         scenario=scenario,
     )
@@ -162,6 +164,9 @@ async def rollout(
                                         traj.log(
                                             f"Task completion attempted with summary: {tool_args['summary']}"
                                         )
+                                        traj.metrics[
+                                            "success"
+                                        ] = await check_successful(traj)
                                         break
                                     else:
                                         # Call MCP tool through session
