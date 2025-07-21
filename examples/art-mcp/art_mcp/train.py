@@ -3,6 +3,7 @@
 import asyncio
 import art
 from art.rewards import ruler_score_group
+from art.utils import iterate_dataset
 from dotenv import load_dotenv
 import os
 import weave
@@ -18,7 +19,7 @@ load_dotenv()
 
 # Model configuration
 model = art.TrainableModel(
-    name="mcp-004",
+    name="mcp-006",
     project="mcp-agent-training",
     base_model="Qwen/Qwen2.5-7B-Instruct",
 )
@@ -43,40 +44,49 @@ async def train_mcp_agent():
     # Load pre-split scenarios from scenarios directory
     scenarios_dir = "servers/python/mcp_alphavantage/scenarios"
 
-    raw_train_scenarios = [
-        json.loads(line) for line in open(f"{scenarios_dir}/train.jsonl")
-    ]
+    with open(f"{scenarios_dir}/train.jsonl") as f:
+        raw_train_scenarios = [json.loads(line.strip()) for line in f if line.strip()]
 
-    raw_val_scenarios = [
-        json.loads(line) for line in open(f"{scenarios_dir}/val.jsonl")
-    ]
+    with open(f"{scenarios_dir}/val.jsonl") as f:
+        raw_val_scenarios = [json.loads(line.strip()) for line in f if line.strip()]
+
+    print(f"Loaded {len(raw_train_scenarios)} training scenarios")
+    print(f"Loaded {len(raw_val_scenarios)} validation scenarios")
 
     backend = await SkyPilotBackend().initialize_cluster(
         cluster_name="mcp-agent-training", gpu="H100"
     )
     await model.register(backend)
 
-    for step in range(await model.get_step(), 50):
-        # Create training scenarios from pre-split data
-        train_scenarios = [
-            McpScenario(
-                task_description=scenario["task"],
-                server_params=server_params,
-                max_turns=5,
-            )
-            for scenario in raw_train_scenarios
-        ]
+    train_scenarios = [
+        McpScenario(
+            task_description=scenario["task"],
+            server_params=server_params,
+            max_turns=5,
+        )
+        for scenario in raw_train_scenarios
+    ]
 
-        # Create validation scenarios from pre-split data
-        val_scenarios = [
-            McpScenario(
-                task_description=scenario["task"],
-                server_params=server_params,
-                max_turns=5,
-            )
-            for scenario in raw_val_scenarios
-        ]
+    # Create validation scenarios from pre-split data (used for periodic evaluation)
+    val_scenarios = [
+        McpScenario(
+            task_description=scenario["task"],
+            server_params=server_params,
+            max_turns=5,
+        )
+        for scenario in raw_val_scenarios
+    ]
 
+    # Create dataset iterator using raw scenarios (not McpScenario objects)
+    train_iterator = iterate_dataset(
+        train_scenarios,  # Use raw data, create McpScenario objects in batches
+        groups_per_step=2,  # Batch size of 2
+        num_epochs=3,  # Multiple epochs over the dataset
+        initial_step=await model.get_step(),  # Resume from checkpoint
+    )
+
+    # Main training loop using iterate_dataset
+    for batch in train_iterator:
         print("Gathering trajectory groups with RULER scoring...")
 
         # Use gather_trajectory_groups with ruler_score_group
@@ -84,9 +94,9 @@ async def train_mcp_agent():
         groups = await art.gather_trajectory_groups(
             (
                 art.TrajectoryGroup(rollout(model, scenario, False) for _ in range(4))
-                for scenario in train_scenarios
+                for scenario in batch.items
             ),
-            pbar_desc=f"train gather step {step}",
+            pbar_desc=f"train gather step {batch.step}",
             after_each=lambda group: ruler_score_group(
                 group,
                 judge_model="openrouter/google/gemini-2.5-flash",  # Cost-effective judge model
@@ -97,7 +107,7 @@ async def train_mcp_agent():
 
         print("train groups finished")
 
-        if step % 5 == 0:
+        if batch.step % 5 == 0:
             print("starting comparison train gather")
             comparison_train_groups = await art.gather_trajectory_groups(
                 (
@@ -113,7 +123,7 @@ async def train_mcp_agent():
                     )
                     for i, scenario in enumerate(train_scenarios)
                 ),
-                pbar_desc=f"comparison train gather step {step}",
+                pbar_desc=f"comparison train gather step {batch.step}",
                 after_each=lambda group: ruler_score_group(
                     group,
                     judge_model="openrouter/google/gemini-2.5-flash",
@@ -147,7 +157,7 @@ async def train_mcp_agent():
                     )
                     for i, scenario in enumerate(val_scenarios)
                 ),
-                pbar_desc=f"val gather step {step}",
+                pbar_desc=f"val gather step {batch.step}",
                 after_each=lambda group: ruler_score_group(
                     group,
                     judge_model="openrouter/google/gemini-2.5-flash",
@@ -172,7 +182,14 @@ async def train_mcp_agent():
 def main():
     """Main training entry point."""
     print("Starting MCP agent training...")
-    asyncio.run(train_mcp_agent())
+    try:
+        asyncio.run(train_mcp_agent())
+    except Exception as e:
+        print(f"Training failed with error: {e}")
+        import traceback
+
+        traceback.print_exc()
+        raise  # Re-raise the exception to ensure it reaches the user
 
 
 if __name__ == "__main__":
