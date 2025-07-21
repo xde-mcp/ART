@@ -19,7 +19,7 @@ litellm._turn_on_debug()
 
 # Model configuration
 model = art.TrainableModel(
-    name="mcp-003",
+    name="mcp-004",
     project="mcp-agent-training",
     base_model="Qwen/Qwen2.5-7B-Instruct",
 )
@@ -66,7 +66,7 @@ async def train_mcp_agent():
         random.shuffle(scenarios)
 
         # Define training scenarios with the server
-        train_scenarios = scenarios[:8]
+        train_scenarios = scenarios[:16]
         val_scenarios = scenarios[16:]
 
         print("Gathering trajectory groups with RULER scoring...")
@@ -81,8 +81,9 @@ async def train_mcp_agent():
             pbar_desc=f"train gather step {step}",
             after_each=lambda group: ruler_score_group(
                 group,
-                judge_model="openai/gpt-4o-mini",  # Cost-effective judge model
+                judge_model="openrouter/google/gemini-2.5-flash",  # Cost-effective judge model
                 debug=True,  # Show judge reasoning
+                swallow_exceptions=True,
             ),
         )
 
@@ -107,8 +108,9 @@ async def train_mcp_agent():
                 pbar_desc=f"comparison train gather step {step}",
                 after_each=lambda group: ruler_score_group(
                     group,
-                    judge_model="openai/gpt-4o-mini",
+                    judge_model="openrouter/google/gemini-2.5-flash",
                     debug=True,
+                    swallow_exceptions=True,
                 ),
             )
             for i in range(len(comparison_train_groups)):
@@ -120,7 +122,7 @@ async def train_mcp_agent():
                     group.trajectories[0].reward > group.trajectories[1].reward
                 )
 
-            model.log(comparison_train_groups, split="train")
+            await model.log(comparison_train_groups, split="train")
 
             print("starting comparison val gather")
             comparison_val_groups = await art.gather_trajectory_groups(
@@ -140,8 +142,9 @@ async def train_mcp_agent():
                 pbar_desc=f"val gather step {step}",
                 after_each=lambda group: ruler_score_group(
                     group,
-                    judge_model="openai/gpt-4o-mini",
+                    judge_model="openrouter/google/gemini-2.5-flash",
                     debug=True,
+                    swallow_exceptions=True,
                 ),
             )
             for i in range(len(comparison_val_groups)):
@@ -152,7 +155,7 @@ async def train_mcp_agent():
                 group.trajectories[0].metrics["beat_comp"] = (
                     group.trajectories[0].reward > group.trajectories[1].reward
                 )
-            model.log(comparison_val_groups, split="val")
+            await model.log(comparison_val_groups, split="val")
 
         print("starting train")
         await model.train(groups)

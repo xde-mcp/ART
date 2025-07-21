@@ -68,8 +68,8 @@ Respond with only {{"success": true}} if the task was completed successfully, or
     try:
         client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-        response = client.chat.completions.create(
-            model="o3-mini",
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
             messages=[{"role": "user", "content": evaluation_prompt}],
             max_tokens=1000,
             response_format={"type": "json_object"},
