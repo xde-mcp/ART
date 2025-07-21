@@ -5,6 +5,7 @@ import os
 import importlib.util
 import argparse
 import asyncio
+import random
 from typing import List, Dict, Any
 from mcp import ClientSession
 from mcp.client.stdio import stdio_client
@@ -17,14 +18,14 @@ load_dotenv()
 async def generate_scenarios(
     server_params_path: str,
     num_scenarios: int = 24,
-    output_file: str = "scenarios.jsonl",
+    scenarios_dir: str = None,
 ) -> List[Dict[str, Any]]:
     """Generate scenarios for MCP agent evaluation using OpenAI's o3 model.
 
     Args:
         server_params_path: Relative path to the server_params file (e.g., "servers/python/mcp_alphavantage/server_params.py")
         num_scenarios: Number of scenarios to generate (default: 24)
-        output_file: Path to save scenarios as JSONL file (default: "scenarios.jsonl")
+        scenarios_dir: Directory to save scenarios (default: "scenarios" in same dir as server_params)
 
     Returns:
         List of scenario objects with 'task' and 'difficulty' fields
@@ -157,12 +158,36 @@ Example:
     if len(scenarios) != num_scenarios:
         raise ValueError(f"Expected {num_scenarios} scenarios, got {len(scenarios)}")
 
-    # Save scenarios to JSONL file
-    with open(output_file, "w") as f:
-        for scenario in scenarios:
+    # Determine scenarios directory - default to "scenarios" in same dir as server_params
+    if scenarios_dir is None:
+        server_params_dir = os.path.dirname(server_params_path)
+        scenarios_dir = os.path.join(server_params_dir, "scenarios")
+
+    # Create scenarios directory if it doesn't exist
+    os.makedirs(scenarios_dir, exist_ok=True)
+
+    # Shuffle scenarios randomly
+    random.shuffle(scenarios)
+
+    # Split into train (2/3) and val (1/3)
+    train_size = int(len(scenarios) * 2 / 3)
+    train_scenarios = scenarios[:train_size]
+    val_scenarios = scenarios[train_size:]
+
+    # Save train scenarios
+    train_file = os.path.join(scenarios_dir, "train.jsonl")
+    with open(train_file, "w") as f:
+        for scenario in train_scenarios:
             f.write(json.dumps(scenario) + "\n")
 
-    print(f"Saved {len(scenarios)} scenarios to {output_file}")
+    # Save val scenarios
+    val_file = os.path.join(scenarios_dir, "val.jsonl")
+    with open(val_file, "w") as f:
+        for scenario in val_scenarios:
+            f.write(json.dumps(scenario) + "\n")
+
+    print(f"Saved {len(train_scenarios)} training scenarios to {train_file}")
+    print(f"Saved {len(val_scenarios)} validation scenarios to {val_file}")
 
     return scenarios
 
@@ -183,9 +208,9 @@ async def main():
         help="Number of scenarios to generate (default: 24)",
     )
     parser.add_argument(
-        "--output-file",
+        "--scenarios-dir",
         default=None,
-        help="Output file path for scenarios (default: scenarios.jsonl in same directory as server_params)",
+        help="Directory to save scenarios (default: scenarios/ in same directory as server_params)",
     )
     parser.add_argument("--quiet", action="store_true", help="Only show minimal output")
 
@@ -196,22 +221,23 @@ async def main():
         print(f"Error: Server params file not found: {args.server_params_path}")
         return 1
 
-    # Determine output file path - default to same directory as server_params
-    if args.output_file is None:
+    # Determine scenarios directory path - default to scenarios/ in same directory as server_params
+    scenarios_dir = args.scenarios_dir
+    if scenarios_dir is None:
         server_params_dir = os.path.dirname(args.server_params_path)
-        args.output_file = os.path.join(server_params_dir, "scenarios.jsonl")
+        scenarios_dir = os.path.join(server_params_dir, "scenarios")
 
     if not args.quiet:
         print(
             f"Generating {args.num_scenarios} scenarios using {args.server_params_path}..."
         )
-        print(f"Output will be saved to: {args.output_file}")
+        print(f"Output will be saved to: {scenarios_dir}/")
 
     try:
         scenarios = await generate_scenarios(
             args.server_params_path,
             num_scenarios=args.num_scenarios,
-            output_file=args.output_file,
+            scenarios_dir=scenarios_dir,
         )
 
         if not args.quiet:
@@ -235,7 +261,7 @@ async def test_scenario_generation():
     server_params_path = "servers/python/mcp_alphavantage/server_params.py"
 
     scenarios = await generate_scenarios(
-        server_params_path, num_scenarios=3, output_file="test_scenarios.jsonl"
+        server_params_path, num_scenarios=3, scenarios_dir="test_scenarios"
     )  # Generate 3 scenarios for testing
 
     print(f"\nGenerated {len(scenarios)} scenarios:")

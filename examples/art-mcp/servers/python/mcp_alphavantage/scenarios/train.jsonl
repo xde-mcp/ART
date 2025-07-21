@@ -1,0 +1,16 @@
+{"task": "Obtain Twitter (TWTR)'s current stock price and then download its daily time series data to plot recent price trends.", "difficulty": 2}
+{"task": "Fetch the 14-day Relative Strength Index (RSI) using daily data for Alphabet (GOOGL) to assess momentum.", "difficulty": 2}
+{"task": "For long-term investment analysis, get the weekly SMA for IBM to evaluate trend stability.", "difficulty": 3}
+{"task": "Retrieve the monthly RSI for Facebook (Meta Platforms, symbol FB) using a 14-day period to support mid-term investment decisions.", "difficulty": 2}
+{"task": "Search for emerging companies in the renewable energy sector using the keyword 'solar' to identify potential investments.", "difficulty": 2}
+{"task": "Perform a complex, multi-step analysis for AMD by obtaining its real-time stock quote, 5-minute RSI, and 15-minute SMA to guide intraday trading decisions.", "difficulty": 5}
+{"task": "Calculate the 30-day Simple Moving Average (SMA) for Apple (AAPL) on a daily interval using the closing prices.", "difficulty": 2}
+{"task": "Search for and retrieve the company overview for Pfizer by using the keyword 'Pfizer' to analyze its biotech fundamentals.", "difficulty": 3}
+{"task": "Compare the weekly SMA and RSI for Walmart (WMT) to determine potential support and resistance levels for retail market trends.", "difficulty": 3}
+{"task": "Conduct a risk management review for Boeing (BA) by comparing a 60-minute SMA with a 14-day RSI to identify potential risk signals.", "difficulty": 4}
+{"task": "Compare Apple (AAPL)'s current stock price with its 30-day SMA to determine if the price is above or below the moving average.", "difficulty": 3}
+{"task": "Obtain the company overview for Tesla (TSLA) to review its fundamental data.", "difficulty": 1}
+{"task": "Conduct a multi-indicator analysis for Amazon (AMZN) by fetching both the daily RSI and daily SMA to gauge overall market sentiment.", "difficulty": 4}
+{"task": "Perform a two-step analysis for NVIDIA (NVDA) by fetching a full company overview and its historical daily price series for deeper research.", "difficulty": 3}
+{"task": "Get the current stock price for Apple (AAPL).", "difficulty": 1}
+{"task": "For intraday analysis, retrieve the 15-minute RSI for Intel (INTC) to identify short-term trend shifts.", "difficulty": 3}

@@ -1,0 +1,8 @@
+{"task": "Quickly fetch the real-time stock quote for a volatile penny stock like Sundial Growers (SNDL) for pre-market analysis.", "difficulty": 1}
+{"task": "Monitor the real-time stock quote for Tesla (TSLA) frequently for day trading purposes.", "difficulty": 1}
+{"task": "Use the search functionality to enter 'Technology' as a keyword to find relevant stock symbols in the tech sector.", "difficulty": 2}
+{"task": "Retrieve daily time series data (compact output) for Microsoft (MSFT) for basic trend analysis.", "difficulty": 2}
+{"task": "For a detailed analysis, obtain Adobe (ADBE)'s company overview and then calculate its daily SMA to study its technical trend.", "difficulty": 4}
+{"task": "For long-term historical analysis, retrieve the full daily time series data for Oracle (ORCL) to study extensive price movements.", "difficulty": 3}
+{"task": "Search for a company symbol using the keyword 'Microsoft' to identify the relevant stock ticker.", "difficulty": 2}
+{"task": "For a day trader, retrieve the 5-minute RSI for Amazon (AMZN) to monitor short-term price fluctuations.", "difficulty": 3}

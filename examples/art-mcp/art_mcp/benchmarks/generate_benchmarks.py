@@ -5,7 +5,8 @@ import random
 import asyncio
 import os
 
-from rollout import rollout
+from rollout import McpScenario, rollout
+from servers.python.mcp_alphavantage.server_params import server_params
 
 load_dotenv()
 
@@ -49,7 +50,14 @@ async def log_comparison_model(comparison_model: art.Model):
     trajectories = await art.gather_trajectory_groups(
         (
             art.TrajectoryGroup(
-                rollout(comparison_model, 0, is_validation=True) for _ in range(12)
+                rollout(
+                    comparison_model,
+                    McpScenario(
+                        task_description="",
+                        server_params=server_params,
+                    ),
+                )
+                for _ in range(12)
             )
             for _ in range(1)
         ),
