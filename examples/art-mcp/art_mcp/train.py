@@ -15,7 +15,7 @@ from servers.python.mcp_alphavantage.server_params import server_params
 from .rollout import rollout, McpScenario
 
 load_dotenv()
-litellm._turn_on_debug()
+# litellm._turn_on_debug()
 
 # Model configuration
 model = art.TrainableModel(
@@ -59,7 +59,7 @@ async def train_mcp_agent():
             McpScenario(
                 task_description=scenario["task"],
                 server_params=server_params,
-                max_turns=10,
+                max_turns=5,
             )
             for scenario in raw_scenarios
         ]

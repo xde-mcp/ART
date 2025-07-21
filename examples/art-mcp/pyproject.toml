@@ -12,5 +12,6 @@ dependencies = [
     "openai>=1.74.0",
     "openpipe-art[skypilot]>=0.4.4",
     "python-dotenv>=1.1.1",
+    "tenacity>=9.1.2",
     "weave>=0.51.56",
 ]

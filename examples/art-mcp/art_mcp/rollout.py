@@ -213,6 +213,8 @@ async def rollout(
             except Exception as e:
                 traj.log(f"MCP server error: {e}")
 
+    traj.metrics["num_turns"] = num_turns
+    print("num turns", num_turns)
     return traj.finish()
 
 

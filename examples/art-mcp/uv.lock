@@ -196,6 +196,7 @@ dependencies = [
     { name = "openai" },
     { name = "openpipe-art", extra = ["skypilot"] },
     { name = "python-dotenv" },
+    { name = "tenacity" },
     { name = "weave" },
 ]
 
@@ -208,6 +209,7 @@ requires-dist = [
     { name = "openai", specifier = ">=1.74.0" },
     { name = "openpipe-art", extras = ["skypilot"], specifier = ">=0.4.4" },
     { name = "python-dotenv", specifier = ">=1.1.1" },
+    { name = "tenacity", specifier = ">=9.1.2" },
     { name = "weave", specifier = ">=0.51.56" },
 ]
 

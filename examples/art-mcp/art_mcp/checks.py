@@ -4,11 +4,19 @@ import os
 import json
 from openai import AsyncOpenAI
 import art
+from art.utils import limit_concurrency
 from dotenv import load_dotenv
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 load_dotenv()
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=15),
+    reraise=True,
+)
+@limit_concurrency(n=128)
 async def check_successful(trajectory: art.Trajectory) -> bool:
     """Check if the agent completed the task successfully using GPT-4 evaluation.
 
