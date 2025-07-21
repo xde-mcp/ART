@@ -48,10 +48,10 @@ requested_models = []
 for pattern in requested_patterns:
     # Replace % with * for fnmatch
     glob_pattern = pattern.replace("%", "*")
-    
+
     # Find all matching model keys
     matching_keys = [key for key in models.keys() if fnmatch.fnmatch(key, glob_pattern)]
-    
+
     if matching_keys:
         requested_models.extend(matching_keys)
         if len(matching_keys) > 1:
