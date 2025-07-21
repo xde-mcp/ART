@@ -7,36 +7,46 @@ from dotenv import load_dotenv
 import os
 import weave
 from art.skypilot.backend import SkyPilotBackend
-
+import json
+import random
+import litellm
 
 from servers.python.mcp_alphavantage.server_params import server_params
 from .rollout import rollout, McpScenario
 
 load_dotenv()
-
+litellm._turn_on_debug()
 
 # Model configuration
 model = art.TrainableModel(
-    name="mcp-002",
+    name="mcp-003",
     project="mcp-agent-training",
     base_model="Qwen/Qwen2.5-7B-Instruct",
+)
+
+gpt_4o_mini = art.Model(
+    name="gpt-4o-mini",
+    project="mcp-agent-training",
+    inference_model_name="gpt-4o-mini",
+    inference_api_key=os.getenv("OPENAI_API_KEY"),
+    inference_base_url="https://api.openai.com/v1",
 )
 
 if os.getenv("WANDB_API_KEY"):
     print("Initializing Weave")
     weave.init(model.project)
 
+random.seed(42)
+
 
 async def train_mcp_agent():
     """Example training function that creates AlphaMcpServer and passes it in scenarios."""
     load_dotenv()
 
-    task_descriptions = [
-        "Get the current stock price for AAPL",
-        "Search for stocks related to technology companies",
-        "Get company overview for Microsoft (MSFT)",
-        "Find the latest earnings report for Tesla (TSLA)",
-        "Get technical analysis indicators for Amazon (AMZN)",
+    # each row is a json object
+    raw_scenarios = [
+        json.loads(line)
+        for line in open("servers/python/mcp_alphavantage/scenarios.jsonl")
     ]
 
     backend = await SkyPilotBackend().initialize_cluster(
@@ -44,31 +54,31 @@ async def train_mcp_agent():
     )
     await model.register(backend)
 
-    for step in range(await model.get_step(), 5):
-        # Define training scenarios with the server
-        train_scenarios = [
+    for step in range(await model.get_step(), 50):
+        scenarios = [
             McpScenario(
-                task_description=task_description,
+                task_description=scenario["task"],
                 server_params=server_params,
-                max_turns=3,
+                max_turns=10,
             )
-            for task_description in task_descriptions[:4]
+            for scenario in raw_scenarios
         ]
+        random.shuffle(scenarios)
+
+        # Define training scenarios with the server
+        train_scenarios = scenarios[:8]
+        val_scenarios = scenarios[16:]
 
         print("Gathering trajectory groups with RULER scoring...")
-        print(f"Num train scenarios: {len(train_scenarios)}")
 
         # Use gather_trajectory_groups with ruler_score_group
         # Create groups of 4 trajectories per scenario for better evaluation
         groups = await art.gather_trajectory_groups(
             (
-                art.TrajectoryGroup(
-                    rollout(model, scenario, False)
-                    for _ in range(4)  # 4 trajectories per scenario
-                )
+                art.TrajectoryGroup(rollout(model, scenario, False) for _ in range(4))
                 for scenario in train_scenarios
             ),
-            pbar_desc=f"gather step {step}",
+            pbar_desc=f"train gather step {step}",
             after_each=lambda group: ruler_score_group(
                 group,
                 judge_model="openai/gpt-4o-mini",  # Cost-effective judge model
@@ -76,6 +86,75 @@ async def train_mcp_agent():
             ),
         )
 
+        print("train groups finished")
+
+        if step % 5 == 0:
+            print("starting comparison train gather")
+            comparison_train_groups = await art.gather_trajectory_groups(
+                (
+                    art.TrajectoryGroup(
+                        [
+                            rollout(model, scenario, False)
+                            if i % 2 == 0
+                            else rollout(gpt_4o_mini, scenario, False),
+                            rollout(gpt_4o_mini, scenario, False)
+                            if i % 2 == 0
+                            else rollout(model, scenario, False),
+                        ]
+                    )
+                    for i, scenario in enumerate(train_scenarios)
+                ),
+                pbar_desc=f"comparison train gather step {step}",
+                after_each=lambda group: ruler_score_group(
+                    group,
+                    judge_model="openai/gpt-4o-mini",
+                    debug=True,
+                ),
+            )
+            for i in range(len(comparison_train_groups)):
+                group = comparison_train_groups[i]
+                # reverse every other group
+                if i % 2 == 1:
+                    group.trajectories = group.trajectories[::-1]
+                group.trajectories[0].metrics["beat_comp"] = (
+                    group.trajectories[0].reward > group.trajectories[1].reward
+                )
+
+            model.log(comparison_train_groups, split="train")
+
+            print("starting comparison val gather")
+            comparison_val_groups = await art.gather_trajectory_groups(
+                (
+                    art.TrajectoryGroup(
+                        [
+                            rollout(model, scenario, False)
+                            if i % 2 == 0
+                            else rollout(gpt_4o_mini, scenario, False),
+                            rollout(gpt_4o_mini, scenario, False)
+                            if i % 2 == 0
+                            else rollout(model, scenario, False),
+                        ]
+                    )
+                    for i, scenario in enumerate(val_scenarios)
+                ),
+                pbar_desc=f"val gather step {step}",
+                after_each=lambda group: ruler_score_group(
+                    group,
+                    judge_model="openai/gpt-4o-mini",
+                    debug=True,
+                ),
+            )
+            for i in range(len(comparison_val_groups)):
+                group = comparison_val_groups[i]
+                # reverse every other group
+                if i % 2 == 1:
+                    group.trajectories = group.trajectories[::-1]
+                group.trajectories[0].metrics["beat_comp"] = (
+                    group.trajectories[0].reward > group.trajectories[1].reward
+                )
+            model.log(comparison_val_groups, split="val")
+
+        print("starting train")
         await model.train(groups)
 
 

@@ -155,6 +155,7 @@ async def rollout(
 
                         # Handle tool calls
                         if choice.message.tool_calls:
+                            task_completed = False
                             for tool_call in choice.message.tool_calls:
                                 try:
                                     tool_args = json.loads(tool_call.function.arguments)
@@ -167,7 +168,7 @@ async def rollout(
                                         traj.metrics[
                                             "success"
                                         ] = await check_successful(traj)
-                                        break
+                                        task_completed = True
                                     else:
                                         # Call MCP tool through session
                                         result = await session.call_tool(
@@ -176,14 +177,14 @@ async def rollout(
 
                                         content_text = get_content_text(result)
 
-                                    # Add tool response
-                                    traj.messages_and_choices.append(
-                                        {
-                                            "role": "tool",
-                                            "tool_call_id": tool_call.id,
-                                            "content": content_text,
-                                        }
-                                    )
+                                        # Add tool response
+                                        traj.messages_and_choices.append(
+                                            {
+                                                "role": "tool",
+                                                "tool_call_id": tool_call.id,
+                                                "content": content_text,
+                                            }
+                                        )
 
                                     if debug:
                                         print(f"Tool call result: {content_text}")
@@ -199,6 +200,8 @@ async def rollout(
                                             "content": f"Error: {str(e)}",
                                         }
                                     )
+                            if task_completed:
+                                break
                         else:
                             # No tool calls, just continue conversation
                             break
