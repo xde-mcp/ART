@@ -485,7 +485,7 @@ class LocalBackend(Backend):
             #     "WEAVE_PRINT_CALL_LINK", "False"
             # )
             # os.environ["WEAVE_LOG_LEVEL"] = os.getenv("WEAVE_LOG_LEVEL", "CRITICAL")
-            self._weave_clients[model.name] = weave.init(model.project)
+            # self._weave_clients[model.name] = weave.init(model.project)
         return self._wandb_runs[model.name]
 
     # ------------------------------------------------------------------
