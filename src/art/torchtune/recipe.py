@@ -942,7 +942,7 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
                     running_loss += current_loss
                     # For optimizer in backward, we need to normalize before calling backward
                     # This case and gradient accumulation are mutually exclusive
-                    if self._optimizer_in_bwd:
+                    if self._optimizer_in_bwd and self.is_distributed:
                         torch.distributed.all_reduce(num_tokens)
                         torch.distributed.all_reduce(running_loss)
                         current_loss = current_loss * (self.dp_degree / num_tokens)
@@ -951,10 +951,11 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
                 # Optimizer step (if not fused in backward call)
                 if (idx + 1) % self._gradient_accumulation_steps == 0:
                     if not self._optimizer_in_bwd:
-                        # Get total number of tokens across all ranks to normalize gradients
-                        torch.distributed.all_reduce(num_tokens)
-                        # Ensure consistency across all ranks for logging
-                        torch.distributed.all_reduce(running_loss)
+                        if self.is_distributed:
+                            # Get total number of tokens across all ranks to normalize gradients
+                            torch.distributed.all_reduce(num_tokens)
+                            # Ensure consistency across all ranks for logging
+                            torch.distributed.all_reduce(running_loss)
 
                         # Manually scale the gradients by total # of tokens
                         self._grad_scaler(
