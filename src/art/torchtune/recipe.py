@@ -1085,7 +1085,6 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
                             device: torch.device | None = None,
                             adapter_weights_only: bool = False,
                         ) -> dict[str, Any]:
-                            self._move_to(torch.device("cpu"))
                             state_dict = gather_cpu_state_dict(
                                 model, is_rank_zero, device, adapter_weights_only
                             )
@@ -1095,7 +1094,6 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
                             return state_dict
 
                         training.gather_cpu_state_dict = _gather_cpu_state_dict
-
                         checkpointer: FullModelHFCheckpointer = (
                             self._checkpoint_client._get_checkpointer()
                         )
@@ -1141,18 +1139,21 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
                             checkpointer.save_checkpoint = save_checkpoint
 
                         checkpointer.save_checkpoint = _save_checkpoint
+                        self._move_to(torch.device("cpu"))
+                        if not self.is_distributed:
+                            # signal that the GPUs are free
+                            Path(f"{self._output_dir}/pids.txt").unlink(missing_ok=True)
                         self._checkpoint_client.save_checkpoint(
                             model=self._model,
                             optimizer=self._optimizer_or_optim_ckpt_wrapper,
                             training_progress=TrainingProgress(
                                 seed=self.seed,
                                 epochs_run=self.epochs_run,
-                                # total_epochs=self.total_epochs,
                                 total_epochs=1,
                                 max_steps_per_epoch=self.max_steps_per_epoch,
                             ),
-                            # epoch=curr_epoch,
                             epoch=0,
+                            single_device=not self.is_distributed,
                         )
                         if self._is_rank_zero:
                             # Ensure checkpoints directory exists
