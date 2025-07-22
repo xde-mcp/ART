@@ -55,7 +55,7 @@ class SkyPilotBackend(Backend):
         if resources is None:
             resources = sky.Resources(
                 cloud=sky.clouds.RunPod(),
-                accelerators={"H100": 1},
+                accelerators={"H100-SXM": 1},
                 ports=[],
             )
 

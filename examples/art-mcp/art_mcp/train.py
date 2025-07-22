@@ -54,7 +54,7 @@ async def train_mcp_agent():
     print(f"Loaded {len(raw_val_scenarios)} validation scenarios")
 
     backend = await SkyPilotBackend().initialize_cluster(
-        cluster_name="mcp-agent-training", gpu="H100"
+        cluster_name="mcp-agent-training", gpu="H100-SXM"
     )
     await model.register(backend)
 

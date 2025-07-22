@@ -6,7 +6,6 @@ import sky
 import textwrap
 from dotenv import dotenv_values, load_dotenv
 from sky import ClusterStatus
-import os
 from datetime import datetime
 
 load_dotenv()
