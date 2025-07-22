@@ -5,7 +5,7 @@ import random
 import asyncio
 import os
 
-from rollout import McpScenario, rollout
+from ..rollout import McpScenario, rollout
 from servers.python.mcp_alphavantage.server_params import server_params
 
 load_dotenv()
@@ -18,28 +18,28 @@ backend = LocalBackend()
 # comparison models
 gpt_4o_mini = art.Model(
     name="gpt-4o-mini",
-    project="2048",
+    project="mcp-agent-training",
     inference_model_name="openai/gpt-4o-mini",
     inference_base_url="https://openrouter.ai/api/v1",
     inference_api_key=os.getenv("OPENROUTER_API_KEY"),
 )
 gpt_4o = art.Model(
     name="gpt-4o",
-    project="2048",
+    project="mcp-agent-training",
     inference_model_name="openai/gpt-4o",
     inference_base_url="https://openrouter.ai/api/v1",
     inference_api_key=os.getenv("OPENROUTER_API_KEY"),
 )
 gpt_41 = art.Model(
     name="gpt-4.1",
-    project="2048",
+    project="mcp-agent-training",
     inference_model_name="openai/gpt-4.1",
     inference_base_url="https://openrouter.ai/api/v1",
     inference_api_key=os.getenv("OPENROUTER_API_KEY"),
 )
 sonnet_4 = art.Model(
     name="sonnet-4",
-    project="2048",
+    project="mcp-agent-training",
     inference_model_name="anthropic/claude-sonnet-4",
     inference_base_url="https://openrouter.ai/api/v1",
     inference_api_key=os.getenv("OPENROUTER_API_KEY"),
