@@ -470,15 +470,15 @@ class LocalBackend(Backend):
                 name=model.name,
                 id=model.name,
                 resume="allow",
-                settings=wandb.Settings(
-                    x_stats_open_metrics_endpoints={
-                        "vllm": "http://localhost:8000/metrics",
-                    },
-                    x_stats_open_metrics_filters=(
-                        "vllm.vllm:num_requests_waiting",
-                        "vllm.vllm:num_requests_running",
-                    ),
-                ),
+                # settings=wandb.Settings(
+                #     x_stats_open_metrics_endpoints={
+                #         "vllm": "http://localhost:8000/metrics",
+                #     },
+                #     x_stats_open_metrics_filters=(
+                #         "vllm.vllm:num_requests_waiting",
+                #         "vllm.vllm:num_requests_running",
+                #     ),
+                # ),
             )
             self._wandb_runs[model.name] = run
             os.environ["WEAVE_PRINT_CALL_LINK"] = os.getenv(
