@@ -49,6 +49,7 @@ from tqdm import tqdm
 from typing import cast
 
 
+from .activation_offloading import get_act_offloading_ctx_manager
 from .batch import Batch
 from .config import (
     CompileConfig,
@@ -610,8 +611,10 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
             model.load_state_dict(model_state_dict)
 
         # activation offloading
-        self.activations_handling_ctx = training.get_act_offloading_ctx_manager(
-            model, enable_activation_offloading, activation_offloading_use_streams
+        self.activations_handling_ctx = (
+            get_act_offloading_ctx_manager(  # training.get_act_offloading_ctx_manager(
+                model, enable_activation_offloading, activation_offloading_use_streams
+            )
         )
 
         # Ensure no params and buffers are on meta device
