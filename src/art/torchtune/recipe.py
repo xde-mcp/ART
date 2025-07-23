@@ -1080,23 +1080,26 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
                     batch = Batch.model_validate_json(f.readlines()[curr_epoch].strip())
                 except (IndexError, ValidationError):
                     if self._current_device == self._device:
-                        gather_cpu_state_dict = training.gather_cpu_state_dict
+                        if self.is_distributed:
+                            gather_cpu_state_dict = training.gather_cpu_state_dict
 
-                        def _gather_cpu_state_dict(
-                            model: FSDPModule,
-                            is_rank_zero: bool,
-                            device: torch.device | None = None,
-                            adapter_weights_only: bool = False,
-                        ) -> dict[str, Any]:
-                            state_dict = gather_cpu_state_dict(
-                                model, is_rank_zero, device, adapter_weights_only
-                            )
-                            # signal that the GPUs are free
-                            Path(f"{self._output_dir}/pids.txt").unlink(missing_ok=True)
-                            training.gather_cpu_state_dict = gather_cpu_state_dict
-                            return state_dict
+                            def _gather_cpu_state_dict(
+                                model: FSDPModule,
+                                is_rank_zero: bool,
+                                device: torch.device | None = None,
+                                adapter_weights_only: bool = False,
+                            ) -> dict[str, Any]:
+                                state_dict = gather_cpu_state_dict(
+                                    model, is_rank_zero, device, adapter_weights_only
+                                )
+                                # signal that the GPUs are free
+                                Path(f"{self._output_dir}/pids.txt").unlink(
+                                    missing_ok=True
+                                )
+                                training.gather_cpu_state_dict = gather_cpu_state_dict
+                                return state_dict
 
-                        training.gather_cpu_state_dict = _gather_cpu_state_dict
+                            training.gather_cpu_state_dict = _gather_cpu_state_dict
                         checkpointer: FullModelHFCheckpointer = (
                             self._checkpoint_client._get_checkpointer()
                         )
