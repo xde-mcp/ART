@@ -1145,7 +1145,9 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
                             checkpointer.save_checkpoint = save_checkpoint
 
                         checkpointer.save_checkpoint = _save_checkpoint
+                        print("Moving to CPU")
                         self._move_to(torch.device("cpu"))
+                        print("Moving to CPU done")
                         if not self.is_distributed:
                             # signal that the GPUs are free
                             Path(f"{self._output_dir}/pids.txt").unlink(missing_ok=True)
