@@ -8,7 +8,6 @@
 # Bradley Hilton, OpenPipe Inc., and other ART contributors.
 
 import contextlib
-import contextvars
 from typing import Union
 from warnings import warn
 
@@ -22,45 +21,7 @@ from torchao.dtypes.nf4tensor import NF4Tensor
 from torchtune.modules import TiedLinear
 from torchtune.utils import get_logger
 
-# -----------------------------------------------------------------------------
-# Logging & global helpers
-# -----------------------------------------------------------------------------
 log = get_logger("DEBUG")
-
-# -----------------------------------------------------------------------------
-# Support for multiple backward / autograd.grad passes
-# -----------------------------------------------------------------------------
-# We use a context-variable flag so that nested contexts work naturally and the
-# information is automatically propagated across async tasks/threads that share
-# the same logical context.  The overhead is negligible and avoids introducing
-# extra state into OffloadActivations itself.
-
-_ALLOW_MULTI_BWD: "contextvars.ContextVar[bool]" = contextvars.ContextVar(
-    "offload_allow_multi_bwd", default=False
-)
-
-
-@contextlib.contextmanager
-def retain_offloaded_activations():
-    """Keep activations off-loaded for reuse by subsequent backward passes.
-
-    Usage::
-
-        with retain_offloaded_activations():
-            grad = torch.autograd.grad(loss, params, retain_graph=True)
-
-    When the flag is active, :class:`OffloadActivations` postpones the final
-    deletion of a tensor from *tracker* until a backward pass executed **outside**
-    of the context requests it.  This allows a second (or third …) backward or
-    :pyfunc:`torch.autograd.grad` to reuse the already off-loaded tensor without
-    another forward pass while still freeing GPU memory between the passes.
-    """
-
-    token = _ALLOW_MULTI_BWD.set(True)
-    try:
-        yield
-    finally:
-        _ALLOW_MULTI_BWD.reset(token)
 
 
 class OffloadActivations(saved_tensors_hooks):
@@ -268,10 +229,7 @@ class OffloadActivations(saved_tensors_hooks):
                 gpu_tensor = maybe_gpu_tensor.to("cuda", non_blocking=True)
                 maybe_gpu_tensor = gpu_tensor
 
-            # Clear tensor from tracking unless the caller asked to retain it
-            if not _ALLOW_MULTI_BWD.get():
-                del self.tracker[unpack_tensor_id]
-
+            del self.tracker[unpack_tensor_id]
             return maybe_gpu_tensor
 
         def unpack_tensor_with_streams(unpack_tensor_id: int) -> torch.Tensor:
@@ -391,11 +349,7 @@ class OffloadActivations(saved_tensors_hooks):
 
                 node.register_hook(hook)
 
-            # Clear tensor from tracking unless we are retaining for another
-            # backward/autograd.grad pass.
-            if not _ALLOW_MULTI_BWD.get():
-                del self.tracker[unpack_tensor_id]
-
+            del self.tracker[unpack_tensor_id]
             return maybe_gpu_tensor
 
         unpack_tensor = (
