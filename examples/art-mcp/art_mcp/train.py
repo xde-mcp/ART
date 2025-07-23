@@ -7,15 +7,12 @@ from art.utils import iterate_dataset
 from dotenv import load_dotenv
 import os
 import weave
-from art.skypilot.backend import SkyPilotBackend
 import json
-import litellm
 
 from servers.python.mcp_alphavantage.server_params import server_params
 from .rollout import rollout, McpScenario
 
 load_dotenv()
-# litellm._turn_on_debug()
 
 # Model configuration
 model = art.TrainableModel(
@@ -37,7 +34,7 @@ if os.getenv("WANDB_API_KEY"):
     weave.init(model.project)
 
 
-async def train_mcp_agent():
+async def train_mcp_agent(use_skypilot: bool = False):
     """Example training function that creates AlphaMcpServer and passes it in scenarios."""
     load_dotenv()
 
@@ -53,9 +50,17 @@ async def train_mcp_agent():
     print(f"Loaded {len(raw_train_scenarios)} training scenarios")
     print(f"Loaded {len(raw_val_scenarios)} validation scenarios")
 
-    backend = await SkyPilotBackend().initialize_cluster(
-        cluster_name="mcp-agent-training", gpu="H100-SXM"
-    )
+    if use_skypilot:
+        from art.skypilot.backend import SkyPilotBackend
+
+        backend = await SkyPilotBackend().initialize_cluster(
+            cluster_name="mcp-agent-training", gpu="H100-SXM"
+        )
+    else:
+        from art.local.backend import LocalBackend
+
+        backend = LocalBackend()
+
     await model.register(backend)
 
     train_scenarios = [

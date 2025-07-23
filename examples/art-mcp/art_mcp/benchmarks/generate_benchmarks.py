@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 import random
 import asyncio
 import os
+import json
+from typing import List
 
 from ..rollout import McpScenario, rollout
 from servers.python.mcp_alphavantage.server_params import server_params
@@ -46,18 +48,17 @@ sonnet_4 = art.Model(
 )
 
 
-async def log_comparison_model(comparison_model: art.Model):
+async def log_comparison_model(
+    comparison_model: art.Model, val_scenarios: List[McpScenario]
+):
     trajectories = await art.gather_trajectory_groups(
         (
             art.TrajectoryGroup(
                 rollout(
                     comparison_model,
-                    McpScenario(
-                        task_description="",
-                        server_params=server_params,
-                    ),
+                    val_scenarios[i],
                 )
-                for _ in range(12)
+                for i in range(len(val_scenarios))
             )
             for _ in range(1)
         ),
@@ -75,6 +76,16 @@ async def log_comparison_model(comparison_model: art.Model):
 
 
 async def run_benchmarks():
+    with open("servers/python/mcp_alphavantage/scenarios/val.jsonl") as f:
+        raw_val_scenarios = [json.loads(line.strip()) for line in f if line.strip()]
+    val_scenarios = [
+        McpScenario(
+            task_description=scenario["task"],
+            server_params=server_params,
+            max_turns=5,
+        )
+        for scenario in raw_val_scenarios
+    ]
     await gpt_4o_mini.register(backend)
     await gpt_4o.register(backend)
     await sonnet_4.register(backend)
@@ -82,7 +93,7 @@ async def run_benchmarks():
     promises = []
 
     for comparison_model in [gpt_4o_mini, gpt_4o, sonnet_4]:
-        promises.append(log_comparison_model(comparison_model))
+        promises.append(log_comparison_model(comparison_model, val_scenarios))
 
     await asyncio.gather(*promises)
 
