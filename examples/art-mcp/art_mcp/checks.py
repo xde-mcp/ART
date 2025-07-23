@@ -44,7 +44,13 @@ async def check_successful(trajectory: art.Trajectory) -> bool:
             if "tool_calls" in message:
                 conversation_text += f"Assistant: {content}\n"
                 for tool_call in message["tool_calls"]:
-                    conversation_text += f"{tool_call['name']} called with arguments: {tool_call['arguments']}\n"
+                    function_name = tool_call.get("function", {}).get(
+                        "name", "unknown_function"
+                    )
+                    function_args = tool_call.get("function", {}).get("arguments", "{}")
+                    conversation_text += (
+                        f"{function_name} called with arguments: {function_args}\n"
+                    )
             else:
                 conversation_text += f"Assistant: {content}\n"
         elif role == "tool":
@@ -71,7 +77,7 @@ Based on the conversation above, determine if the agent successfully completed t
 - Whether any calculations or analysis requested were performed
 - If the agent provided useful, accurate information relevant to the task
 
-Respond with only {{"success": true}} if the task was completed successfully, or {{"success": false}} if it was not completed or only partially completed."""
+Respond with only a JSON object containing {{"success": true}} if the task was completed successfully, or {{"success": false}} if it was not completed or only partially completed."""
 
     try:
         client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))

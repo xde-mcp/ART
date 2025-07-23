@@ -128,9 +128,10 @@ async def rollout(
                     print(traj.messages())
 
                 num_turns = 0
+                task_completed = False
 
                 # Main interaction loop
-                while num_turns < scenario.max_turns:
+                while num_turns < scenario.max_turns and not task_completed:
                     num_turns += 1
 
                     try:
@@ -155,7 +156,6 @@ async def rollout(
 
                         # Handle tool calls
                         if choice.message.tool_calls:
-                            task_completed = False
                             for tool_call in choice.message.tool_calls:
                                 try:
                                     tool_args = json.loads(tool_call.function.arguments)
@@ -165,9 +165,14 @@ async def rollout(
                                         traj.log(
                                             f"Task completion attempted with summary: {tool_args['summary']}"
                                         )
-                                        traj.metrics[
-                                            "success"
-                                        ] = await check_successful(traj)
+                                        try:
+                                            traj.metrics[
+                                                "success"
+                                            ] = await check_successful(traj)
+                                        except Exception as e:
+                                            print(f"Error checking success: {e}")
+                                            traj.log(f"Error checking success: {e}")
+
                                         task_completed = True
                                     else:
                                         # Call MCP tool through session
@@ -200,8 +205,6 @@ async def rollout(
                                             "content": f"Error: {str(e)}",
                                         }
                                     )
-                            if task_completed:
-                                break
                         else:
                             # No tool calls, just continue conversation
                             break
