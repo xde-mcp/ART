@@ -108,6 +108,8 @@ class OffloadActivations(saved_tensors_hooks):
             self.curr_graph_id = None
             self.curr_autograd_node = None
 
+        self.repack_tensors = False
+
         # -------- platform util functions -------- #
         def verify_sufficient_virtual_memory():
             curr_pct = get_cpu_ram_pct()
@@ -130,6 +132,54 @@ class OffloadActivations(saved_tensors_hooks):
             return (
                 x.element_size() * x.nelement()
             )  # x.element_size() * x._base_storage().nbytes()
+
+        def _pack_tensor(activation: torch.Tensor, tensor_id: int) -> None:
+            if self.use_streams:
+                # First, sync back and dereference previously offloaded tensors
+                # as the offloading should be done sufficiently long ago.
+                # for id in [k for k in self.fwd_stash.keys()]:
+                #     if id <= tensor_id - self.max_fwd_stash_size:
+                #         _, ev = self.fwd_stash[id]
+                #         self.s0.wait_event(ev)
+                #         del self.fwd_stash[id]
+                #     else:
+                #         break
+                for id in [k for k in self.fwd_stash.keys()][
+                    : -self.max_fwd_stash_size
+                ]:
+                    _, ev = self.fwd_stash[id]
+                    self.s0.wait_event(ev)
+                    del self.fwd_stash[id]
+
+                # Sync in, offload, and add an event to sync back later
+                self.s1.wait_stream(self.s0)
+
+            stream = self.s1 if self.use_streams else self.s0
+            with torch.cuda.stream(stream):  # type: ignore
+                try:
+                    cpu_tensor = torch.empty_like(
+                        activation, pin_memory=self.use_pin_memory, device="cpu"
+                    )
+                except NotImplementedError as e:
+                    if (
+                        isinstance(activation, NF4Tensor)
+                        and torchao.__version__ < "0.6.0.dev20240917"
+                    ):
+                        raise RuntimeError(
+                            "Offloading NF4Tensors requires torchao-0.6.0.dev20240917 or later"
+                        ) from e
+                    raise e
+                cpu_tensor.copy_(activation, non_blocking=True)
+                self.tracker[tensor_id] = (
+                    cpu_tensor,
+                    True,
+                )  # True = (in future) modified
+
+            if self.use_streams:
+                event = self.s1.record_event()
+
+                # Stash to keep activation alive til s1 is done
+                self.fwd_stash[tensor_id] = (activation, event)
 
         # -------- core pack / unpack work -------- #
         def pack_tensor(activation: torch.Tensor) -> int:
@@ -160,46 +210,7 @@ class OffloadActivations(saved_tensors_hooks):
                     )
                 )
             ):
-                if self.use_streams:
-                    # First, sync back and dereference previously offloaded tensors
-                    # as the offloading should be done sufficiently long ago.
-                    for id in [k for k in self.fwd_stash.keys()]:
-                        if id <= tensor_id - self.max_fwd_stash_size:
-                            _, ev = self.fwd_stash[id]
-                            self.s0.wait_event(ev)
-                            del self.fwd_stash[id]
-                        else:
-                            break
-
-                    # Sync in, offload, and add an event to sync back later
-                    self.s1.wait_stream(self.s0)
-
-                stream = self.s1 if self.use_streams else self.s0
-                with torch.cuda.stream(stream):  # type: ignore
-                    try:
-                        cpu_tensor = torch.empty_like(
-                            activation, pin_memory=self.use_pin_memory, device="cpu"
-                        )
-                    except NotImplementedError as e:
-                        if (
-                            isinstance(activation, NF4Tensor)
-                            and torchao.__version__ < "0.6.0.dev20240917"
-                        ):
-                            raise RuntimeError(
-                                "Offloading NF4Tensors requires torchao-0.6.0.dev20240917 or later"
-                            ) from e
-                        raise e
-                    cpu_tensor.copy_(activation, non_blocking=True)
-                    self.tracker[tensor_id] = (
-                        cpu_tensor,
-                        True,
-                    )  # True = (in future) modified
-
-                if self.use_streams:
-                    event = self.s1.record_event()
-
-                    # Stash to keep activation alive til s1 is done
-                    self.fwd_stash[tensor_id] = (activation, event)
+                _pack_tensor(activation, tensor_id)
             else:
                 self.tracker[tensor_id] = (
                     activation,
@@ -242,6 +253,8 @@ class OffloadActivations(saved_tensors_hooks):
                     for id in [k for k in self.bwd_tensor_stash.keys()]:
                         event = self.bwd_ev_stash[id]
                         self.s1.wait_event(event)
+                        if self.repack_tensors:
+                            _pack_tensor(self.bwd_tensor_stash[id], id)
                         del self.bwd_tensor_stash[id]
 
                 # Register a callback to the end of autograd to clean everything up
@@ -328,6 +341,8 @@ class OffloadActivations(saved_tensors_hooks):
                             > storage_refcount
                         ):
                             unpacked_tensor.record_stream(self.s0)
+                            if self.repack_tensors:
+                                _pack_tensor(unpacked_tensor, unpack_tensor_id)
                             del self.bwd_tensor_stash[unpack_tensor_id]
                         else:
                             event = self.s0.record_event()
@@ -343,13 +358,17 @@ class OffloadActivations(saved_tensors_hooks):
                     for id in prev_node_ids:
                         event = self.bwd_ev_stash[id]
                         self.s1.wait_event(event)
-                        del self.bwd_tensor_stash[id]
+                        if id in self.bwd_tensor_stash:
+                            if self.repack_tensors:
+                                _pack_tensor(self.bwd_tensor_stash[id], id)
+                            del self.bwd_tensor_stash[id]
 
                     return outputs
 
                 node.register_hook(hook)
 
-            del self.tracker[unpack_tensor_id]
+            if not self.repack_tensors:
+                del self.tracker[unpack_tensor_id]
             return maybe_gpu_tensor
 
         unpack_tensor = (
