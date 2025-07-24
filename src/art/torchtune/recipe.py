@@ -24,6 +24,8 @@ from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed.fsdp import FSDPModule
 from torch.distributed.tensor import DTensor
 from torch.distributed.tensor.parallel import parallelize_module
+from torch.nn.attention import flex_attention
+from torchtune.modules import attention_utils
 from torch.optim import Optimizer
 from torchao.float8 import precompute_float8_dynamic_scale_for_fsdp
 from torchtune import config, modules, training, utils
@@ -49,7 +51,7 @@ from tqdm import tqdm
 from typing import cast
 
 
-from .activation_offloading import get_act_offloading_ctx_manager
+from .activation_offloading import get_act_offloading_ctx_manager, OffloadActivations
 from .batch import Batch
 from .config import (
     CompileConfig,
@@ -282,6 +284,39 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
         self.total_epochs = cfg.epochs
         self.max_steps_per_epoch = cfg.max_steps_per_epoch or 0
         self.global_step = 0
+
+        self.score_mod: flex_attention._score_mod_signature | None = None
+
+        # We cannot do nested compile, but flex attention only has perf benefits
+        # when compiled. To insulate it from the compiler, we wrap it with
+        # compiler.disable so that it can be used regardless of whether the model
+        # is compiled or not, and flex attention always remains compiled.
+        @torch.compiler.disable(recursive=False)
+        def compile_friendly_flex_attention(
+            q: torch.Tensor,
+            k: torch.Tensor,
+            v: torch.Tensor,
+            block_mask: flex_attention.BlockMask,
+        ) -> torch.Tensor:
+            return attention_utils.flex_attention_compiled(
+                q,
+                k,
+                v,
+                score_mod=self.score_mod,
+                block_mask=block_mask,
+                kernel_options={
+                    # "BLOCK_M": 64,
+                    # "BLOCK_N": 64,
+                    # "BLOCK_M1": 64,
+                    # "BLOCK_N1": 64,
+                    "BLOCK_M2": 64,
+                    "BLOCK_N2": 64,
+                },
+            )  # type: ignore
+
+        attention_utils.compile_friendly_flex_attention = (
+            compile_friendly_flex_attention
+        )
 
     def _update_recipe_state(self, ckpt_dict: dict[str, Any]) -> None:
         """
@@ -812,6 +847,21 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
 
         # assert torch.equal(mask, block_mask.to_dense()), "masks differ"
 
+        if True:
+            attn_bias = torch.zeros(
+                (
+                    inputs["tokens"].shape[0],
+                    inputs["tokens"].shape[1],
+                    inputs["tokens"].shape[1],
+                ),
+                dtype=torch.bfloat16,
+                device=self._device,
+                requires_grad=True,
+            )
+            self.score_mod = (
+                lambda score, b, h, q_idx, kv_idx: score + attn_bias[b, q_idx, kv_idx]
+            )
+
         with self.activations_handling_ctx:
             hidden_states = self._model(
                 tokens=inputs["tokens"],
@@ -857,6 +907,35 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
             )
 
         del hidden_states, logits
+
+        if False:
+            if isinstance(self.activations_handling_ctx, OffloadActivations):
+                self.activations_handling_ctx.repack_tensors = True
+            (attn_bias_grad,) = torch.autograd.grad(
+                selected_logits.sum(), attn_bias, retain_graph=True
+            )
+            if isinstance(self.activations_handling_ctx, OffloadActivations):
+                self.activations_handling_ctx.is_first_backward_call = True
+                self.activations_handling_ctx.repack_tensors = False
+            influence = attn_bias_grad.sum(dim=1)[assistant_mask]
+            group_ids = inputs["group_ids"][assistant_mask]
+            unique_group_ids = torch.unique(group_ids)
+            group_mean_influence = torch.zeros_like(influence)
+            group_std_influence = torch.zeros_like(influence)
+
+            for group_id in unique_group_ids:
+                group_mask = group_ids == group_id
+                group_influence = influence[group_mask]
+                mean_influence = group_influence.mean()
+                std_influence = group_influence.std()
+                group_mean_influence[group_mask] = mean_influence
+                group_std_influence[group_mask] = std_influence
+
+            normalized_influence = (influence - group_mean_influence) / (
+                group_std_influence + 1e-6
+            )
+            advantages += normalized_influence
+        attn_bias.requires_grad = False
 
         old_logprobs = torch.where(
             torch.isnan(old_logprobs),
