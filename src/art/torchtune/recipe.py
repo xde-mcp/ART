@@ -843,53 +843,36 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
         weights = shift_tensor(inputs["weights"], 0.0)[assistant_mask]
         chunk_size = dev_config.get("logprob_calculation_chunk_size", 1024)
 
-        def calculate_loss(
-            hidden_states: torch.Tensor,  # [chunk_size, hidden_size]
-            next_token_ids: torch.Tensor,  # [chunk_size]
-            old_logprobs: torch.Tensor,  # [chunk_size]
-            advantages: torch.Tensor,  # [chunk_size]
-            weights: torch.Tensor,  # [chunk_size]
-        ) -> torch.Tensor:
-            # [chunk_size, hidden_size] @ [hidden_size, vocab_size]
-            logits = cast(
-                torch.Tensor, self._model.output(hidden_states)
-            )  # [chunk_size, vocab_size]
-            selected_logits = torch.gather(
-                logits, dim=-1, index=next_token_ids.unsqueeze(-1)
-            ).squeeze(
-                -1
-            )  # [chunk_size]
-            logsumexp = torch.logsumexp(logits, dim=-1)  # [chunk_size]
-            new_logprobs = selected_logits - logsumexp
-            old_logprobs = torch.where(
-                torch.isnan(old_logprobs),
-                new_logprobs.detach(),
-                old_logprobs,
-            )
-            prob_ratio = torch.exp(new_logprobs - old_logprobs)
-            epsilon = dev_config.get("epsilon", 0.2)
-            epsilon_high = dev_config.get("epsilon_high", epsilon)
-            if epsilon_high is None:
-                epsilon_high = epsilon
-            policy_loss = -torch.min(
-                prob_ratio * advantages,
-                torch.clip(prob_ratio, 1 - epsilon, 1 + epsilon_high) * advantages,
-            )
-            return (policy_loss * weights).sum()
+        selected_logits = torch.zeros_like(old_logprobs)
+        new_logprobs = torch.zeros_like(old_logprobs)
 
-        loss = torch.tensor(0.0, device=self._device)
-        for i in range(0, hidden_states.size(0), chunk_size):
-            chunk_end = min(i + chunk_size, hidden_states.size(0))
-            loss += calculate_loss(
-                hidden_states[i:chunk_end, :],
-                next_token_ids[i:chunk_end],
-                old_logprobs[i:chunk_end],
-                advantages[i:chunk_end],
-                weights[i:chunk_end],
+        for start in range(0, hidden_states.size(0), chunk_size):
+            end = min(start + chunk_size, hidden_states.size(0))
+            logits = cast(torch.Tensor, self._model.output(hidden_states[start:end]))
+            selected_logits[start:end] = torch.gather(
+                logits, dim=-1, index=next_token_ids[start:end].unsqueeze(-1)
+            ).squeeze(-1)
+            new_logprobs[start:end] = selected_logits[start:end] - torch.logsumexp(
+                logits, dim=-1
             )
 
-        # free logits otherwise it peaks backward memory
-        del hidden_states
+        del hidden_states, logits
+
+        old_logprobs = torch.where(
+            torch.isnan(old_logprobs),
+            new_logprobs.detach(),
+            old_logprobs,
+        )
+        prob_ratio = torch.exp(new_logprobs - old_logprobs)
+        epsilon = dev_config.get("epsilon", 0.2)
+        epsilon_high = dev_config.get("epsilon_high", epsilon)
+        if epsilon_high is None:
+            epsilon_high = epsilon
+        policy_loss = -torch.min(
+            prob_ratio * advantages,
+            torch.clip(prob_ratio, 1 - epsilon, 1 + epsilon_high) * advantages,
+        )
+        loss = (policy_loss * weights).sum()
 
         return loss
 
