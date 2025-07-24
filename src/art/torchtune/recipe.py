@@ -908,7 +908,7 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
 
         del hidden_states, logits
 
-        if False:
+        if True:
             if isinstance(self.activations_handling_ctx, OffloadActivations):
                 self.activations_handling_ctx.repack_tensors = True
             (attn_bias_grad,) = torch.autograd.grad(
@@ -934,7 +934,14 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
             normalized_influence = (influence - group_mean_influence) / (
                 group_std_influence + 1e-6
             )
-            advantages += normalized_influence
+            normalized_influence = torch.where(
+                torch.logical_or(
+                    torch.isnan(normalized_influence), torch.isinf(normalized_influence)
+                ),
+                torch.zeros_like(normalized_influence),
+                normalized_influence,
+            )
+            advantages += normalized_influence * torch.sign(advantages)
         attn_bias.requires_grad = False
 
         old_logprobs = torch.where(
