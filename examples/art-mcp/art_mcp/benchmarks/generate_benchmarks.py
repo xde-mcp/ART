@@ -116,9 +116,10 @@ async def run_benchmarks():
         o4_mini,
         sonnet_4,
     ]:
-        promises.append(log_comparison_model(comparison_model, val_scenarios))
+        await log_comparison_model(comparison_model, val_scenarios)
+    #     promises.append(log_comparison_model(comparison_model, val_scenarios))
 
-    await asyncio.gather(*promises)
+    # await asyncio.gather(*promises)
 
 
 if __name__ == "__main__":

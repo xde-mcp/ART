@@ -38,6 +38,14 @@ class AlphaVantageClient:
                 if "Error Message" in data:
                     raise Exception(f"Alpha Vantage API Error: {data['Error Message']}")
 
+                if (
+                    "Thank you for using Alpha Vantage! Please contact premium@alphavantage.co if you are targeting a higher API call volume."
+                    in data
+                ):
+                    raise Exception(
+                        "Alpha Vantage API Error: Thank you for using Alpha Vantage! Please contact premium@alphavantage.co if you are targeting a higher API call volume."
+                    )
+
                 return data
 
 
@@ -205,7 +213,7 @@ def main(api_key: Optional[str], port: int, transport: str) -> int:
     @app.call_tool()
     @retry(
         stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=1, min=1, max=10),
+        wait=wait_exponential(multiplier=1, min=1, max=30),
         retry=retry_if_exception_type(
             (aiohttp.ClientError, asyncio.TimeoutError, Exception)
         ),

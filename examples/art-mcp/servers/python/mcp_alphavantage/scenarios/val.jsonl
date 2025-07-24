@@ -1,8 +1,8 @@
-{"task": "For portfolio management, get both the current stock quote and daily time series data for IBM to review market trend and price action.", "difficulty": 3}
-{"task": "Research dividend-paying companies by fetching the company overview for The Coca-Cola Company (KO) using get_company_overview.", "difficulty": 1}
-{"task": "Conduct a deep analysis of The Walt Disney Company (DIS) by retrieving a comprehensive company overview, daily time series data, 30-day SMA, and 14-day RSI to evaluate both fundamentals and technical indicators.", "difficulty": 5}
-{"task": "Carry out a trend analysis for Pfizer (PFE) by obtaining its SMA and RSI on a daily interval and evaluating the market trend.", "difficulty": 4}
-{"task": "For a social media analysis turn, obtain the company overview for Twitter (TWTR) using get_company_overview.", "difficulty": 1}
-{"task": "Calculate the 20-day Simple Moving Average (SMA) for Tesla (TSLA) on a daily interval using get_sma with close prices.", "difficulty": 2}
-{"task": "Compare Netflix's (NFLX) current stock price with its 30-day SMA by fetching both the stock quote and SMA, then analyzing the relationship.", "difficulty": 3}
-{"task": "Retrieve the current stock price for Meta Platforms (META) using get_stock_quote for daily market updates.", "difficulty": 1}
+{"task": "Obtain the latest stock quote for Nvidia (NVDA) to facilitate rapid trading decisions using the get_stock_quote tool.", "difficulty": 1}
+{"task": "Help a beginner investor by using the search_symbol tool to provide stock search results for the keyword 'energy'.", "difficulty": 2}
+{"task": "For a short-term trading strategy on Tesla (TSLA), use the get_sma tool to analyze the 1-minute moving average values over a chosen time period.", "difficulty": 4}
+{"task": "Assess the performance of small-cap stocks by retrieving historical daily data and calculating the RSI for Roku (ROKU) to study its momentum.", "difficulty": 4}
+{"task": "Search for companies related to 'Alphabet' to find potential stock symbols using the search_symbol tool.", "difficulty": 2}
+{"task": "Evaluate the short-term trend strength of a SPAC by searching for a specific SPAC symbol and then retrieving its daily SMA using the get_sma tool.", "difficulty": 4}
+{"task": "Retrieve 15-minute interval SMA data for Apple (AAPL) over the last 30 data points to analyze short-term trends using the get_sma tool.", "difficulty": 3}
+{"task": "Retrieve a detailed company overview for Meta Platforms (META) to evaluate its fundamentals using the get_company_overview tool.", "difficulty": 1}

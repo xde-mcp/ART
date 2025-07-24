@@ -1,16 +1,16 @@
-{"task": "Use search_symbol to find emerging biotech companies by searching with keywords 'biotech' and review the results.", "difficulty": 2}
-{"task": "Get the Relative Strength Index (RSI) for Alphabet Inc. (GOOGL) on a weekly interval using get_rsi.", "difficulty": 2}
-{"task": "Fetch a detailed company overview for Alphabet Inc. (GOOGL) using get_company_overview.", "difficulty": 1}
-{"task": "Backtest a trading strategy by fetching the daily time series data for Boeing (BA) using get_time_series_daily.", "difficulty": 2}
-{"task": "Retrieve the current stock price for Apple (AAPL) using get_stock_quote.", "difficulty": 1}
-{"task": "Conduct market research by using search_symbol with the keyword 'electric' to explore companies in the electric vehicle sector.", "difficulty": 2}
-{"task": "For intraday technical analysis, calculate a 5-minute SMA for Apple (AAPL) and compare it to the current stock price.", "difficulty": 3}
-{"task": "Search for the stock symbol related to 'Amazon' using search_symbol to find the right ticker.", "difficulty": 1}
-{"task": "For fundamental analysis, retrieve the company overview for IBM using get_company_overview.", "difficulty": 1}
-{"task": "Assess Tesla's (TSLA) momentum by obtaining its 14-day RSI on a daily interval using get_rsi.", "difficulty": 2}
-{"task": "Perform a risk analysis for Johnson & Johnson (JNJ) by retrieving both the 30-day SMA and daily RSI, then comparing the indicators.", "difficulty": 4}
-{"task": "For algorithmic trading, calculate the 15-minute SMA for Microsoft (MSFT) and compare it against its real-time stock price using get_sma and get_stock_quote.", "difficulty": 4}
-{"task": "Download the daily time series data for Netflix (NFLX) to analyze historical performance using get_time_series_daily.", "difficulty": 1}
-{"task": "For an active day trader, fetch the daily RSI for Apple (AAPL) to identify potential overbought or oversold conditions using get_rsi.", "difficulty": 2}
-{"task": "Identify potential overbought conditions by retrieving the daily RSI for Amazon (AMZN) using get_rsi.", "difficulty": 2}
-{"task": "Obtain the daily time series data (last 100 data points) for Microsoft (MSFT) using get_time_series_daily.", "difficulty": 1}
+{"task": "For a day trader view, obtain both the real-time stock quote and historical daily data for IBM using get_stock_quote and get_time_series_daily tools.", "difficulty": 3}
+{"task": "Obtain the company overview and fundamental data for Tesla (TSLA) using the get_company_overview tool.", "difficulty": 1}
+{"task": "Calculate the 30-day Simple Moving Average (SMA) for Netflix (NFLX) using daily closing prices with the get_sma tool.", "difficulty": 2}
+{"task": "Analyze IBM's business profile for a long-term investment by retrieving its company overview using the get_company_overview tool.", "difficulty": 2}
+{"task": "For academic research, aggregate daily time series data for stocks like Apple (AAPL), Microsoft (MSFT), and Amazon (AMZN) to study market trends.", "difficulty": 5}
+{"task": "Fetch the 14-day Relative Strength Index (RSI) for Amazon (AMZN) on a daily interval using the get_rsi tool.", "difficulty": 2}
+{"task": "Retrieve Oracle's (ORCL) daily time series data and compute its 30-day SMA using closing prices to assess price trends.", "difficulty": 3}
+{"task": "Generate an analysis report for Moderna (MRNA) by retrieving its daily time series data and calculating the 14-day RSI to support investment decisions.", "difficulty": 3}
+{"task": "Analyze Netflix's (NFLX) longer-term performance by retrieving its weekly RSI using the get_rsi tool.", "difficulty": 3}
+{"task": "Perform a technical analysis for Microsoft (MSFT) by comparing its current stock price with its 30-day SMA and 14-day RSI to assess momentum.", "difficulty": 4}
+{"task": "Search for stock symbols in the pharmaceutical sector using the keyword 'pharma' with the search_symbol tool to explore investment opportunities.", "difficulty": 2}
+{"task": "Conduct market research on biotech companies by first searching for symbols with the keyword 'biotech' using search_symbol, then selecting one to retrieve its company overview using get_company_overview.", "difficulty": 5}
+{"task": "Analyze volatility in the tech sector by retrieving daily time series data and computing the RSI for both Apple (AAPL) and Microsoft (MSFT).", "difficulty": 5}
+{"task": "Perform an in-depth technical analysis for Amazon (AMZN) by comparing its current stock price with its daily SMA and daily RSI to assess overall performance.", "difficulty": 5}
+{"task": "Get the current real-time stock price for Apple (AAPL) using the get_stock_quote tool.", "difficulty": 1}
+{"task": "Retrieve the daily time series data for Microsoft (MSFT) with the latest 100 data points using the get_time_series_daily tool.", "difficulty": 1}
