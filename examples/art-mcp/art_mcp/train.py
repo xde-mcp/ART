@@ -16,7 +16,7 @@ load_dotenv()
 
 # Model configuration
 model = art.TrainableModel(
-    name="mcp-009",
+    name="mcp-012",
     project="mcp-agent-training",
     base_model="Qwen/Qwen2.5-7B-Instruct",
 )
@@ -89,7 +89,7 @@ async def train_mcp_agent(use_skypilot: bool = False):
     # Create dataset iterator using raw scenarios (not McpScenario objects)
     train_iterator = iterate_dataset(
         train_scenarios,  # Use raw data, create McpScenario objects in batches
-        groups_per_step=2,  # Batch size of 2
+        groups_per_step=4,  # Batch size of 4
         num_epochs=10,  # Multiple epochs over the dataset
         initial_step=await model.get_step(),  # Resume from checkpoint
     )
@@ -99,16 +99,16 @@ async def train_mcp_agent(use_skypilot: bool = False):
         print("Gathering trajectory groups with RULER scoring...")
 
         # Use gather_trajectory_groups with ruler_score_group
-        # Create groups of 4 trajectories per scenario for better evaluation
+        # Create groups of 7 trajectories per scenario for better evaluation
         groups = await art.gather_trajectory_groups(
             (
-                art.TrajectoryGroup(rollout(model, scenario, False) for _ in range(4))
+                art.TrajectoryGroup(rollout(model, scenario, False) for _ in range(7))
                 for scenario in batch.items
             ),
             pbar_desc=f"train gather step {batch.step}",
             after_each=lambda group: ruler_score_group(
                 group,
-                judge_model="openrouter/google/gemini-2.5-flash",  # Cost-effective judge model
+                judge_model="openrouter/openai/o4-mini",  # Cost-effective judge model
                 debug=True,  # Show judge reasoning
                 swallow_exceptions=True,
             ),
@@ -117,40 +117,6 @@ async def train_mcp_agent(use_skypilot: bool = False):
         print("train groups finished")
 
         if batch.step % 5 == 0:
-            print("starting comparison train gather")
-            comparison_train_groups = await art.gather_trajectory_groups(
-                (
-                    art.TrajectoryGroup(
-                        [
-                            rollout(model, scenario, False)
-                            if i % 2 == 0
-                            else rollout(gpt_4o_mini, scenario, False),
-                            rollout(gpt_4o_mini, scenario, False)
-                            if i % 2 == 0
-                            else rollout(model, scenario, False),
-                        ]
-                    )
-                    for i, scenario in enumerate(train_scenarios)
-                ),
-                pbar_desc=f"comparison train gather step {batch.step}",
-                after_each=lambda group: ruler_score_group(
-                    group,
-                    judge_model="openrouter/google/gemini-2.5-flash",
-                    debug=True,
-                    swallow_exceptions=True,
-                ),
-            )
-            for i in range(len(comparison_train_groups)):
-                group = comparison_train_groups[i]
-                # reverse every other group
-                if i % 2 == 1:
-                    group.trajectories = group.trajectories[::-1]
-                group.trajectories[0].metrics["beat_comp"] = (
-                    group.trajectories[0].reward > group.trajectories[1].reward
-                )
-
-            await model.log(comparison_train_groups, split="train")
-
             print("starting comparison val gather")
             comparison_val_groups = await art.gather_trajectory_groups(
                 (
@@ -169,7 +135,7 @@ async def train_mcp_agent(use_skypilot: bool = False):
                 pbar_desc=f"val gather step {batch.step}",
                 after_each=lambda group: ruler_score_group(
                     group,
-                    judge_model="openrouter/google/gemini-2.5-flash",
+                    judge_model="openrouter/openai/o4-mini",
                     debug=True,
                     swallow_exceptions=True,
                 ),
@@ -179,9 +145,14 @@ async def train_mcp_agent(use_skypilot: bool = False):
                 # reverse every other group
                 if i % 2 == 1:
                     group.trajectories = group.trajectories[::-1]
-                group.trajectories[0].metrics["beat_comp"] = (
-                    group.trajectories[0].reward > group.trajectories[1].reward
-                )
+
+                beat_comp_score = 0
+                if group.trajectories[0].reward == group.trajectories[1].reward:
+                    beat_comp_score = 0.5
+                elif group.trajectories[0].reward > group.trajectories[1].reward:
+                    beat_comp_score = 1
+
+                group.trajectories[0].metrics["beat_comp"] = beat_comp_score
             await model.log(comparison_val_groups, split="val")
 
         print("starting train")

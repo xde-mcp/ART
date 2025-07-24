@@ -39,6 +39,20 @@ gpt_41 = art.Model(
     inference_base_url="https://openrouter.ai/api/v1",
     inference_api_key=os.getenv("OPENROUTER_API_KEY"),
 )
+o3 = art.Model(
+    name="o3",
+    project="mcp-agent-training",
+    inference_model_name="openai/o3",
+    inference_base_url="https://openrouter.ai/api/v1",
+    inference_api_key=os.getenv("OPENROUTER_API_KEY"),
+)
+o4_mini = art.Model(
+    name="o4-mini",
+    project="mcp-agent-training",
+    inference_model_name="openai/o4-mini",
+    inference_base_url="https://openrouter.ai/api/v1",
+    inference_api_key=os.getenv("OPENROUTER_API_KEY"),
+)
 sonnet_4 = art.Model(
     name="sonnet-4",
     project="mcp-agent-training",
@@ -88,11 +102,21 @@ async def run_benchmarks():
     ]
     await gpt_4o_mini.register(backend)
     await gpt_4o.register(backend)
+    await gpt_41.register(backend)
+    await o3.register(backend)
+    await o4_mini.register(backend)
     await sonnet_4.register(backend)
 
     promises = []
 
-    for comparison_model in [gpt_4o_mini, gpt_4o, sonnet_4]:
+    for comparison_model in [
+        gpt_4o_mini,
+        gpt_4o,
+        gpt_41,
+        o3,
+        o4_mini,
+        sonnet_4,
+    ]:
         promises.append(log_comparison_model(comparison_model, val_scenarios))
 
     await asyncio.gather(*promises)

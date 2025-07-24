@@ -83,7 +83,7 @@ Respond with only a JSON object containing {{"success": true}} if the task was c
         client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
         response = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="o4-mini",
             messages=[{"role": "user", "content": evaluation_prompt}],
             max_tokens=1000,
             response_format={"type": "json_object"},

@@ -1,5 +1,4 @@
 import asyncio
-import os
 from typing import Any, Dict, Optional
 import aiohttp
 import click
@@ -255,7 +254,10 @@ def main(api_key: Optional[str], port: int, transport: str) -> int:
                 )
                 tech_analysis_key = "Technical Analysis: SMA"
                 time_period = arguments.get("time_period", 30)
-                data[tech_analysis_key] = data[tech_analysis_key][:time_period]
+                # Alpha Vantage returns a dict keyed by timestamp; convert to list to slice
+                data[tech_analysis_key] = dict(
+                    list(data[tech_analysis_key].items())[:time_period]
+                )
                 return [
                     types.TextContent(
                         type="text",
@@ -273,7 +275,10 @@ def main(api_key: Optional[str], port: int, transport: str) -> int:
                 )
                 tech_analysis_key = "Technical Analysis: RSI"
                 time_period = arguments.get("time_period", 14)
-                data[tech_analysis_key] = data[tech_analysis_key][:time_period]
+                # Alpha Vantage returns a dict keyed by timestamp; convert to list to slice
+                data[tech_analysis_key] = dict(
+                    list(data[tech_analysis_key].items())[:time_period]
+                )
                 return [
                     types.TextContent(
                         type="text",
