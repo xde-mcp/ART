@@ -182,6 +182,18 @@ async def rollout(
 
                                         content_text = get_content_text(result)
 
+                                        if len(content_text) > 20000:
+                                            print(
+                                                f"Tool call result for {tool_call.function.name} is too long: {len(content_text)}"
+                                            )
+                                            print(f"Args: {tool_args}")
+                                            # print first and last 1000 characters
+                                            print(content_text[:1000])
+                                            print(content_text[-1000:])
+                                            raise Exception(
+                                                f"Tool call result for {tool_call.function.name} is too long: {len(content_text)}"
+                                            )
+
                                         # Add tool response
                                         traj.messages_and_choices.append(
                                             {

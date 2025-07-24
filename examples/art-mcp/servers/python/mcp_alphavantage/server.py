@@ -9,30 +9,30 @@ from mcp.server.lowlevel import Server
 
 class AlphaVantageClient:
     """Client for interacting with Alpha Vantage API"""
-    
+
     def __init__(self, api_key: str):
         self.api_key = api_key
         self.base_url = "https://www.alphavantage.co/query"
-        
+
     async def fetch_data(self, function: str, **params) -> Dict[str, Any]:
         """Fetch data from Alpha Vantage API"""
         query_params = {
             "function": function,
             "apikey": self.api_key,
             "datatype": "json",
-            **params
+            **params,
         }
-        
+
         async with aiohttp.ClientSession() as session:
             async with session.get(self.base_url, params=query_params) as response:
                 if response.status != 200:
                     raise Exception(f"API request failed: {response.status}")
-                
+
                 data = await response.json()
-                
+
                 if "Error Message" in data:
                     raise Exception(f"Alpha Vantage API Error: {data['Error Message']}")
-                
+
                 return data
 
 
@@ -47,12 +47,14 @@ class AlphaVantageClient:
 )
 def main(api_key: Optional[str], port: int, transport: str) -> int:
     if not api_key:
-        click.echo("Error: Alpha Vantage API key is required. Set ALPHAVANTAGE_API_KEY environment variable or use --api-key option.")
+        click.echo(
+            "Error: Alpha Vantage API key is required. Set ALPHAVANTAGE_API_KEY environment variable or use --api-key option."
+        )
         return 1
-    
+
     app = Server("mcp-alphavantage")
     client = AlphaVantageClient(api_key)
-    
+
     @app.list_tools()
     async def list_tools() -> list[types.Tool]:
         return [
@@ -64,11 +66,11 @@ def main(api_key: Optional[str], port: int, transport: str) -> int:
                     "properties": {
                         "symbol": {
                             "type": "string",
-                            "description": "Stock symbol (e.g., AAPL, MSFT)"
+                            "description": "Stock symbol (e.g., AAPL, MSFT)",
                         }
                     },
-                    "required": ["symbol"]
-                }
+                    "required": ["symbol"],
+                },
             ),
             types.Tool(
                 name="get_time_series_daily",
@@ -78,17 +80,17 @@ def main(api_key: Optional[str], port: int, transport: str) -> int:
                     "properties": {
                         "symbol": {
                             "type": "string",
-                            "description": "Stock symbol (e.g., AAPL, MSFT)"
+                            "description": "Stock symbol (e.g., AAPL, MSFT)",
                         },
                         "outputsize": {
                             "type": "string",
-                            "description": "Output size: compact (latest 100 data points) or full",
-                            "enum": ["compact", "full"],
-                            "default": "compact"
-                        }
+                            "description": "Output size: compact (latest 100 data points)",
+                            "enum": ["compact"],
+                            "default": "compact",
+                        },
                     },
-                    "required": ["symbol"]
-                }
+                    "required": ["symbol"],
+                },
             ),
             types.Tool(
                 name="search_symbol",
@@ -98,11 +100,11 @@ def main(api_key: Optional[str], port: int, transport: str) -> int:
                     "properties": {
                         "keywords": {
                             "type": "string",
-                            "description": "Keywords to search for (e.g., company name)"
+                            "description": "Keywords to search for (e.g., company name)",
                         }
                     },
-                    "required": ["keywords"]
-                }
+                    "required": ["keywords"],
+                },
             ),
             types.Tool(
                 name="get_company_overview",
@@ -112,11 +114,11 @@ def main(api_key: Optional[str], port: int, transport: str) -> int:
                     "properties": {
                         "symbol": {
                             "type": "string",
-                            "description": "Stock symbol (e.g., AAPL, MSFT)"
+                            "description": "Stock symbol (e.g., AAPL, MSFT)",
                         }
                     },
-                    "required": ["symbol"]
-                }
+                    "required": ["symbol"],
+                },
             ),
             types.Tool(
                 name="get_sma",
@@ -126,28 +128,37 @@ def main(api_key: Optional[str], port: int, transport: str) -> int:
                     "properties": {
                         "symbol": {
                             "type": "string",
-                            "description": "Stock symbol (e.g., AAPL, MSFT)"
+                            "description": "Stock symbol (e.g., AAPL, MSFT)",
                         },
                         "interval": {
                             "type": "string",
                             "description": "Time interval",
-                            "enum": ["1min", "5min", "15min", "30min", "60min", "daily", "weekly", "monthly"],
-                            "default": "daily"
+                            "enum": [
+                                "1min",
+                                "5min",
+                                "15min",
+                                "30min",
+                                "60min",
+                                "daily",
+                                "weekly",
+                                "monthly",
+                            ],
+                            "default": "daily",
                         },
                         "time_period": {
                             "type": "integer",
                             "description": "Number of data points for SMA calculation",
-                            "default": 30
+                            "default": 30,
                         },
                         "series_type": {
                             "type": "string",
                             "description": "Price type to use for calculation",
                             "enum": ["close", "open", "high", "low"],
-                            "default": "close"
-                        }
+                            "default": "close",
+                        },
                     },
-                    "required": ["symbol"]
-                }
+                    "required": ["symbol"],
+                },
             ),
             types.Tool(
                 name="get_rsi",
@@ -157,96 +168,122 @@ def main(api_key: Optional[str], port: int, transport: str) -> int:
                     "properties": {
                         "symbol": {
                             "type": "string",
-                            "description": "Stock symbol (e.g., AAPL, MSFT)"
+                            "description": "Stock symbol (e.g., AAPL, MSFT)",
                         },
                         "interval": {
                             "type": "string",
                             "description": "Time interval",
-                            "enum": ["1min", "5min", "15min", "30min", "60min", "daily", "weekly", "monthly"],
-                            "default": "daily"
+                            "enum": [
+                                "daily",
+                                "weekly",
+                                "monthly",
+                            ],
+                            "default": "daily",
                         },
                         "time_period": {
                             "type": "integer",
                             "description": "Number of data points for RSI calculation",
-                            "default": 14
+                            "default": 14,
                         },
                         "series_type": {
                             "type": "string",
                             "description": "Price type to use for calculation",
                             "enum": ["close", "open", "high", "low"],
-                            "default": "close"
-                        }
+                            "default": "close",
+                        },
                     },
-                    "required": ["symbol"]
-                }
-            )
+                    "required": ["symbol"],
+                },
+            ),
         ]
-    
+
     @app.call_tool()
     async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         try:
             if name == "get_stock_quote":
-                data = await client.fetch_data("GLOBAL_QUOTE", symbol=arguments["symbol"])
-                return [types.TextContent(
-                    type="text",
-                    text=f"Stock Quote for {arguments['symbol']}:\n{_format_json(data)}"
-                )]
-            
+                data = await client.fetch_data(
+                    "GLOBAL_QUOTE", symbol=arguments["symbol"]
+                )
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=f"Stock Quote for {arguments['symbol']}:\n{_format_json(data)}",
+                    )
+                ]
+
             elif name == "get_time_series_daily":
                 outputsize = arguments.get("outputsize", "compact")
                 data = await client.fetch_data(
                     "TIME_SERIES_DAILY",
                     symbol=arguments["symbol"],
-                    outputsize=outputsize
+                    outputsize=outputsize,
                 )
-                return [types.TextContent(
-                    type="text", 
-                    text=f"Daily Time Series for {arguments['symbol']}:\n{_format_json(data)}"
-                )]
-            
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=f"Daily Time Series for {arguments['symbol']}:\n{_format_json(data)}",
+                    )
+                ]
+
             elif name == "search_symbol":
-                data = await client.fetch_data("SYMBOL_SEARCH", keywords=arguments["keywords"])
-                return [types.TextContent(
-                    type="text",
-                    text=f"Symbol Search Results for '{arguments['keywords']}':\n{_format_json(data)}"
-                )]
-            
+                data = await client.fetch_data(
+                    "SYMBOL_SEARCH", keywords=arguments["keywords"]
+                )
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=f"Symbol Search Results for '{arguments['keywords']}':\n{_format_json(data)}",
+                    )
+                ]
+
             elif name == "get_company_overview":
                 data = await client.fetch_data("OVERVIEW", symbol=arguments["symbol"])
-                return [types.TextContent(
-                    type="text",
-                    text=f"Company Overview for {arguments['symbol']}:\n{_format_json(data)}"
-                )]
-            
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=f"Company Overview for {arguments['symbol']}:\n{_format_json(data)}",
+                    )
+                ]
+
             elif name == "get_sma":
                 data = await client.fetch_data(
                     "SMA",
                     symbol=arguments["symbol"],
                     interval=arguments.get("interval", "daily"),
                     time_period=arguments.get("time_period", 30),
-                    series_type=arguments.get("series_type", "close")
+                    series_type=arguments.get("series_type", "close"),
                 )
-                return [types.TextContent(
-                    type="text",
-                    text=f"SMA for {arguments['symbol']}:\n{_format_json(data)}"
-                )]
-            
+                tech_analysis_key = "Technical Analysis: SMA"
+                time_period = arguments.get("time_period", 30)
+                data[tech_analysis_key] = data[tech_analysis_key][:time_period]
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=f"SMA for {arguments['symbol']}:\n{_format_json(data)}",
+                    )
+                ]
+
             elif name == "get_rsi":
                 data = await client.fetch_data(
                     "RSI",
                     symbol=arguments["symbol"],
                     interval=arguments.get("interval", "daily"),
                     time_period=arguments.get("time_period", 14),
-                    series_type=arguments.get("series_type", "close")
+                    series_type=arguments.get("series_type", "close"),
                 )
-                return [types.TextContent(
-                    type="text",
-                    text=f"RSI for {arguments['symbol']}:\n{_format_json(data)}"
-                )]
-            
+                tech_analysis_key = "Technical Analysis: RSI"
+                time_period = arguments.get("time_period", 14)
+                data[tech_analysis_key] = data[tech_analysis_key][:time_period]
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=f"RSI for {arguments['symbol']}:\n{_format_json(data)}",
+                    )
+                ]
+
             else:
                 raise ValueError(f"Unknown tool: {name}")
-                
+
         except Exception as e:
             return [types.TextContent(type="text", text=f"Error: {str(e)}")]
 
@@ -276,6 +313,7 @@ def main(api_key: Optional[str], port: int, transport: str) -> int:
         )
 
         import uvicorn
+
         uvicorn.run(starlette_app, host="127.0.0.1", port=port)
     else:
         from mcp.server.stdio import stdio_server
@@ -294,6 +332,7 @@ def main(api_key: Optional[str], port: int, transport: str) -> int:
 def _format_json(data: Dict[str, Any]) -> str:
     """Format JSON data for display"""
     import json
+
     return json.dumps(data, indent=2)
 
 

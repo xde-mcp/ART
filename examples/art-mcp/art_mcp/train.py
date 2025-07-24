@@ -16,7 +16,7 @@ load_dotenv()
 
 # Model configuration
 model = art.TrainableModel(
-    name="mcp-006",
+    name="mcp-009",
     project="mcp-agent-training",
     base_model="Qwen/Qwen2.5-7B-Instruct",
 )
@@ -61,6 +61,10 @@ async def train_mcp_agent(use_skypilot: bool = False):
 
         backend = LocalBackend()
 
+    await backend._experimental_pull_from_s3(
+        model,
+    )
+
     await model.register(backend)
 
     train_scenarios = [
@@ -86,7 +90,7 @@ async def train_mcp_agent(use_skypilot: bool = False):
     train_iterator = iterate_dataset(
         train_scenarios,  # Use raw data, create McpScenario objects in batches
         groups_per_step=2,  # Batch size of 2
-        num_epochs=3,  # Multiple epochs over the dataset
+        num_epochs=10,  # Multiple epochs over the dataset
         initial_step=await model.get_step(),  # Resume from checkpoint
     )
 
@@ -182,6 +186,10 @@ async def train_mcp_agent(use_skypilot: bool = False):
 
         print("starting train")
         await model.train(groups)
+
+        await backend._experimental_push_to_s3(
+            model,
+        )
 
 
 def main():
