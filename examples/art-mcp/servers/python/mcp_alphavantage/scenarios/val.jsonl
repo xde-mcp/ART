@@ -1,8 +1,8 @@
-{"task": "Quickly fetch the real-time stock quote for a volatile penny stock like Sundial Growers (SNDL) for pre-market analysis.", "difficulty": 1}
-{"task": "Monitor the real-time stock quote for Tesla (TSLA) frequently for day trading purposes.", "difficulty": 1}
-{"task": "Use the search functionality to enter 'Technology' as a keyword to find relevant stock symbols in the tech sector.", "difficulty": 2}
-{"task": "Retrieve daily time series data (compact output) for Microsoft (MSFT) for basic trend analysis.", "difficulty": 2}
-{"task": "For a detailed analysis, obtain Adobe (ADBE)'s company overview and then calculate its daily SMA to study its technical trend.", "difficulty": 4}
-{"task": "For long-term historical analysis, retrieve the full daily time series data for Oracle (ORCL) to study extensive price movements.", "difficulty": 3}
-{"task": "Search for a company symbol using the keyword 'Microsoft' to identify the relevant stock ticker.", "difficulty": 2}
-{"task": "For a day trader, retrieve the 5-minute RSI for Amazon (AMZN) to monitor short-term price fluctuations.", "difficulty": 3}
+{"task": "For portfolio management, get both the current stock quote and daily time series data for IBM to review market trend and price action.", "difficulty": 3}
+{"task": "Research dividend-paying companies by fetching the company overview for The Coca-Cola Company (KO) using get_company_overview.", "difficulty": 1}
+{"task": "Conduct a deep analysis of The Walt Disney Company (DIS) by retrieving a comprehensive company overview, daily time series data, 30-day SMA, and 14-day RSI to evaluate both fundamentals and technical indicators.", "difficulty": 5}
+{"task": "Carry out a trend analysis for Pfizer (PFE) by obtaining its SMA and RSI on a daily interval and evaluating the market trend.", "difficulty": 4}
+{"task": "For a social media analysis turn, obtain the company overview for Twitter (TWTR) using get_company_overview.", "difficulty": 1}
+{"task": "Calculate the 20-day Simple Moving Average (SMA) for Tesla (TSLA) on a daily interval using get_sma with close prices.", "difficulty": 2}
+{"task": "Compare Netflix's (NFLX) current stock price with its 30-day SMA by fetching both the stock quote and SMA, then analyzing the relationship.", "difficulty": 3}
+{"task": "Retrieve the current stock price for Meta Platforms (META) using get_stock_quote for daily market updates.", "difficulty": 1}

@@ -6,6 +6,7 @@ import asyncio
 import os
 import json
 from typing import List
+import weave
 
 from ..rollout import McpScenario, rollout
 from servers.python.mcp_alphavantage.server_params import server_params
@@ -13,6 +14,8 @@ from servers.python.mcp_alphavantage.server_params import server_params
 load_dotenv()
 
 random.seed(42)
+
+weave.init("mcp-agent-training")
 
 # Initialize the server
 backend = LocalBackend()
@@ -42,16 +45,16 @@ gpt_41 = art.Model(
 o3 = art.Model(
     name="o3",
     project="mcp-agent-training",
-    inference_model_name="openai/o3",
-    inference_base_url="https://openrouter.ai/api/v1",
-    inference_api_key=os.getenv("OPENROUTER_API_KEY"),
+    inference_model_name="o3",
+    inference_base_url="https://api.openai.com/v1",
+    inference_api_key=os.getenv("OPENAI_API_KEY"),
 )
 o4_mini = art.Model(
     name="o4-mini",
     project="mcp-agent-training",
-    inference_model_name="openai/o4-mini",
-    inference_base_url="https://openrouter.ai/api/v1",
-    inference_api_key=os.getenv("OPENROUTER_API_KEY"),
+    inference_model_name="o4-mini",
+    inference_base_url="https://api.openai.com/v1",
+    inference_api_key=os.getenv("OPENAI_API_KEY"),
 )
 sonnet_4 = art.Model(
     name="sonnet-4",
@@ -68,13 +71,9 @@ async def log_comparison_model(
     trajectories = await art.gather_trajectory_groups(
         (
             art.TrajectoryGroup(
-                rollout(
-                    comparison_model,
-                    val_scenarios[i],
-                )
-                for i in range(len(val_scenarios))
+                rollout(comparison_model, val_scenarios[i]) for _ in range(4)
             )
-            for _ in range(1)
+            for i in range(len(val_scenarios))
         ),
         pbar_desc=f"gather {comparison_model.name}",
         max_exceptions=1,

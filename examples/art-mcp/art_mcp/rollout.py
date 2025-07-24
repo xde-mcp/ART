@@ -24,6 +24,9 @@ load_dotenv()
 logging.getLogger("weave.trace.op").setLevel(logging.WARNING)
 
 
+weave.init("mcp-agent-training")
+
+
 @dataclass
 class McpScenario:
     """A scenario for MCP agent evaluation."""
@@ -55,12 +58,13 @@ async def rollout(
         metrics={
             "task_completed": False,
             "success": False,
+            "ran_out_of_turns": False,
         },
         scenario=scenario,
     )
 
     # Initialize system prompt
-    system_prompt = """You are an MCP (Model Context Protocol) agent.\n\nYou have access to MCP tools through the server. Use them to complete your task.\n\nWhen you believe you have completed the task, call the 'complete_task' function with a summary of what you accomplished."""
+    system_prompt = f"""You are an MCP (Model Context Protocol) agent.\n\nYou have access to MCP tools through the server. Use them to complete your task.\n\nWhen you believe you have completed the task, call the 'complete_task' function with a summary of what you accomplished. If you do not call complete_task, your attempt will be considered a failure. You have a total of {scenario.max_turns} turns to complete the task."""
 
     # Connect to MCP server using stdio
     async with stdio_client(scenario.server_params) as (read, write):
@@ -145,6 +149,7 @@ async def rollout(
                                 else model.name,
                                 messages=traj.messages(),
                                 tools=tool_schemas,
+                                max_completion_tokens=4000,
                             )
 
                         choice = response.choices[0]
@@ -227,22 +232,31 @@ async def rollout(
 
             except Exception as e:
                 traj.log(f"MCP server error: {e}")
+    if not task_completed and num_turns == scenario.max_turns:
+        traj.metrics["ran_out_of_turns"] = True
 
     traj.metrics["num_turns"] = num_turns
+
+    if debug:
+        for message in traj.messages_and_choices:
+            print("\n")
+            print(message)
+            print("\n")
+
     return traj.finish()
 
 
 async def test_rollout():
     model = art.Model(
-        name="gpt-4o-mini",
+        name="o4-mini",
         project="mcp-agent-training",
-        inference_model_name="gpt-4o-mini",
+        inference_model_name="o4-mini",
         inference_api_key=os.getenv("OPENAI_API_KEY"),
         inference_base_url="https://api.openai.com/v1",
     )
 
     scenario = McpScenario(
-        task_description="Get the current stock price for AAPL",
+        task_description="Use search_symbol to find emerging biotech companies by searching with keywords 'biotech' and review the results.",
         server_params=server_params,
     )
 

@@ -4,6 +4,12 @@ import aiohttp
 import click
 import mcp.types as types
 from mcp.server.lowlevel import Server
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 
 
 class AlphaVantageClient:
@@ -197,6 +203,13 @@ def main(api_key: Optional[str], port: int, transport: str) -> int:
         ]
 
     @app.call_tool()
+    @retry(
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type(
+            (aiohttp.ClientError, asyncio.TimeoutError, Exception)
+        ),
+    )
     async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         try:
             if name == "get_stock_quote":

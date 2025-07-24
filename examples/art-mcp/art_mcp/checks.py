@@ -7,10 +7,12 @@ import art
 from art.utils import limit_concurrency
 from dotenv import load_dotenv
 from tenacity import retry, stop_after_attempt, wait_exponential
+import weave
 
 load_dotenv()
 
 
+@weave.op()
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=4, max=15),
@@ -85,7 +87,7 @@ Respond with only a JSON object containing {{"success": true}} if the task was c
         response = await client.chat.completions.create(
             model="o4-mini",
             messages=[{"role": "user", "content": evaluation_prompt}],
-            max_tokens=1000,
+            max_completion_tokens=1000,
             response_format={"type": "json_object"},
         )
 

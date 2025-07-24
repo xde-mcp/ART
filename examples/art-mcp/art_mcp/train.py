@@ -16,7 +16,7 @@ load_dotenv()
 
 # Model configuration
 model = art.TrainableModel(
-    name="mcp-012",
+    name="mcp-013",
     project="mcp-agent-training",
     base_model="Qwen/Qwen2.5-7B-Instruct",
 )

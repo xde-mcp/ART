@@ -253,29 +253,5 @@ async def main():
         return 1
 
 
-async def test_scenario_generation():
-    """Test the scenario generation function with default parameters."""
-    print("Generating scenarios for MCP AlphaVantage server...")
-
-    # Use relative path to server_params file
-    server_params_path = "servers/python/mcp_alphavantage/server_params.py"
-
-    scenarios = await generate_scenarios(
-        server_params_path, num_scenarios=3, scenarios_dir="test_scenarios"
-    )  # Generate 3 scenarios for testing
-
-    print(f"\nGenerated {len(scenarios)} scenarios:")
-    for i, scenario in enumerate(scenarios, 1):
-        print(f"{i}. Task: {scenario['task']}")
-        print(f"   Difficulty: {scenario['difficulty']}/5")
-
-
 if __name__ == "__main__":
-    import sys
-
-    # If run with no arguments, run test function
-    if len(sys.argv) == 1:
-        asyncio.run(test_scenario_generation())
-    else:
-        exit_code = asyncio.run(main())
-        sys.exit(exit_code)
+    asyncio.run(main())

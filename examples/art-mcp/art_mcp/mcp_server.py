@@ -314,6 +314,10 @@ class AlphaMcpServer(LocalMcpServer):
         """
         return StdioServerParameters(
             command="python",
-            args=["servers/python/mcp_alphavantage/server.py", "--api-key", self.api_key],
+            args=[
+                "servers/python/mcp_alphavantage/server.py",
+                "--api-key",
+                self.api_key,
+            ],
             env={"ALPHAVANTAGE_API_KEY": self.api_key},
         )
