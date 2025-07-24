@@ -285,6 +285,8 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
         self.max_steps_per_epoch = cfg.max_steps_per_epoch or 0
         self.global_step = 0
 
+        # Disable donated buffer for functorch
+        torch._functorch.config.donated_buffer = False  # type: ignore
         self.score_mod: flex_attention._score_mod_signature | None = None
 
         # We cannot do nested compile, but flex attention only has perf benefits
