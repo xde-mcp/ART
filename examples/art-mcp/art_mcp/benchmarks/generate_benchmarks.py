@@ -83,6 +83,8 @@ async def log_comparison_model(
         max_exceptions=1,
     )
 
+    promises = []
+
     if control_groups is not None:
         for i in range(len(groups)):
             for j in range(len(groups[i].trajectories)):
@@ -92,19 +94,34 @@ async def log_comparison_model(
                         groups[i].trajectories[j],
                     ]
                 )
-                await ruler_score_group(
-                    group,
-                    judgement_model="openai/o4-mini",
-                )
-                control_score = group.trajectories[0].metrics["reward"]
-                benchmark_score = group.trajectories[1].metrics["reward"]
 
-                if benchmark_score > control_score:
-                    groups[i].trajectories[j].metrics["beat_comp"] = 1
-                elif benchmark_score < control_score:
-                    groups[i].trajectories[j].metrics["beat_comp"] = 0
-                else:
-                    groups[i].trajectories[j].metrics["beat_comp"] = 0.5
+                async def score_group(group_idx: int, trajectory_idx: int):
+                    scored_group = await ruler_score_group(
+                        group,
+                        judge_model="openai/o4-mini",
+                        debug=True,
+                    )
+                    control_score = scored_group.trajectories[0].reward
+                    benchmark_score = scored_group.trajectories[1].reward
+
+                    reward_diff = benchmark_score - control_score
+
+                    if reward_diff > 0.1:
+                        groups[group_idx].trajectories[trajectory_idx].metrics[
+                            "beat_comp"
+                        ] = 1
+                    elif reward_diff < -0.1:
+                        groups[group_idx].trajectories[trajectory_idx].metrics[
+                            "beat_comp"
+                        ] = 0
+                    else:
+                        groups[group_idx].trajectories[trajectory_idx].metrics[
+                            "beat_comp"
+                        ] = 0.5
+
+                promises.append(score_group(i, j))
+
+    await asyncio.gather(*promises)
 
     await comparison_model.log(
         groups,
@@ -141,9 +158,9 @@ async def run_benchmarks():
         gpt_4o_mini,
         gpt_4o,
         gpt_41,
-        # o3,
-        # o4_mini,
-        # sonnet_4,
+        o3,
+        o4_mini,
+        sonnet_4,
     ]:
         await log_comparison_model(comparison_model, val_scenarios, control_groups)
 
