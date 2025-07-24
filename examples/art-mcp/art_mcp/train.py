@@ -11,6 +11,7 @@ import json
 
 from servers.python.mcp_alphavantage.server_params import server_params
 from .rollout import rollout, McpScenario
+from .benchmarks.generate_benchmarks import generate_val_groups, calculate_beat_comp
 
 load_dotenv()
 
@@ -21,10 +22,10 @@ model = art.TrainableModel(
     base_model="Qwen/Qwen2.5-7B-Instruct",
 )
 
-gpt_4o_mini = art.Model(
-    name="gpt-4o-mini",
+gpt_4o = art.Model(
+    name="gpt-4o",
     project="mcp-agent-training",
-    inference_model_name="gpt-4o-mini",
+    inference_model_name="gpt-4o",
     inference_api_key=os.getenv("OPENAI_API_KEY"),
     inference_base_url="https://api.openai.com/v1",
 )
@@ -94,6 +95,8 @@ async def train_mcp_agent(use_skypilot: bool = False):
         initial_step=await model.get_step(),  # Resume from checkpoint
     )
 
+    control_groups = await generate_val_groups(gpt_4o, val_scenarios)
+
     # Main training loop using iterate_dataset
     for batch in train_iterator:
         print("Gathering trajectory groups with RULER scoring...")
@@ -118,42 +121,10 @@ async def train_mcp_agent(use_skypilot: bool = False):
 
         if batch.step % 5 == 0:
             print("starting comparison val gather")
-            comparison_val_groups = await art.gather_trajectory_groups(
-                (
-                    art.TrajectoryGroup(
-                        [
-                            rollout(model, scenario, False)
-                            if i % 2 == 0
-                            else rollout(gpt_4o_mini, scenario, False),
-                            rollout(gpt_4o_mini, scenario, False)
-                            if i % 2 == 0
-                            else rollout(model, scenario, False),
-                        ]
-                    )
-                    for i, scenario in enumerate(val_scenarios)
-                ),
-                pbar_desc=f"val gather step {batch.step}",
-                after_each=lambda group: ruler_score_group(
-                    group,
-                    judge_model="openrouter/openai/o4-mini",
-                    debug=True,
-                    swallow_exceptions=True,
-                ),
-            )
-            for i in range(len(comparison_val_groups)):
-                group = comparison_val_groups[i]
-                # reverse every other group
-                if i % 2 == 1:
-                    group.trajectories = group.trajectories[::-1]
+            val_groups = await generate_val_groups(model, val_scenarios)
+            await calculate_beat_comp(val_groups, control_groups)
 
-                beat_comp_score = 0
-                if group.trajectories[0].reward == group.trajectories[1].reward:
-                    beat_comp_score = 0.5
-                elif group.trajectories[0].reward > group.trajectories[1].reward:
-                    beat_comp_score = 1
-
-                group.trajectories[0].metrics["beat_comp"] = beat_comp_score
-            await model.log(comparison_val_groups, split="val")
+            await model.log(val_groups, split="val")
 
         print("starting train")
         await model.train(groups)

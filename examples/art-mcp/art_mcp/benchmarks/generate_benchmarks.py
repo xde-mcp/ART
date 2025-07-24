@@ -67,7 +67,7 @@ sonnet_4 = art.Model(
 )
 
 
-async def generate_groups(
+async def generate_val_groups(
     model: art.Model, val_scenarios: List[McpScenario]
 ) -> list[art.TrajectoryGroup]:
     groups = await art.gather_trajectory_groups(
@@ -82,13 +82,9 @@ async def generate_groups(
     return groups
 
 
-async def log_comparison_model(
-    comparison_model: art.Model,
-    val_scenarios: List[McpScenario],
-    control_groups: list[art.TrajectoryGroup] | None = None,
-) -> list[art.TrajectoryGroup]:
-    groups = await generate_groups(comparison_model, val_scenarios)
-
+async def calculate_beat_comp(
+    groups: list[art.TrajectoryGroup], control_groups: list[art.TrajectoryGroup]
+):
     promises = []
 
     if control_groups is not None:
@@ -129,6 +125,17 @@ async def log_comparison_model(
 
     await asyncio.gather(*promises)
 
+
+async def log_comparison_model(
+    comparison_model: art.Model,
+    val_scenarios: List[McpScenario],
+    control_groups: list[art.TrajectoryGroup] | None = None,
+) -> list[art.TrajectoryGroup]:
+    groups = await generate_val_groups(comparison_model, val_scenarios)
+
+    if control_groups is not None:
+        await calculate_beat_comp(groups, control_groups)
+
     await comparison_model.log(
         groups,
         split="val",
@@ -158,15 +165,15 @@ async def run_benchmarks():
     await o4_mini.register(backend)
     await sonnet_4.register(backend)
 
-    control_groups = await generate_groups(gpt_41, val_scenarios)
+    control_groups = await generate_val_groups(gpt_41, val_scenarios)
 
     for comparison_model in [
         gpt_4o_mini,
-        gpt_4o,
-        gpt_41,
-        o3,
-        o4_mini,
-        sonnet_4,
+        # gpt_4o,
+        # gpt_41,
+        # o3,
+        # o4_mini,
+        # sonnet_4,
     ]:
         await log_comparison_model(comparison_model, val_scenarios, control_groups)
 
