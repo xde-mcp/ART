@@ -67,9 +67,9 @@ async def rollout(
     system_prompt = f"""You are an MCP (Model Context Protocol) agent.\n\nYou have access to MCP tools through the server. Use them to complete your task.\n\nWhen you believe you have completed the task, call the 'complete_task' function with a summary of what you accomplished. If you do not call complete_task, your attempt will be considered a failure. You have a total of {scenario.max_turns} turns to complete the task."""
 
     # Connect to MCP server using stdio
-    async with stdio_client(scenario.server_params) as (read, write):
-        async with ClientSession(read, write) as session:
-            try:
+    try:
+        async with stdio_client(scenario.server_params) as (read, write):
+            async with ClientSession(read, write) as session:
                 # Initialize the connection
                 await session.initialize()
 
@@ -230,8 +230,8 @@ async def rollout(
                         traj.log(f"Error in turn {num_turns}: {e}")
                         break
 
-            except Exception as e:
-                traj.log(f"MCP server error: {e}")
+    except Exception as e:
+        traj.log(f"MCP server error: {e}")
     if not task_completed and num_turns == scenario.max_turns:
         traj.metrics["ran_out_of_turns"] = True
 

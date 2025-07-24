@@ -67,21 +67,27 @@ sonnet_4 = art.Model(
 )
 
 
+async def generate_groups(
+    model: art.Model, val_scenarios: List[McpScenario]
+) -> list[art.TrajectoryGroup]:
+    groups = await art.gather_trajectory_groups(
+        (
+            art.TrajectoryGroup(rollout(model, val_scenarios[i]) for _ in range(4))
+            for i in range(len(val_scenarios))
+        ),
+        pbar_desc=f"gather {model.name}",
+        max_exceptions=1,
+    )
+
+    return groups
+
+
 async def log_comparison_model(
     comparison_model: art.Model,
     val_scenarios: List[McpScenario],
     control_groups: list[art.TrajectoryGroup] | None = None,
 ) -> list[art.TrajectoryGroup]:
-    groups = await art.gather_trajectory_groups(
-        (
-            art.TrajectoryGroup(
-                rollout(comparison_model, val_scenarios[i]) for _ in range(4)
-            )
-            for i in range(len(val_scenarios))
-        ),
-        pbar_desc=f"gather {comparison_model.name}",
-        max_exceptions=1,
-    )
+    groups = await generate_groups(comparison_model, val_scenarios)
 
     promises = []
 
@@ -90,8 +96,8 @@ async def log_comparison_model(
             for j in range(len(groups[i].trajectories)):
                 group = art.TrajectoryGroup(
                     [
-                        control_groups[i].trajectories[j],
                         groups[i].trajectories[j],
+                        control_groups[i].trajectories[j],
                     ]
                 )
 
@@ -101,8 +107,8 @@ async def log_comparison_model(
                         judge_model="openai/o4-mini",
                         debug=True,
                     )
-                    control_score = scored_group.trajectories[0].reward
-                    benchmark_score = scored_group.trajectories[1].reward
+                    benchmark_score = scored_group.trajectories[0].reward
+                    control_score = scored_group.trajectories[1].reward
 
                     reward_diff = benchmark_score - control_score
 
@@ -152,7 +158,7 @@ async def run_benchmarks():
     await o4_mini.register(backend)
     await sonnet_4.register(backend)
 
-    control_groups = await log_comparison_model(gpt_4o_mini, val_scenarios)
+    control_groups = await generate_groups(gpt_41, val_scenarios)
 
     for comparison_model in [
         gpt_4o_mini,
