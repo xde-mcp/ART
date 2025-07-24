@@ -1217,20 +1217,20 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
         """
         move_start = time.perf_counter()
 
-        # Add debugpy server for remote debugging
-        try:
-            import debugpy
+        # # Add debugpy server for remote debugging
+        # try:
+        #     import debugpy
 
-            if not debugpy.is_client_connected():
-                debugpy.listen(("localhost", 5678))
-                print(f"Debug server listening on localhost:5678")
-                print("Waiting for debugger to attach...")
-                debugpy.wait_for_client()
-                print("Debugger attached!")
-        except ImportError:
-            print("debugpy not available, skipping debug server setup")
-        except Exception as e:
-            print(f"Failed to setup debug server: {e}")
+        #     if not debugpy.is_client_connected():
+        #         debugpy.listen(("localhost", 5678))
+        #         print(f"Debug server listening on localhost:5678")
+        #         print("Waiting for debugger to attach...")
+        #         debugpy.wait_for_client()
+        #         print("Debugger attached!")
+        # except ImportError:
+        #     print("debugpy not available, skipping debug server setup")
+        # except Exception as e:
+        #     print(f"Failed to setup debug server: {e}")
 
         # For FSDP models, we need to handle device movement carefully
         # FSDP models can't be moved with simple .to() calls
