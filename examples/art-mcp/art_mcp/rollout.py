@@ -64,7 +64,7 @@ async def rollout(
     )
 
     # Initialize system prompt
-    system_prompt = f"""You are an MCP (Model Context Protocol) agent.\n\nYou have access to MCP tools through the server. Use them to complete your task.\n\nWhen you believe you have completed the task, call the 'complete_task' function with a summary of what you accomplished. You have a total of {scenario.max_turns} turns to complete the task. After you have completed the task, call the 'complete_task' function with a summary of what you accomplished. Call complete_task by itself, not in conjunction with any other tools."""
+    system_prompt = f"""You are an MCP (Model Context Protocol) agent.\n\nYou have access to MCP tools through the server. Use them to complete your task.\n\nWhen you believe you have completed the task, call the 'complete_task' function with a summary of what you accomplished. You have a total of {scenario.max_turns} turns to complete the task. Only use tool calls, do not write any content. After you have completed the task, call the 'complete_task' function with a summary of what you accomplished. Call complete_task by itself, not in conjunction with any other tools."""
 
     # Connect to MCP server using stdio
     try:

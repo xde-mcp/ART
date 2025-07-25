@@ -17,7 +17,7 @@ load_dotenv()
 
 # Model configuration
 model = art.TrainableModel(
-    name="mcp-016",
+    name="mcp-017",
     project="mcp-agent-training",
     base_model="Qwen/Qwen2.5-7B-Instruct",
 )
@@ -127,7 +127,7 @@ async def train_mcp_agent(use_skypilot: bool = False):
             await model.log(val_groups, split="val")
 
         print("starting train")
-        await model.train(groups, config=art.TrainConfig(learning_rate=1e-7))
+        await model.train(groups, config=art.TrainConfig(learning_rate=5e-8))
 
         await backend._experimental_push_to_s3(
             model,
