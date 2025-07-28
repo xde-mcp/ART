@@ -17,9 +17,9 @@ load_dotenv()
 
 # Model configuration
 model = art.TrainableModel(
-    name="mcp-017",
+    name="mcp-14b-001",
     project="mcp-agent-training",
-    base_model="Qwen/Qwen2.5-7B-Instruct",
+    base_model="Qwen/Qwen2.5-14B-Instruct",
 )
 
 gpt_4o = art.Model(

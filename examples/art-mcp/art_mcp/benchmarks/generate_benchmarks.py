@@ -7,11 +7,13 @@ import os
 import json
 from typing import List
 import weave
+import argparse
 
 from art.rewards.ruler import ruler_score_group
 
 from ..rollout import McpScenario, rollout
-from servers.python.mcp_alphavantage.server_params import server_params
+from servers.python.mcp_alphavantage.server_params import server_params as alphavantage_server_params
+from servers.python.mcp_balldontlie.server_params import server_params as balldontlie_server_params
 
 load_dotenv()
 
@@ -147,8 +149,17 @@ async def log_comparison_model(
     return groups
 
 
-async def run_benchmarks():
-    with open("servers/python/mcp_alphavantage/scenarios/val.jsonl") as f:
+async def run_benchmarks(server: str = "mcp_alphavantage"):
+    if server == "mcp_alphavantage":
+        scenarios_path = "servers/python/mcp_alphavantage/scenarios/val.jsonl"
+        server_params = alphavantage_server_params
+    elif server == "mcp_balldontlie":
+        scenarios_path = "servers/python/mcp_balldontlie/scenarios/val.jsonl"
+        server_params = balldontlie_server_params
+    else:
+        raise ValueError(f"Unsupported server: {server}. Use 'mcp_alphavantage' or 'mcp_balldontlie'")
+    
+    with open(scenarios_path) as f:
         raw_val_scenarios = [json.loads(line.strip()) for line in f if line.strip()]
     val_scenarios = [
         McpScenario(
@@ -169,14 +180,23 @@ async def run_benchmarks():
 
     for comparison_model in [
         gpt_4o_mini,
-        # gpt_4o,
-        # gpt_41,
-        # o3,
-        # o4_mini,
-        # sonnet_4,
+        gpt_4o,
+        gpt_41,
+        o3,
+        o4_mini,
+        sonnet_4,
     ]:
         await log_comparison_model(comparison_model, val_scenarios, control_groups)
 
 
 if __name__ == "__main__":
-    asyncio.run(run_benchmarks())
+    parser = argparse.ArgumentParser(description="Generate benchmarks for MCP servers")
+    parser.add_argument(
+        "--server",
+        choices=["mcp_alphavantage", "mcp_balldontlie"],
+        default="mcp_alphavantage",
+        help="MCP server to benchmark (default: mcp_alphavantage)"
+    )
+    args = parser.parse_args()
+    
+    asyncio.run(run_benchmarks(args.server))

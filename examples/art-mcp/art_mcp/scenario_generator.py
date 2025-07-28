@@ -87,13 +87,12 @@ AVAILABLE RESOURCES:
 {resources_description}
 
 Requirements for scenarios:
-1. Each scenario should be a clear, specific task that can be accomplished using the available tools
+1. Each scenario should be a task that can be accomplished using the available tools
 2. Scenarios should vary in complexity - some simple (1-2 tool calls), some complex (multiple tool calls)
 3. Scenarios should cover different use cases and tool combinations
 4. Each scenario should be realistic - something a real user might actually want to do
-5. Be specific with company symbols, timeframes, indicators, etc. when relevant
-6. Include scenarios for different user types (day traders, investors, analysts, researchers)
-7. Assign a difficulty rating from 1 (easy, single tool call) to 5 (hard, complex multi-step analysis)
+5. Assign a difficulty rating from 1 (easy, single tool call) to 5 (hard, complex multi-step analysis)
+6. The task should always include generating a summary of the work done and a thorough analysis and report of the results
 
 You must respond with a JSON object containing a "scenarios" array of exactly {num_scenarios} objects. Each object must have:
 - "task": string describing the scenario
@@ -103,7 +102,7 @@ Example:
 {{
   "scenarios": [
     {{"task": "Get the current stock price for Apple (AAPL)", "difficulty": 1}},
-    {{"task": "Compare the 30-day SMA with current price for Tesla and determine if it's above or below the moving average", "difficulty": 3}}
+    {{"task": "Compare the 30-day SMA with current price for Tesla and determine if it's above or below the moving average and generate a thorough analysis and report", "difficulty": 2}}
   ]
 }}"""
 

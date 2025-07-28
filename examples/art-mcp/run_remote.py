@@ -58,8 +58,11 @@ def run_remote(command: str):
     )
 
     run_script = textwrap.dedent(f"""
+        cd ~/ART && uv add "transformers==4.53.2" --no-sync
+        cd ~/sky_workdir
         uv remove openpipe-art
         uv add --editable ~/ART --extra backend
+        uv sync --locked
 
         uv run python -m {command}
     """)
