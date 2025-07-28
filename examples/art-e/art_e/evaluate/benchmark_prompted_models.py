@@ -29,7 +29,7 @@ MODELS_TO_BENCHMARK = [
     # ("gemini-2.5-flash", "gemini/gemini-2.5-flash"),
     # ("sonnet 4", "openrouter/anthropic/claude-sonnet-4"),
     # ("gemini-2.5-pro", "gemini/gemini-2.5-pro"),
-    ("kimi-k2", "openrouter/moonshotai/kimi-k2"),
+    ("q3-235b-2507", "together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput"),
 ]
 
 TEST_SET_ENTRIES = 100

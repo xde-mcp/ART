@@ -22,6 +22,7 @@ from tenacity import retry, stop_after_attempt
 import logging
 from pydantic import BaseModel, Field, validate_call, ValidationError
 from rich import print
+from art_e.create_stepwise_groups import create_stepwise_groups
 
 litellm.cache = Cache(type=LiteLLMCacheType.DISK)
 litellm.drop_params = True
@@ -187,10 +188,7 @@ Return your judgement as **pure JSON** (no markdown) with this exact schema:
 class ProjectTrajectory(Trajectory):
     scenario: SyntheticQuery
     generated_answer: str | None = None
-
-
-def clean_message(message: Dict[str, Any]) -> Dict[str, Any]:
-    return {k: v for k, v in message.items() if v is not None}
+    stepwise_groups: list[art.TrajectoryGroup] = []
 
 
 @retry(stop=stop_after_attempt(3))
@@ -386,6 +384,8 @@ async def rollout(
     traj.metrics = rubric.to_metrics()
 
     traj.finish()
+    traj.stepwise_groups = await create_stepwise_groups(model, traj)
+
     return traj
 
 
@@ -394,8 +394,10 @@ if __name__ == "__main__":
     from dotenv import load_dotenv
     import asyncio
     import yaml
+    from art_e.data.local_email_db import generate_database
 
     load_dotenv()
+    generate_database()
 
     scenario = load_synthetic_queries(split="test", limit=1)[0]
 
@@ -414,3 +416,6 @@ if __name__ == "__main__":
     print(f"Question: {scenario.question}")
     print(f"Expected answer: {scenario.answer}")
     print(f"Generated answer: {traj.generated_answer}")
+
+    print("Stepwise groups:")
+    print(traj.stepwise_groups)

@@ -305,6 +305,7 @@ async def rollout(
                 caching=not model.trainable,
                 max_completion_tokens=model.config.max_tokens,
                 tools=traj.tools,
+                tool_choice="required",
                 # tool_choice=None if model.trainable else "required",
             )  # type: ignore
 
@@ -402,9 +403,9 @@ if __name__ == "__main__":
     traj = asyncio.run(
         rollout(
             art.Model(
-                name="openrouter/qwen/qwen3-32b",
+                name="together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
                 project="email_agent",
-                inference_model_name="openrouter/qwen/qwen3-32b",
+                inference_model_name="together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
                 config=ProjectPolicyConfig(),
             ),
             scenario,

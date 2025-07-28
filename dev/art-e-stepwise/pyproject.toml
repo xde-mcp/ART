@@ -3,7 +3,7 @@ name = "art-e"
 version = "0.1.0"
 description = "Deep learning research for email search and processing"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "datasets>=3.4.1",
     "diskcache>=5.6.3",
@@ -43,15 +43,12 @@ include = ["art_e*"]
 override-dependencies = [
     "bitsandbytes; sys_platform == 'linux'",
     "xformers; sys_platform == 'linux'",
+    "vllm; sys_platform == 'linux'",
 ]
 
 
 [tool.uv.sources]
-art-e = { workspace = true }
 openpipe-art = { path = "../../", editable = true }
 
 [dependency-groups]
-dev = [
-    "art-e",
-    "ruff>=0.12.3",
-]
+dev = ["art-e", "ruff>=0.12.3"]

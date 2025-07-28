@@ -16,13 +16,7 @@ class ProjectPolicyConfig(BaseModel):
     val_set_size: int = 100
     training_dataset_size: int = 4000
     num_epochs: int = 4
-    # Model name to use for RULER rescoring (LLM-as-a-judge). Defaults to
-    ruler_judge_model: str | None = None
-    minimum_reward_std_dev: float = 0.0
-    # Random seed to control which subset of the training data is sampled. When None, the sampler can
-    # choose its own default (e.g., derive from the current time).
-    training_dataset_seed: int | None = None
-    messages_only: bool = False
+    ruler_judge_model: str = "openrouter/qwen/qwen3-32b"
 
     # Fork configuration
     fork_from_model: str | None = None
