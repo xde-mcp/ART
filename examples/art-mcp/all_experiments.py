@@ -18,7 +18,7 @@ class McpPolicyConfig(BaseModel):
     eval_steps: int = 5
     val_set_size: int = 8
     training_dataset_size: int = 16
-    num_epochs: int = 20
+    num_epochs: int = 80
     # Model name to use for RULER rescoring (LLM-as-a-judge)
     ruler_judge_model: str = "openrouter/openai/o4-mini"
     minimum_reward_std_dev: float = 0.0
@@ -55,8 +55,11 @@ models["mcp-14b-001"].config.num_epochs = 160
 models["mcp-14b-ball-001"] = models["mcp-7b-001"].model_copy(deep=True)
 models["mcp-14b-ball-001"].name = "mcp-14b-ball-001"
 models["mcp-14b-ball-001"].config.mcp_server_name = "mcp_balldontlie"
+models["mcp-14b-ball-001"].config.num_epochs = 300
+
 
 # Model using alphavantage server with explicit specification
 models["mcp-14b-alpha-001"] = models["mcp-7b-001"].model_copy(deep=True)
 models["mcp-14b-alpha-001"].name = "mcp-14b-alpha-001"
 models["mcp-14b-alpha-001"].config.mcp_server_name = "mcp_alphavantage"
+models["mcp-14b-alpha-001"].config.num_epochs = 300
