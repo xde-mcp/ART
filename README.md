@@ -21,27 +21,32 @@ Train multi-step agents for real-world tasks using GRPO.
 
 </div>
 
-## 📏 RULER: Zero-Shot Agent Rewards
+## 🚀 AutoRL: Train Models for Any Task
 
-**RULER** (Relative Universal LLM-Elicited Rewards) eliminates the need for hand-crafted reward functions by using an LLM-as-judge to automatically score agent trajectories. Simply define your task in the system prompt, and RULER handles the rest—**no labeled data, expert feedback, or reward engineering required**.
+**AutoRL** lets you train a custom model for any single-turn task using just a description—no labeled data required! Simply describe what you want the model to learn in plain English, and AutoRL will automatically generate training inputs, create an appropriate system prompt, and train your model using RULER's automatic evaluation.
 
 ✨ **Key Benefits:**
-- **2-3x faster development** - Skip reward function engineering entirely
-- **General-purpose** - Works across any task without modification  
-- **Strong performance** - Matches or exceeds hand-crafted rewards in 3/4 benchmarks
-- **Easy integration** - Drop-in replacement for manual reward functions
+- **Zero labeled data** - Only need to describe your task
+- **Automatic training** - Generate inputs and evaluate outputs automatically
+- **Any task, any domain** - From JIRA tickets to creative writing to code generation
+- **One-click training** - Ready-to-run notebook gets you started in minutes
 
 ```python
-# Before: Hours of reward engineering
-def complex_reward_function(trajectory):
-    # 50+ lines of careful scoring logic...
-    pass
+# Just describe your task
+TASK_DESCRIPTION = """
+Convert informal bug reports into structured JIRA-style tickets with these sections:
+- SUMMARY: (one line title)
+- PRIORITY: (Critical/High/Medium/Low based on impact)
+- STEPS TO REPRODUCE: (numbered list)
+- EXPECTED RESULT: (what should happen)
+- ACTUAL RESULT: (what actually happens)
+- ENVIRONMENT: (extracted system/version info)
+"""
 
-# After: One line with RULER
-judged_group = await ruler_score_group(group, "openai/o3")
+# AutoRL handles the rest!
 ```
 
-[📖 Learn more about RULER →](https://art.openpipe.ai/fundamentals/ruler)
+[🏋️ Try AutoRL now →](examples/auto_rl.ipynb) | [📖 Learn more about RULER →](https://art.openpipe.ai/fundamentals/ruler)
 
 ## ART Overview
 
