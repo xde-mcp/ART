@@ -49,6 +49,10 @@ Convert informal bug reports into structured JIRA-style tickets with these secti
 
 [🏋️ Try AutoRL now →](examples/auto_rl.ipynb) | [📖 Learn more about RULER →](https://art.openpipe.ai/fundamentals/ruler)
 
+Built by
+[@mattshumer\_](https://x.com/mattshumer_)
+in partnership with OpenPipe.
+
 ## ART Overview
 
 ART is an open-source RL framework that improves agent reliability by allowing LLMs to **learn from experience**. ART provides an ergonomic harness for integrating GRPO into any python application. For a quick hands-on introduction, run one of the notebooks below. When you're ready to learn more, check out the [docs](https://art.openpipe.ai).
