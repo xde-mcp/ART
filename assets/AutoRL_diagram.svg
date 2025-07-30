@@ -1,0 +1,236 @@
+<svg id="visualization" width="1200" height="800" viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+        <!-- Background -->
+        <rect width="1200" height="800" fill="#0a0e27"/>
+
+        <!-- Title -->
+        <text x="600" y="40" font-family="Arial, sans-serif" font-size="28" font-weight="bold" text-anchor="middle" fill="#e2e8f0">
+          AutoRL Optimization Flow
+        </text>
+
+        <!-- Step 1: User Input -->
+        <rect x="50" y="80" width="200" height="80" rx="12" fill="#1e40af" stroke="#3b82f6" stroke-width="2"/>
+        <!-- Animated white border for Step 1 - appears immediately and stays highlighted -->
+        <rect x="50" y="80" width="200" height="80" rx="12" fill="none" stroke="white" stroke-width="3" opacity="0">
+          <animate attributeName="opacity" values="0;1;1;1;1;1;1;1;1;1;1;1" dur="12s" begin="0s" repeatCount="indefinite"/>
+        </rect>
+        <text x="150" y="110" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#ffffff">
+          1. User Provides
+        </text>
+        <text x="150" y="130" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#bfdbfe">
+          Task Description
+        </text>
+
+        <!-- Step 2: AutoRL Prompt Optimization -->
+        <rect x="320" y="80" width="200" height="80" rx="12" fill="#7c3aed" stroke="#8b5cf6" stroke-width="2"/>
+        <!-- Animated white border for Step 2 - starts appearing 1s after Step 1 and stays highlighted -->
+        <rect x="320" y="80" width="200" height="80" rx="12" fill="none" stroke="white" stroke-width="3" opacity="0">
+          <animate attributeName="opacity" values="0;0;1;1;1;1;1;1;1;1;1;1" dur="12s" begin="0s" repeatCount="indefinite"/>
+        </rect>
+        <text x="420" y="110" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#ffffff">
+          2. AutoRL Optimizes
+        </text>
+        <text x="420" y="130" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#ddd6fe">
+          System Prompt
+        </text>
+
+        <!-- Step 3: Sample Generation -->
+        <rect x="590" y="80" width="200" height="80" rx="12" fill="#059669" stroke="#10b981" stroke-width="2"/>
+        <!-- Animated white border for Step 3 - starts appearing 1s after Step 2 and stays highlighted -->
+        <rect x="590" y="80" width="200" height="80" rx="12" fill="none" stroke="white" stroke-width="3" opacity="0">
+          <animate attributeName="opacity" values="0;0;0;1;1;1;1;1;1;1;1;1" dur="12s" begin="0s" repeatCount="indefinite"/>
+        </rect>
+        <text x="690" y="100" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#ffffff">
+          3. Generate 30 Samples
+        </text>
+        <text x="690" y="120" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#a7f3d0">
+          25 Training Samples
+        </text>
+        <text x="690" y="140" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#a7f3d0">
+          5 Test Samples
+        </text>
+
+        <!-- RL Optimization Loop Container -->
+        <rect x="50" y="220" width="700" height="200" rx="15" fill="none" stroke="#f59e0b" stroke-width="3" stroke-dasharray="8,4"/>
+        <text x="400" y="245" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#fbbf24">
+          4. RL Optimization Loop
+        </text>
+
+        <!-- Qwen 2.5 7B Model -->
+        <rect x="80" y="270" width="180" height="80" rx="10" fill="#dc2626" stroke="#ef4444" stroke-width="2"/>
+        <!-- Animated white border for Qwen - appears 1s after Step 3 and stays highlighted -->
+        <rect x="80" y="270" width="180" height="80" rx="10" fill="none" stroke="white" stroke-width="3" opacity="0">
+          <animate attributeName="opacity" values="0;0;0;0;1;1;1;1;1;1;1;1" dur="12s" begin="0s" repeatCount="indefinite"/>
+        </rect>
+        <text x="170" y="295" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#ffffff">
+          Qwen 2.5 7B
+        </text>
+        <text x="170" y="315" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#fecaca">
+          Base Model
+        </text>
+
+        <!-- ART Training Library -->
+        <rect x="320" y="270" width="180" height="80" rx="10" fill="#ea580c" stroke="#f97316" stroke-width="2"/>
+        <!-- Animated white border for ART - appears simultaneously with Qwen and stays highlighted -->
+        <rect x="320" y="270" width="180" height="80" rx="10" fill="none" stroke="white" stroke-width="3" opacity="0">
+          <animate attributeName="opacity" values="0;0;0;0;1;1;1;1;1;1;1;1" dur="12s" begin="0s" repeatCount="indefinite"/>
+        </rect>
+        <text x="410" y="295" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#ffffff">
+          ART Training
+        </text>
+        <text x="410" y="315" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#fed7aa">
+          Library (RL)
+        </text>
+
+        <!-- Training Data -->
+        <rect x="560" y="270" width="160" height="80" rx="10" fill="#4338ca" stroke="#6366f1" stroke-width="2"/>
+        <!-- Animated white border for Training Data - appears 1s after Qwen/ART and stays highlighted -->
+        <rect x="560" y="270" width="160" height="80" rx="10" fill="none" stroke="white" stroke-width="3" opacity="0">
+          <animate attributeName="opacity" values="0;0;0;0;0;1;1;1;1;1;1;1" dur="12s" begin="0s" repeatCount="indefinite"/>
+        </rect>
+        <text x="640" y="295" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#ffffff">
+          Run Agent
+        </text>
+        <text x="640" y="315" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#c7d2fe">
+          25 Training Samples
+        </text>
+
+        <!-- Step 5: Testing and Comparison -->
+        <rect x="850" y="80" width="280" height="120" rx="12" fill="#0f766e" stroke="#14b8a6" stroke-width="2"/>
+        <!-- Animated white border for Testing - appears 1s after Training Data and stays highlighted -->
+        <rect x="850" y="80" width="280" height="120" rx="12" fill="none" stroke="white" stroke-width="3" opacity="0">
+          <animate attributeName="opacity" values="0;0;0;0;0;0;1;1;1;1;1;1" dur="12s" begin="0s" repeatCount="indefinite"/>
+        </rect>
+        <text x="990" y="110" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#ffffff">
+          5. Test Optimized Model
+        </text>
+        <text x="990" y="135" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#99f6e4">
+          Test on 5 remaining samples
+        </text>
+        <text x="990" y="155" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#99f6e4">
+          Compare performance vs Sonnet 4
+        </text>
+        <text x="990" y="175" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#5eead4">
+          Outperforms Sonnet 4
+        </text>
+
+        <!-- Flow Arrows - Continuously Moving Dashed Lines -->
+        <!-- Step 1 to 2 - Flowing right -->
+        <line x1="250" y1="120" x2="320" y2="120" stroke="#64748b" stroke-width="3" stroke-dasharray="10,5">
+          <animate attributeName="stroke-dashoffset" values="0;-15" dur="1s" repeatCount="indefinite"/>
+        </line>
+
+        <!-- Step 2 to 3 - Flowing right -->
+        <line x1="520" y1="120" x2="590" y2="120" stroke="#64748b" stroke-width="3" stroke-dasharray="10,5">
+          <animate attributeName="stroke-dashoffset" values="0;-15" dur="1s" repeatCount="indefinite"/>
+        </line>
+
+        <!-- Step 3 to RL Loop - REMOVED PER USER REQUEST -->
+
+        <!-- RL Loop Internal Connections -->
+        <!-- First internal arrow - Qwen to ART Training (flowing right) -->
+        <line x1="260" y1="310" x2="320" y2="310" stroke="#fbbf24" stroke-width="2" stroke-dasharray="8,4">
+          <animate attributeName="stroke-dashoffset" values="0;-12" dur="0.8s" repeatCount="indefinite"/>
+        </line>
+        
+        <!-- Second internal arrow - ART Training to Training Data (flowing right) -->
+        <line x1="500" y1="310" x2="560" y2="310" stroke="#fbbf24" stroke-width="2" stroke-dasharray="8,4">
+          <animate attributeName="stroke-dashoffset" values="0;-12" dur="0.8s" repeatCount="indefinite"/>
+        </line>
+
+        <!-- Feedback loop - Training Data back to Qwen (flowing counter-clockwise) -->
+        <path d="M640,350 Q720,380 720,310 Q720,240 640,270" fill="none" stroke="#fbbf24" stroke-width="2" stroke-dasharray="6,3">
+          <animate attributeName="stroke-dashoffset" values="0;9" dur="1.2s" repeatCount="indefinite"/>
+        </path>
+
+        <!-- RL Loop to Testing - Flowing up and right -->
+        <line x1="750" y1="300" x2="850" y2="140" stroke="#64748b" stroke-width="3" stroke-dasharray="10,5">
+          <animate attributeName="stroke-dashoffset" values="0;-15" dur="1s" repeatCount="indefinite"/>
+        </line>
+
+        <!-- Process Flow Labels -->
+        <text x="150" y="200" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#64748b">
+          Input Processing
+        </text>
+        <text x="420" y="200" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#64748b">
+          Prompt Engineering
+        </text>
+        <text x="690" y="200" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#64748b">
+          Data Generation
+        </text>
+        <text x="990" y="220" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#64748b">
+          Performance Validation
+        </text>
+
+        <!-- Loop iteration indicator -->
+        <text x="400" y="390" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#fbbf24">
+          Iterative Optimization Until Convergence
+        </text>
+
+        <!-- Performance Comparison Box -->
+        <rect x="850" y="250" width="280" height="100" rx="10" fill="#0d9488" stroke="#14b8a6" stroke-width="2"/>
+        <text x="990" y="275" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#ffffff">
+          Performance Metrics
+        </text>
+        <text x="990" y="295" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#99f6e4">
+          Accuracy: Optimized &gt; Sonnet 4
+        </text>
+        <text x="990" y="315" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#99f6e4">
+          Task-specific adaptation
+        </text>
+        <text x="990" y="335" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#99f6e4">
+          Reduced inference cost
+        </text>
+
+        <!-- Arrow definitions -->
+        <defs>
+          <!-- Static markers -->
+          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#64748b"/>
+          </marker>
+          <marker id="smallarrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#fbbf24"/>
+          </marker>
+
+          <!-- Sequential animated arrowheads - synchronized with 15s cycle -->
+          <marker id="arrowhead-seq1" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#64748b">
+              <animate attributeName="opacity" values="0;0;1;0;0;0;0;0;0;0" dur="15s" begin="0s" repeatCount="indefinite"/>
+            </polygon>
+          </marker>
+          <marker id="arrowhead-seq2" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#64748b">
+              <animate attributeName="opacity" values="0;0;0;0;1;0;0;0;0;0" dur="15s" begin="0s" repeatCount="indefinite"/>
+            </polygon>
+          </marker>
+          <marker id="arrowhead-seq3" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#64748b">
+              <animate attributeName="opacity" values="0;0;0;0;0;0;0;0;1;0" dur="15s" begin="0s" repeatCount="indefinite"/>
+            </polygon>
+          </marker>
+
+          <!-- Sequential animated small arrows - synchronized with 15s cycle -->
+          <marker id="smallarrow-seq1" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#fbbf24">
+              <animate attributeName="opacity" values="0;0;0;0;0;1;0;0;0;0" dur="15s" begin="0s" repeatCount="indefinite"/>
+            </polygon>
+          </marker>
+          <marker id="smallarrow-seq2" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#fbbf24">
+              <animate attributeName="opacity" values="0;0;0;0;0;0;1;0;0;0" dur="15s" begin="0s" repeatCount="indefinite"/>
+            </polygon>
+          </marker>
+          <marker id="smallarrow-seq3" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#fbbf24">
+              <animate attributeName="opacity" values="0;0;0;0;0;0;0;1;0;0" dur="15s" begin="0s" repeatCount="indefinite"/>
+            </polygon>
+          </marker>
+        </defs>
+
+        <!-- Subtle background pattern -->
+        <defs>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5" opacity="0.3"/>
+          </pattern>
+        </defs>
+        <rect width="1200" height="800" fill="url(#grid)"/>
+      </svg>
