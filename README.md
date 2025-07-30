@@ -23,7 +23,7 @@ Train multi-step agents for real-world tasks using GRPO.
 
 ## 🚀 AutoRL: Train Models for Any Task
 
-<img src="assets/AutoRL_diagram.svg" width="700">
+<img src="assets/AutoRL_diagram.svg" width="7000">
 
 **AutoRL** lets you train a custom model for any single-turn task using just a description—no labeled data required! Simply describe what you want the model to learn in plain English, and AutoRL will automatically generate training inputs, create an appropriate system prompt, and train your model using RULER's automatic evaluation.
 
