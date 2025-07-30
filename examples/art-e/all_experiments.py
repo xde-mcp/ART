@@ -229,3 +229,9 @@ for _size in [1, 4, 16, 64, 256, 1024, 4096]:
     models[key].config.num_epochs = max(
         1, round(1200 * models[key].config.groups_per_step / _size)
     )
+
+# Model 234: Like 206 but with importance_sampling_level="sequence"
+models["234"] = models["206"].model_copy(deep=True)
+models["234"].name = "email-agent-234"
+models["234"].config.importance_sampling_level = "sequence"
+models["234"].config.num_epochs = 10
