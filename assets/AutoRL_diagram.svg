@@ -9,10 +9,8 @@
 
         <!-- Step 1: User Input -->
         <rect x="50" y="80" width="200" height="80" rx="12" fill="#1e40af" stroke="#3b82f6" stroke-width="2"/>
-        <!-- Animated white border for Step 1 - appears immediately and stays highlighted -->
-        <rect x="50" y="80" width="200" height="80" rx="12" fill="none" stroke="white" stroke-width="3" opacity="0">
-          <animate attributeName="opacity" values="0;1;1;1;1;1;1;1;1;1;1;1" dur="12s" begin="0s" repeatCount="indefinite"/>
-        </rect>
+        <!-- Static white border for Step 1 -->
+        <rect x="50" y="80" width="200" height="80" rx="12" fill="none" stroke="white" stroke-width="3"/>
         <text x="150" y="110" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#ffffff">
           1. User Provides
         </text>
@@ -22,10 +20,8 @@
 
         <!-- Step 2: AutoRL Prompt Optimization -->
         <rect x="320" y="80" width="200" height="80" rx="12" fill="#7c3aed" stroke="#8b5cf6" stroke-width="2"/>
-        <!-- Animated white border for Step 2 - starts appearing 1s after Step 1 and stays highlighted -->
-        <rect x="320" y="80" width="200" height="80" rx="12" fill="none" stroke="white" stroke-width="3" opacity="0">
-          <animate attributeName="opacity" values="0;0;1;1;1;1;1;1;1;1;1;1" dur="12s" begin="0s" repeatCount="indefinite"/>
-        </rect>
+        <!-- Static white border for Step 2 -->
+        <rect x="320" y="80" width="200" height="80" rx="12" fill="none" stroke="white" stroke-width="3"/>
         <text x="420" y="110" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#ffffff">
           2. AutoRL Optimizes
         </text>
@@ -35,10 +31,8 @@
 
         <!-- Step 3: Sample Generation -->
         <rect x="590" y="80" width="200" height="80" rx="12" fill="#059669" stroke="#10b981" stroke-width="2"/>
-        <!-- Animated white border for Step 3 - starts appearing 1s after Step 2 and stays highlighted -->
-        <rect x="590" y="80" width="200" height="80" rx="12" fill="none" stroke="white" stroke-width="3" opacity="0">
-          <animate attributeName="opacity" values="0;0;0;1;1;1;1;1;1;1;1;1" dur="12s" begin="0s" repeatCount="indefinite"/>
-        </rect>
+        <!-- Static white border for Step 3 -->
+        <rect x="590" y="80" width="200" height="80" rx="12" fill="none" stroke="white" stroke-width="3"/>
         <text x="690" y="100" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#ffffff">
           3. Generate 30 Samples
         </text>
@@ -57,10 +51,8 @@
 
         <!-- Qwen 2.5 7B Model -->
         <rect x="80" y="270" width="180" height="80" rx="10" fill="#dc2626" stroke="#ef4444" stroke-width="2"/>
-        <!-- Animated white border for Qwen - appears 1s after Step 3 and stays highlighted -->
-        <rect x="80" y="270" width="180" height="80" rx="10" fill="none" stroke="white" stroke-width="3" opacity="0">
-          <animate attributeName="opacity" values="0;0;0;0;1;1;1;1;1;1;1;1" dur="12s" begin="0s" repeatCount="indefinite"/>
-        </rect>
+        <!-- Static white border for Qwen -->
+        <rect x="80" y="270" width="180" height="80" rx="10" fill="none" stroke="white" stroke-width="3"/>
         <text x="170" y="295" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#ffffff">
           Qwen 2.5 7B
         </text>
@@ -70,10 +62,8 @@
 
         <!-- ART Training Library -->
         <rect x="320" y="270" width="180" height="80" rx="10" fill="#ea580c" stroke="#f97316" stroke-width="2"/>
-        <!-- Animated white border for ART - appears simultaneously with Qwen and stays highlighted -->
-        <rect x="320" y="270" width="180" height="80" rx="10" fill="none" stroke="white" stroke-width="3" opacity="0">
-          <animate attributeName="opacity" values="0;0;0;0;1;1;1;1;1;1;1;1" dur="12s" begin="0s" repeatCount="indefinite"/>
-        </rect>
+        <!-- Static white border for ART -->
+        <rect x="320" y="270" width="180" height="80" rx="10" fill="none" stroke="white" stroke-width="3"/>
         <text x="410" y="295" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#ffffff">
           ART Training
         </text>
@@ -83,10 +73,8 @@
 
         <!-- Training Data -->
         <rect x="560" y="270" width="160" height="80" rx="10" fill="#4338ca" stroke="#6366f1" stroke-width="2"/>
-        <!-- Animated white border for Training Data - appears 1s after Qwen/ART and stays highlighted -->
-        <rect x="560" y="270" width="160" height="80" rx="10" fill="none" stroke="white" stroke-width="3" opacity="0">
-          <animate attributeName="opacity" values="0;0;0;0;0;1;1;1;1;1;1;1" dur="12s" begin="0s" repeatCount="indefinite"/>
-        </rect>
+        <!-- Static white border for Training Data -->
+        <rect x="560" y="270" width="160" height="80" rx="10" fill="none" stroke="white" stroke-width="3"/>
         <text x="640" y="295" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#ffffff">
           Run Agent
         </text>
@@ -96,10 +84,8 @@
 
         <!-- Step 5: Testing and Comparison -->
         <rect x="850" y="80" width="280" height="120" rx="12" fill="#0f766e" stroke="#14b8a6" stroke-width="2"/>
-        <!-- Animated white border for Testing - appears 1s after Training Data and stays highlighted -->
-        <rect x="850" y="80" width="280" height="120" rx="12" fill="none" stroke="white" stroke-width="3" opacity="0">
-          <animate attributeName="opacity" values="0;0;0;0;0;0;1;1;1;1;1;1" dur="12s" begin="0s" repeatCount="indefinite"/>
-        </rect>
+        <!-- Static white border for Testing -->
+        <rect x="850" y="80" width="280" height="120" rx="12" fill="none" stroke="white" stroke-width="3"/>
         <text x="990" y="110" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#ffffff">
           5. Test Optimized Model
         </text>
