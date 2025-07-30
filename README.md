@@ -21,32 +21,35 @@ Train multi-step agents for real-world tasks using GRPO.
 
 </div>
 
-## 📏 RULER: Zero-Shot Agent Rewards
+## 📈 Train AI Agents That Actually Get Better
 
-**RULER** (Relative Universal LLM-Elicited Rewards) eliminates the need for hand-crafted reward functions by using an LLM-as-judge to automatically score agent trajectories. Simply define your task in the system prompt, and RULER handles the rest—**no labeled data, expert feedback, or reward engineering required**.
+**Want an AI agent that learns from mistakes instead of just hallucinating?** ART makes it as easy as running a notebook.
 
-✨ **Key Benefits:**
-
-- **2-3x faster development** - Skip reward function engineering entirely
-- **General-purpose** - Works across any task without modification
-- **Strong performance** - Matches or exceeds hand-crafted rewards in 3/4 benchmarks
-- **Easy integration** - Drop-in replacement for manual reward functions
+✨ **No PhD required** - If you can `pip install`, you can train agents  
+🚀 **See results fast** - Watch your agent improve in real-time  
+🎮 **Start simple** - Learn with games, then build real tools
 
 ```python
-# Before: Hours of reward engineering
-def complex_reward_function(trajectory):
-    # 50+ lines of careful scoring logic...
-    pass
+# pip install openpipe-art
 
-# After: One line with RULER
-judged_group = await ruler_score_group(group, "openai/o3")
+import art
+
+model = art.TrainableModel("my-agent", "Qwen/Qwen2.5-14B-Instruct")
+# ... your agent code ...
+await model.train()  # Agent gets smarter automatically 🧠
 ```
 
-[📖 Learn more about RULER →](https://art.openpipe.ai/fundamentals/ruler)
+**⭐ Like this?** Star us! Our devs run on GitHub stars and caffeine.
+
+[🚀 Try in 5 minutes →](https://colab.research.google.com/github/openpipe/art/blob/main/examples/2048/2048.ipynb)
 
 ## ART Overview
 
-ART is an open-source RL framework that improves agent reliability by allowing LLMs to **learn from experience**. ART provides an ergonomic harness for integrating GRPO into any python application. For a quick hands-on introduction, run one of the notebooks below. When you're ready to learn more, check out the [docs](https://art.openpipe.ai).
+**New to reinforcement learning, GRPO, or LLM agents?** ART is designed to be your perfect starting point. While many RL frameworks require deep expertise in complex algorithms, ART makes production-grade agent training accessible to developers at any level.
+
+ART is an open-source RL framework that improves agent reliability by allowing LLMs to **learn from experience**. Whether you're a seasoned ML engineer or just getting started with agent development, ART provides an ergonomic harness for integrating GRPO into any Python application—no PhD in RL required.
+
+**Start learning immediately:** Run one of our [interactive notebooks](#-notebooks) below to see real agents improve in minutes, not hours. When you're ready to dive deeper, our comprehensive [documentation](https://art.openpipe.ai) will guide you through every concept.
 
 ## 📒 Notebooks
 
@@ -59,12 +62,24 @@ ART is an open-source RL framework that improves agent reliability by allowing L
 | **Codenames**      | [🏋️ Train agent](https://colab.research.google.com/github/openpipe/art/blob/main/examples/codenames/Codenames_RL.ipynb)      | Qwen 2.5 3B learns to play Codenames            | <img src="https://github.com/openpipe/art/raw/main/assets/benchmarks/codenames/win_rate_over_time.png" height="72"> [benchmarks](/examples/codenames/Codenames_RL.ipynb)                            |
 | **AutoRL [RULER]** | [🏋️ Train agent](https://colab.research.google.com/github/openpipe/art/blob/main/examples/auto_rl.ipynb)                     | Train Qwen 2.5 7B to master any task            | [Link coming soon]                                                                                                                                                                                  |
 
-## Why ART?
+## Why ART is Perfect for Beginners
 
-- ART provides convenient wrappers for introducing RL training into **existing applications**. We abstract the training server into a modular service that your code doesn't need to interface with.
-- **Train from anywhere.** Run the ART client on your laptop and let the ART server kick off an ephemeral GPU-enabled environment, or run on a local GPU.
-- Integrations with hosted platforms like W&B, Langfuse, and OpenPipe provide flexible observability and **simplify debugging**.
-- ART is customizable with **intelligent defaults**. You can configure training parameters and inference engine configurations to meet specific needs, or take advantage of the defaults, which have been optimized for training efficiency and stability.
+**🎯 Learn by doing, not theory.** Skip months of reading papers and dive straight into training real agents. Our notebooks let you see concrete results in under 30 minutes—the same techniques used by production teams at top AI companies.
+
+**🚀 Production-ready from day one.** Unlike academic frameworks, ART is built for real applications. Learn the exact same patterns and tools that power agents in production environments, so your skills transfer immediately to professional work.
+
+**🛡️ Beginner-friendly with expert depth.** Start with our intelligent defaults that "just work," then gradually customize as you learn. ART grows with you—from your first agent to scaling multi-agent systems.
+
+**💡 Real-world learning path:**
+
+- **Week 1:** Train your first game-playing agent (2048, Tic-Tac-Toe)
+- **Week 2:** Build practical tools (email search, code assistance)
+- **Week 3:** Master advanced techniques (RULER rewards, multi-step planning)
+- **Beyond:** Apply to your own projects with production-grade infrastructure
+
+**⚡ Instant gratification:** Watch your agents improve in real-time with visual progress tracking—no more wondering if your training is working.
+
+**🔧 Professional tooling:** Integrations with W&B, Langfuse, and OpenPipe provide the same observability and debugging tools used by AI teams at scale.
 
 ## Installation
 
