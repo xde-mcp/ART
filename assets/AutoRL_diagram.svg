@@ -1,6 +1,6 @@
-<svg id="visualization" width="1200" height="800" viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+<svg id="visualization" width="1160" height="450" viewBox="0 0 1160 450" xmlns="http://www.w3.org/2000/svg">
         <!-- Background -->
-        <rect width="1200" height="800" fill="#0a0e27"/>
+        <rect width="1160" height="450" fill="#0a0e27"/>
 
         <!-- Title -->
         <text x="600" y="40" font-family="Arial, sans-serif" font-size="28" font-weight="bold" text-anchor="middle" fill="#e2e8f0">
@@ -232,5 +232,5 @@
             <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5" opacity="0.3"/>
           </pattern>
         </defs>
-        <rect width="1200" height="800" fill="url(#grid)"/>
+        <rect width="1160" height="450" fill="url(#grid)"/>
       </svg>
