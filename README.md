@@ -49,7 +49,7 @@ Convert informal bug reports into structured JIRA-style tickets with these secti
 # AutoRL handles the rest!
 ```
 
-[🏋️ Try AutoRL now →](examples/auto_rl.ipynb) | [📖 Learn more about RULER →](https://art.openpipe.ai/fundamentals/ruler)
+[🏋️ Try AutoRL now →](https://colab.research.google.com/github/openpipe/art/blob/main/examples/auto_rl.ipynb) | [📖 Learn more about RULER →](https://art.openpipe.ai/fundamentals/ruler)
 
 Built by
 [@mattshumer\_](https://x.com/mattshumer_)
