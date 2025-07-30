@@ -21,7 +21,7 @@ Train multi-step agents for real-world tasks using GRPO.
 
 </div>
 
-## 📈 Train AI Agents That Actually Get Better
+## 📈 Train AI Agents That Learn From Experience
 
 **Want an AI agent that learns from mistakes instead of just hallucinating?** ART makes it as easy as running a notebook.
 
