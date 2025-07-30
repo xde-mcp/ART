@@ -61,29 +61,15 @@ models["014"].config.stupid_simple_reward_fn = True
 models["201"] = models["008"].model_copy(deep=True)
 models["201"].name = "email-agent-201"
 
-# Model 202: like 008 but with judge-group rescoring during training
-models["202"] = models["008"].model_copy(deep=True)
-models["202"].name = "email-agent-202"
-# Enable the new flag
-models["202"].config.use_judge_group_variant = "v1"
-
-# Model 204: like 202 but with judge-group rescoring variant v2
-models["204"] = models["202"].model_copy(deep=True)
-models["204"].name = "email-agent-204"
-# Enable the v2 flag
-models["204"].config.use_judge_group_variant = "v2"
-
-# Model 205: like 204 but using Gemini 2.5 Flash as the judge-group model
-models["205"] = models["204"].model_copy(deep=True)
+# Model 205: like 201 but using Gemini 2.5 Flash as the judge-group model
+models["205"] = models["201"].model_copy(deep=True)
 models["205"].name = "email-agent-205"
 # Set the judge group model
-models["205"].config.group_judge_model = "gemini/gemini-2.5-flash"
+models["205"].config.ruler_judge_model = "gemini/gemini-2.5-flash"
 
-# Model 206: like 204 but using Qwen3 32B as the judge-group model
-models["206"] = models["204"].model_copy(deep=True)
+models["206"] = models["008"].model_copy(deep=True)
 models["206"].name = "email-agent-206"
-# Set the judge group model
-models["206"].config.group_judge_model = "openrouter/qwen/qwen3-32b"
+models["206"].config.ruler_judge_model = "openrouter/qwen/qwen3-32b"
 
 # Model 207: like 205 but only uses 12 training examples total
 models["207"] = models["205"].model_copy(deep=True)
@@ -125,15 +111,12 @@ for _seed in [1, 2, 3]:
     # Set the seed
     models[key].config.training_dataset_seed = _seed
 
-models["211"] = models["206"].model_copy(deep=True)
-models["211"].name = "email-agent-211"
-
 models["212"] = models["206"].model_copy(deep=True)
 models["212"].name = "email-agent-212-30"
 
 models["213"] = models["206"].model_copy(deep=True)
 models["213"].name = "email-agent-213"
-models["213"].config.group_judge_model = "openai/o3"
+models["213"].config.ruler_judge_model = "openai/o3"
 
 models["215"] = models["008"].model_copy(deep=True)
 models["215"].name = "email-agent-215"
@@ -150,7 +133,7 @@ models["217"].config.include_qwen3_nothink = True
 models["218"] = models["206"].model_copy(deep=True)
 models["218"].name = "email-agent-218-5"
 models["218"].base_model = "Qwen/Qwen3-32B"
-models["218"].config.group_judge_model = "base_model"
+models["218"].config.ruler_judge_model = "base_model"
 models["218"].config.include_qwen3_nothink = True
 
 # Model 219: like 008 but with custom internal config (low max_grad_norm) and high learning rate
@@ -185,7 +168,7 @@ models["222"]._internal_config = art.dev.InternalModelConfig(
         num_scheduler_steps=1,
     )
 )
-models["222"].config.group_judge_model = "base_model"
+models["222"].config.ruler_judge_model = "base_model"
 models["222"].config.include_qwen3_nothink = True
 
 models["223"] = models["206"].model_copy(deep=True)
@@ -205,3 +188,50 @@ models["224"].config.num_epochs = 6
 
 models["225"] = models["224"].model_copy(deep=True)
 models["225"].name = "email-agent-225"
+
+# Model 229: Fork from 224 not after step 1381
+models["229"] = models["224"].model_copy(deep=True)
+models["229"].name = "email-agent-229"
+models["229"].config.fork_from_model = "email-agent-224"
+models["229"].config.fork_not_after_step = 1381
+
+# Model 230: Fork from 206 not after step 90
+models["230"] = models["206"].model_copy(deep=True)
+models["230"].name = "email-agent-230"
+models["230"].config.fork_from_model = "email-agent-206"
+models["230"].config.fork_not_after_step = 90
+
+# Model 231: Like 206 but with scale_rewards=False
+models["231"] = models["206"].model_copy(deep=True)
+models["231"].name = "email-agent-231"
+models["231"].config.scale_rewards = False
+models["231"].config.num_epochs = 10
+
+models["232"] = models["008"].model_copy(deep=True)
+models["232"].name = "email-agent-232"
+models["232"].config.scale_rewards = False
+
+# Model 233-* sweep: based on 231 but varying training_dataset_size across powers of 4
+# Generates models 233-1, 233-4, 233-16, 233-64, 233-256, 233-1024, 233-4096
+for _size in [1, 4, 16, 64, 256, 1024, 4096]:
+    key = f"233-{_size}"
+    models[key] = models["206"].model_copy(deep=True)
+    models[key].config.scale_rewards = False
+    models[key].name = f"ea-{key}"
+    # Set the dataset size
+    models[key].config.training_dataset_size = _size
+    # For very small datasets, match groups_per_step to the dataset size (<=16)
+    if _size <= 16:
+        models[key].config.groups_per_step = _size
+    # Compute num_epochs so that total training steps ~= 1200.
+    # Approximation: total_steps ≈ num_epochs * (training_dataset_size / groups_per_step)
+    # => num_epochs ≈ 1200 * groups_per_step / training_dataset_size
+    models[key].config.num_epochs = max(
+        1, round(1200 * models[key].config.groups_per_step / _size)
+    )
+
+# Model 234: Like 206 but with importance_sampling_level="sequence"
+models["234"] = models["206"].model_copy(deep=True)
+models["234"].name = "email-agent-234"
+models["234"].config.importance_sampling_level = "sequence"
+models["234"].config.num_epochs = 10
