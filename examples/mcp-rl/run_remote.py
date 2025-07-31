@@ -31,7 +31,7 @@ parser.add_argument(
 parser.add_argument(
     "command",
     nargs=argparse.REMAINDER,
-    help="Python module path (and optional arguments) to execute remotely, e.g. 'art_mcp.benchmarks.generate_benchmarks'.",
+    help="Python module path (and optional arguments) to execute remotely, e.g. 'mcp_rl.benchmarks.generate_benchmarks'.",
 )
 
 args = parser.parse_args()
