@@ -28,6 +28,7 @@ dependencies = [
     "accelerate==1.7.0",
     "setproctitle",
     "weave",
+    "transformers==4.51.3",
 ]
 
 [project.scripts]

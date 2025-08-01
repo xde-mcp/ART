@@ -1,6 +1,5 @@
 import openai
 from openai import AsyncStream
-from openai._streaming import AsyncStream
 from openai.types.chat.chat_completion import ChatCompletion, Choice, ChoiceLogprobs
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from openai.types.chat.chat_completion_message import (
@@ -11,7 +10,7 @@ from openai.types.chat.chat_completion_message_tool_call import (
     ChatCompletionMessageToolCall,
     Function,
 )
-from typing import Any, Callable
+from typing import Any, AsyncIterator, Callable, cast
 
 from .gather import get_gather_context
 
@@ -32,10 +31,10 @@ def patch_openai(client: openai.AsyncOpenAI) -> openai.AsyncOpenAI:
             kwargs["stream"] = True
             kwargs["stream_options"] = {"include_usage": True}
         return_value = await create(*args, **kwargs)
-        if isinstance(return_value, ChatCompletion):
+        if not isinstance(return_value, AsyncIterator):
             report_usage(return_value)
             return return_value
-        assert isinstance(return_value, AsyncStream)
+        return_value = cast(AsyncStream[ChatCompletionChunk], return_value)
         if return_stream:
             return return_value
 
@@ -131,7 +130,7 @@ async def consume_chat_completion_stream(
                 if choice.message.tool_calls is None:
                     choice.message.tool_calls = []
                 for tool_call in chunk_choice.delta.tool_calls:
-                    while not tool_call.index in range(len(choice.message.tool_calls)):
+                    while tool_call.index not in range(len(choice.message.tool_calls)):
                         choice.message.tool_calls.append(
                             ChatCompletionMessageToolCall(
                                 id="",
@@ -143,9 +142,9 @@ async def consume_chat_completion_stream(
                         choice.message.tool_calls[tool_call.index].id = tool_call.id
                     if tool_call.function:
                         if tool_call.function.name:
-                            choice.message.tool_calls[tool_call.index].function.name = (
-                                tool_call.function.name
-                            )
+                            choice.message.tool_calls[
+                                tool_call.index
+                            ].function.name = tool_call.function.name
                         if tool_call.function.arguments:
                             choice.message.tool_calls[
                                 tool_call.index
