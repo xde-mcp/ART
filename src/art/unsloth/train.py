@@ -9,7 +9,7 @@ from typing import cast, Callable, TYPE_CHECKING
 
 from .. import dev
 from ..types import TrainConfig
-from ..utils import group_aggregate
+from ..utils.group_aggregate import group_aggregate
 
 if TYPE_CHECKING:
     from .service import TrainInputs
