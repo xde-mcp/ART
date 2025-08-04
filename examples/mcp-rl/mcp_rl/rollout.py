@@ -4,6 +4,7 @@ This module provides a rollout function for running MCP agents with scenarios.
 Based on the art-e rollout.py structure.
 """
 
+from openai import AsyncOpenAI
 import art
 import json
 import logging
@@ -141,7 +142,10 @@ async def rollout(
                     try:
                         # Get LLM response
                         async with traj.track_duration("llm_completion"):
-                            client = model.openai_client()
+                            client = AsyncOpenAI(
+                                api_key=model.inference_api_key,
+                                base_url=model.inference_base_url,
+                            )
 
                             response = await client.chat.completions.create(
                                 model=model.inference_model_name

@@ -66,8 +66,13 @@ async def calculate_beat_comp(
                         judge_model="openai/o4-mini",
                         debug=True,
                     )
-                    benchmark_score = scored_group.trajectories[0].reward
-                    control_score = scored_group.trajectories[1].reward
+
+                    if control_first:
+                        control_score = scored_group.trajectories[0].reward
+                        benchmark_score = scored_group.trajectories[1].reward
+                    else:
+                        benchmark_score = scored_group.trajectories[0].reward
+                        control_score = scored_group.trajectories[1].reward
 
                     reward_diff = benchmark_score - control_score
 

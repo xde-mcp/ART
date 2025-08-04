@@ -14,7 +14,7 @@ class McpPolicyConfig(BaseModel):
     # Training configuration fields
     trajectories_per_group: int = 7
     groups_per_step: int = 4
-    learning_rate: float = 5e-8
+    learning_rate: float = 1e-6
     eval_steps: int = 1
     val_set_size: int = 8
     training_dataset_size: int = 16
@@ -66,6 +66,10 @@ models["mcp-14b-alpha-002"].name = "mcp-14b-alpha-002"
 models["mcp-14b-alpha-003"] = models["mcp-14b-alpha-001"].model_copy(deep=True)
 models["mcp-14b-alpha-003"].name = "mcp-14b-alpha-003"
 
+
+models["mcp-14b-alpha-004"] = models["mcp-14b-alpha-001"].model_copy(deep=True)
+models["mcp-14b-alpha-004"].name = "mcp-14b-alpha-004"
+models["mcp-14b-alpha-004"].config.learning_rate = 1e-6
 
 # Model using balldontlie server
 models["mcp-14b-ball-001"] = models["mcp-7b-001"].model_copy(deep=True)
