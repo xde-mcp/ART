@@ -14,5 +14,5 @@ examples/art-e/data/
 replays/
 trajectories/
 .DS_Store
-.git/
+# .git/
 # .local/
