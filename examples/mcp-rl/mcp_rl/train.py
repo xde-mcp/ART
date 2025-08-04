@@ -24,14 +24,6 @@ except ImportError:
     models = {}
 
 
-gpt_4o = art.Model(
-    name="gpt-4o",
-    project="mcp-agent-training",
-    inference_model_name="gpt-4o",
-    inference_api_key=os.getenv("OPENAI_API_KEY"),
-    inference_base_url="https://api.openai.com/v1",
-)
-
 if os.getenv("WANDB_API_KEY"):
     print("Initializing Weave")
     weave.init("mcp-agent-training")
@@ -40,6 +32,14 @@ if os.getenv("WANDB_API_KEY"):
 async def train_mcp_agent(model: art.TrainableModel, use_skypilot: bool = False):
     """Example training function that creates AlphaMcpServer and passes it in scenarios."""
     load_dotenv()
+
+    gpt_4o = art.Model(
+        name="gpt-4o",
+        project=model.project,
+        inference_model_name="gpt-4o",
+        inference_api_key=os.getenv("OPENAI_API_KEY"),
+        inference_base_url="https://api.openai.com/v1",
+    )
 
     # Get configuration from model config or use defaults
     config = getattr(model, "config", None)
@@ -161,7 +161,8 @@ async def train_mcp_agent(model: art.TrainableModel, use_skypilot: bool = False)
         if batch.step % eval_steps == 0:
             print("starting comparison val gather")
             val_groups = await generate_val_groups(model, val_scenarios)
-            await calculate_beat_comp(val_groups, control_groups)
+            await calculate_beat_comp(val_groups, control_groups, control_first=True)
+            await calculate_beat_comp(val_groups, control_groups, control_first=False)
 
             await model.log(val_groups, split="val")
 

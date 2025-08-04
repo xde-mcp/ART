@@ -1,16 +1,16 @@
-{"task": "For a day trader view, obtain both the real-time stock quote and historical daily data for IBM using get_stock_quote and get_time_series_daily tools.", "difficulty": 3}
-{"task": "Obtain the company overview and fundamental data for Tesla (TSLA) using the get_company_overview tool.", "difficulty": 1}
-{"task": "Calculate the 30-day Simple Moving Average (SMA) for Netflix (NFLX) using daily closing prices with the get_sma tool.", "difficulty": 2}
-{"task": "Analyze IBM's business profile for a long-term investment by retrieving its company overview using the get_company_overview tool.", "difficulty": 2}
-{"task": "For academic research, aggregate daily time series data for stocks like Apple (AAPL), Microsoft (MSFT), and Amazon (AMZN) to study market trends.", "difficulty": 5}
-{"task": "Fetch the 14-day Relative Strength Index (RSI) for Amazon (AMZN) on a daily interval using the get_rsi tool.", "difficulty": 2}
-{"task": "Retrieve Oracle's (ORCL) daily time series data and compute its 30-day SMA using closing prices to assess price trends.", "difficulty": 3}
-{"task": "Generate an analysis report for Moderna (MRNA) by retrieving its daily time series data and calculating the 14-day RSI to support investment decisions.", "difficulty": 3}
-{"task": "Analyze Netflix's (NFLX) longer-term performance by retrieving its weekly RSI using the get_rsi tool.", "difficulty": 3}
-{"task": "Perform a technical analysis for Microsoft (MSFT) by comparing its current stock price with its 30-day SMA and 14-day RSI to assess momentum.", "difficulty": 4}
-{"task": "Search for stock symbols in the pharmaceutical sector using the keyword 'pharma' with the search_symbol tool to explore investment opportunities.", "difficulty": 2}
-{"task": "Conduct market research on biotech companies by first searching for symbols with the keyword 'biotech' using search_symbol, then selecting one to retrieve its company overview using get_company_overview.", "difficulty": 5}
-{"task": "Analyze volatility in the tech sector by retrieving daily time series data and computing the RSI for both Apple (AAPL) and Microsoft (MSFT).", "difficulty": 5}
-{"task": "Perform an in-depth technical analysis for Amazon (AMZN) by comparing its current stock price with its daily SMA and daily RSI to assess overall performance.", "difficulty": 5}
-{"task": "Get the current real-time stock price for Apple (AAPL) using the get_stock_quote tool.", "difficulty": 1}
-{"task": "Retrieve the daily time series data for Microsoft (MSFT) with the latest 100 data points using the get_time_series_daily tool.", "difficulty": 1}
+{"task": "Calculate the daily Simple Moving Average (SMA) for Apple (AAPL) using the closing price, and generate a summary of the work done and a thorough analysis and report of the results.", "difficulty": 2}
+{"task": "Fetch the current stock quote for Apple (AAPL) and generate a summary of the work done and a thorough analysis and report of the results.", "difficulty": 1}
+{"task": "Fetch the real-time stock quote for Alibaba (BABA) and then retrieve its company overview, generating a summary of the work done and a thorough analysis and report of the results.", "difficulty": 3}
+{"task": "Perform a comprehensive technical analysis on Apple (AAPL) by retrieving both the daily SMA and daily RSI, then generate a summary of the work done and a thorough analysis and report of the results.", "difficulty": 4}
+{"task": "Search for stock symbols using the keyword 'Google', then retrieve the company overview for the most relevant result and generate a summary of the work done and a thorough analysis and report of the results.", "difficulty": 3}
+{"task": "Retrieve the daily time series and calculate the daily SMA for Oracle (ORCL), then generate a summary of the work done and a thorough analysis and report of the results.", "difficulty": 3}
+{"task": "Retrieve the daily time series data for Nvidia (NVDA) and generate a summary of the work done and a thorough analysis and report of the results examining historical performance against market conditions.", "difficulty": 3}
+{"task": "Fetch the current stock quote and daily time series for Microsoft (MSFT), and generate a summary of the work done and a thorough analysis and report of the results comparing real-time data with historical trends.", "difficulty": 3}
+{"task": "Obtain the current stock quote for Amazon (AMZN) and generate a summary of the work done and a thorough analysis and report of the results.", "difficulty": 1}
+{"task": "Calculate the 15-minute interval SMA for Tesla (TSLA) and generate a summary of the work done and a thorough analysis and report of the results.", "difficulty": 3}
+{"task": "Obtain the company overview for Alphabet (GOOGL) and generate a summary of the work done and a thorough analysis and report of the results.", "difficulty": 1}
+{"task": "Fetch the default daily RSI for Apple (AAPL) and generate a summary of the work done and a thorough analysis and report of the results.", "difficulty": 1}
+{"task": "For Tesla (TSLA), fetch the daily SMA, daily RSI, and company overview, then compile a detailed report that includes a summary of the work done and a thorough analysis and report of the results.", "difficulty": 5}
+{"task": "Fetch the weekly RSI for Netflix (NFLX) and generate a summary of the work done and a thorough analysis and report of the results.", "difficulty": 2}
+{"task": "Search for stock symbols with the keyword 'MegaCorp', then retrieve the company overview for the best match and generate a summary of the work done and a thorough analysis and report of the results.", "difficulty": 3}
+{"task": "Retrieve the daily time series data for Microsoft (MSFT) and generate a summary of the work done and a thorough analysis and report of the results.", "difficulty": 2}

@@ -12,61 +12,19 @@ import argparse
 from art.rewards.ruler import ruler_score_group
 
 from ..rollout import McpScenario, rollout
-from servers.python.mcp_alphavantage.server_params import server_params as alphavantage_server_params
-from servers.python.mcp_balldontlie.server_params import server_params as balldontlie_server_params
+from servers.python.mcp_alphavantage.server_params import (
+    server_params as alphavantage_server_params,
+)
+from servers.python.mcp_balldontlie.server_params import (
+    server_params as balldontlie_server_params,
+)
 
 load_dotenv()
 
 random.seed(42)
 
-weave.init("mcp-agent-training")
-
 # Initialize the server
 backend = LocalBackend()
-
-# comparison models
-gpt_4o_mini = art.Model(
-    name="gpt-4o-mini",
-    project="mcp-agent-training",
-    inference_model_name="openai/gpt-4o-mini",
-    inference_base_url="https://openrouter.ai/api/v1",
-    inference_api_key=os.getenv("OPENROUTER_API_KEY"),
-)
-gpt_4o = art.Model(
-    name="gpt-4o",
-    project="mcp-agent-training",
-    inference_model_name="openai/gpt-4o",
-    inference_base_url="https://openrouter.ai/api/v1",
-    inference_api_key=os.getenv("OPENROUTER_API_KEY"),
-)
-gpt_41 = art.Model(
-    name="gpt-4.1",
-    project="mcp-agent-training",
-    inference_model_name="openai/gpt-4.1",
-    inference_base_url="https://openrouter.ai/api/v1",
-    inference_api_key=os.getenv("OPENROUTER_API_KEY"),
-)
-o3 = art.Model(
-    name="o3",
-    project="mcp-agent-training",
-    inference_model_name="o3",
-    inference_base_url="https://api.openai.com/v1",
-    inference_api_key=os.getenv("OPENAI_API_KEY"),
-)
-o4_mini = art.Model(
-    name="o4-mini",
-    project="mcp-agent-training",
-    inference_model_name="o4-mini",
-    inference_base_url="https://api.openai.com/v1",
-    inference_api_key=os.getenv("OPENAI_API_KEY"),
-)
-sonnet_4 = art.Model(
-    name="sonnet-4",
-    project="mcp-agent-training",
-    inference_model_name="anthropic/claude-sonnet-4",
-    inference_base_url="https://openrouter.ai/api/v1",
-    inference_api_key=os.getenv("OPENROUTER_API_KEY"),
-)
 
 
 async def generate_val_groups(
@@ -85,18 +43,21 @@ async def generate_val_groups(
 
 
 async def calculate_beat_comp(
-    groups: list[art.TrajectoryGroup], control_groups: list[art.TrajectoryGroup]
+    groups: list[art.TrajectoryGroup],
+    control_groups: list[art.TrajectoryGroup],
+    control_first: bool = True,
 ):
     promises = []
 
     if control_groups is not None:
         for i in range(len(groups)):
             for j in range(len(groups[i].trajectories)):
+                trajectories = [
+                    control_groups[i].trajectories[j],
+                    groups[i].trajectories[j],
+                ]
                 group = art.TrajectoryGroup(
-                    [
-                        groups[i].trajectories[j],
-                        control_groups[i].trajectories[j],
-                    ]
+                    trajectories if control_first else reversed(trajectories)
                 )
 
                 async def score_group(group_idx: int, trajectory_idx: int):
@@ -110,17 +71,21 @@ async def calculate_beat_comp(
 
                     reward_diff = benchmark_score - control_score
 
+                    metric_name = (
+                        "beat_comp" if control_first else "beat_comp_control_last"
+                    )
+
                     if reward_diff > 0.1:
                         groups[group_idx].trajectories[trajectory_idx].metrics[
-                            "beat_comp"
+                            metric_name
                         ] = 1
                     elif reward_diff < -0.1:
                         groups[group_idx].trajectories[trajectory_idx].metrics[
-                            "beat_comp"
+                            metric_name
                         ] = 0
                     else:
                         groups[group_idx].trajectories[trajectory_idx].metrics[
-                            "beat_comp"
+                            metric_name
                         ] = 0.5
 
                 promises.append(score_group(i, j))
@@ -136,7 +101,8 @@ async def log_comparison_model(
     groups = await generate_val_groups(comparison_model, val_scenarios)
 
     if control_groups is not None:
-        await calculate_beat_comp(groups, control_groups)
+        await calculate_beat_comp(groups, control_groups, control_first=True)
+        await calculate_beat_comp(groups, control_groups, control_first=False)
 
     await comparison_model.log(
         groups,
@@ -157,8 +123,56 @@ async def run_benchmarks(server: str = "mcp_alphavantage"):
         scenarios_path = "servers/python/mcp_balldontlie/scenarios/val.jsonl"
         server_params = balldontlie_server_params
     else:
-        raise ValueError(f"Unsupported server: {server}. Use 'mcp_alphavantage' or 'mcp_balldontlie'")
-    
+        raise ValueError(
+            f"Unsupported server: {server}. Use 'mcp_alphavantage' or 'mcp_balldontlie'"
+        )
+
+    weave.init(server)
+
+    # comparison models
+    gpt_4o_mini = art.Model(
+        name="gpt-4o-mini",
+        project=server,
+        inference_model_name="openai/gpt-4o-mini",
+        inference_base_url="https://openrouter.ai/api/v1",
+        inference_api_key=os.getenv("OPENROUTER_API_KEY"),
+    )
+    gpt_4o = art.Model(
+        name="gpt-4o",
+        project=server,
+        inference_model_name="openai/gpt-4o",
+        inference_base_url="https://openrouter.ai/api/v1",
+        inference_api_key=os.getenv("OPENROUTER_API_KEY"),
+    )
+    gpt_41 = art.Model(
+        name="gpt-4.1",
+        project=server,
+        inference_model_name="openai/gpt-4.1",
+        inference_base_url="https://openrouter.ai/api/v1",
+        inference_api_key=os.getenv("OPENROUTER_API_KEY"),
+    )
+    o3 = art.Model(
+        name="o3",
+        project=server,
+        inference_model_name="o3",
+        inference_base_url="https://api.openai.com/v1",
+        inference_api_key=os.getenv("OPENAI_API_KEY"),
+    )
+    o4_mini = art.Model(
+        name="o4-mini",
+        project=server,
+        inference_model_name="o4-mini",
+        inference_base_url="https://api.openai.com/v1",
+        inference_api_key=os.getenv("OPENAI_API_KEY"),
+    )
+    sonnet_4 = art.Model(
+        name="sonnet-4",
+        project=server,
+        inference_model_name="anthropic/claude-sonnet-4",
+        inference_base_url="https://openrouter.ai/api/v1",
+        inference_api_key=os.getenv("OPENROUTER_API_KEY"),
+    )
+
     with open(scenarios_path) as f:
         raw_val_scenarios = [json.loads(line.strip()) for line in f if line.strip()]
     val_scenarios = [
@@ -195,8 +209,8 @@ if __name__ == "__main__":
         "--server",
         choices=["mcp_alphavantage", "mcp_balldontlie"],
         default="mcp_alphavantage",
-        help="MCP server to benchmark (default: mcp_alphavantage)"
+        help="MCP server to benchmark (default: mcp_alphavantage)",
     )
     args = parser.parse_args()
-    
+
     asyncio.run(run_benchmarks(args.server))
