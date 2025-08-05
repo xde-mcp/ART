@@ -58,6 +58,22 @@ packages = ["src/art", "src/mp_actors"]
 [tool.hatch.build]
 sources = ["src"]
 
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "/dev",
+  "/wandb", 
+  "/.art",
+  "/.ruff_cache",
+  "/.venv",
+  "/dist",
+  "/.git",
+  "/.github",
+  "/examples/*/data",
+  "/examples/*/wandb",
+  "**/__pycache__",
+  "**/*.pyc",
+]
+
 [tool.uv]
 required-version = ">=0.6.15"
 dev-dependencies = [
