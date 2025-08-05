@@ -153,7 +153,7 @@ async def rollout(
                                 else model.name,
                                 messages=traj.messages(),
                                 tools=tool_schemas,
-                                max_completion_tokens=4000,
+                                max_completion_tokens=8000,
                             )
 
                         choice = response.choices[0]
