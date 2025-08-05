@@ -298,13 +298,9 @@ async def rollout(
             rubric.ran_out_of_turns = True
             break
 
-        # TODO: REMOVE!! THIS IS JUST FOR DEBUGGING
-        litellm_params = model.litellm_completion_params()
-        litellm_params["temperature"] = 0
-
         async with traj.track_duration("llm_completion"):
             llm_response = await acompletion(
-                **litellm_params,
+                **model.litellm_completion_params(),
                 messages=traj.messages(),
                 caching=not model.trainable,
                 max_completion_tokens=model.config.max_tokens,
