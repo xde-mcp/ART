@@ -54,9 +54,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Find and publish the draft release
-          DRAFT_ID=$(gh release list --json id,isDraft,tagName | jq -r '.[] | select(.isDraft == true and .tagName == "v${{ steps.get_version.outputs.VERSION }}") | .id')
-          if [ -n "$DRAFT_ID" ]; then
+          # Check if draft release exists and publish it
+          if gh release view v${{ steps.get_version.outputs.VERSION }} --json isDraft | jq -r '.isDraft' | grep -q true; then
             gh release edit v${{ steps.get_version.outputs.VERSION }} --draft=false
           else
             echo "::error::No draft release found for v${{ steps.get_version.outputs.VERSION }}"
