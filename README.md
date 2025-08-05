@@ -27,8 +27,8 @@ Train multi-step agents for real-world tasks using GRPO.
 
 **MCP•RL** enables you to train agents to effectively use any MCP (Model Context Protocol) server with minimal setup. Simply provide a server URL and MCP•RL will:
 
-1. Automatically discover available functionality
-2. Create input tasks that utilize those tools
+1. Automatically discover server tools
+2. Design input tasks that utilize those tools
 3. Train the model to improve performance on the MCP server using RULER
 4. Test on new tasks to validate the trained model
 
