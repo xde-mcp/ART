@@ -23,7 +23,7 @@ Train multi-step agents for real-world tasks using GRPO.
 
 ## 🔌 MCP•RL: Teach your agents to master MCP
 
-<img src="assets/MCP_RL_diagram.svg" width="700">
+<img src="assets/MCP_RL_diagram.svg" width="7000">
 
 **MCP•RL** enables you to train agents to effectively use any MCP (Model Context Protocol) server with minimal setup. Simply provide an MCP server URL and MCP•RL will automatically:
 
