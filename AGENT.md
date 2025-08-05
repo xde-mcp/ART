@@ -12,7 +12,7 @@ This project uses the `uv` package manager.
 
 ## Releases
 
-- If asked to help with a release, refer to the checklist in CONTRIBUTING.md
+- If asked to help with a release, refer to the checklist in CONTRIBUTING.md. Be sure to first share a draft of the release notes with the user before actually publishing the release to GitHub.
 
 ## Documentation
 
