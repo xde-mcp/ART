@@ -148,6 +148,12 @@ def get_compute_loss_fn(trainer: "GRPOTrainer") -> Callable[..., torch.Tensor]:
         epsilon_high = _config.get("epsilon_high", epsilon)
         if epsilon_high is None:
             epsilon_high = epsilon
+        if max_negative_advantage_importance_sampling_weight := _config.get(
+            "max_negative_advantage_importance_sampling_weight", None
+        ):
+            prob_ratio = torch.clamp(
+                prob_ratio, max=max_negative_advantage_importance_sampling_weight
+            )
         policy_loss = -torch.min(
             prob_ratio * advantages,
             torch.clip(prob_ratio, 1 - epsilon, 1 + epsilon_high) * advantages,
