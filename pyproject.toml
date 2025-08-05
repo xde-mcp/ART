@@ -4,7 +4,12 @@ version = "0.4.4"
 description = "The OpenPipe Agent Reinforcement Training (ART) library"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["openai>=1.65.5", "typer>=0.15.2", "litellm>=1.63.0","weave>=0.51.51",]
+dependencies = [
+    "openai>=1.65.5",
+    "typer>=0.15.2",
+    "litellm>=1.63.0",
+    "weave>=0.51.51",
+]
 
 [project.optional-dependencies]
 plotting = ["matplotlib>=3.10.1", "seaborn>=0.13.2"]
@@ -31,7 +36,10 @@ backend = [
     "trl==0.20.0",
 ]
 
-skypilot = ["semver>=3.0.4", "skypilot[cudo,do,fluidstack,gcp,lambda,paperspace,runpod]==0.9.3"]
+skypilot = [
+    "semver>=3.0.4",
+    "skypilot[cudo,do,fluidstack,gcp,lambda,paperspace,runpod]==0.9.3",
+]
 
 [project.scripts]
 art = "art.cli:app"
