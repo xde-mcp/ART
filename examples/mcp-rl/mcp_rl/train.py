@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 import os
 import weave
 import json
-import sys
 import argparse
 import fnmatch
 

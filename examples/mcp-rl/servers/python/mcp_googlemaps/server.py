@@ -29,14 +29,18 @@ class GoogleMapsClient:
         }
 
         async with aiohttp.ClientSession() as session:
-            async with session.get(self.geocoding_base_url, params=query_params) as response:
+            async with session.get(
+                self.geocoding_base_url, params=query_params
+            ) as response:
                 if response.status != 200:
                     raise Exception(f"API request failed: {response.status}")
 
                 data = await response.json()
 
                 if data.get("status") != "OK":
-                    raise Exception(f"Google Maps API Error: {data.get('status')} - {data.get('error_message', 'Unknown error')}")
+                    raise Exception(
+                        f"Google Maps API Error: {data.get('status')} - {data.get('error_message', 'Unknown error')}"
+                    )
 
                 return data
 
@@ -49,18 +53,24 @@ class GoogleMapsClient:
         }
 
         async with aiohttp.ClientSession() as session:
-            async with session.get(self.geocoding_base_url, params=query_params) as response:
+            async with session.get(
+                self.geocoding_base_url, params=query_params
+            ) as response:
                 if response.status != 200:
                     raise Exception(f"API request failed: {response.status}")
 
                 data = await response.json()
 
                 if data.get("status") != "OK":
-                    raise Exception(f"Google Maps API Error: {data.get('status')} - {data.get('error_message', 'Unknown error')}")
+                    raise Exception(
+                        f"Google Maps API Error: {data.get('status')} - {data.get('error_message', 'Unknown error')}"
+                    )
 
                 return data
 
-    async def places_nearby_search(self, location: str, radius: int, place_type: Optional[str] = None, **params) -> Dict[str, Any]:
+    async def places_nearby_search(
+        self, location: str, radius: int, place_type: Optional[str] = None, **params
+    ) -> Dict[str, Any]:
         """Search for nearby places"""
         url = f"{self.places_base_url}/nearbysearch/json"
         query_params = {
@@ -69,7 +79,7 @@ class GoogleMapsClient:
             "key": self.api_key,
             **params,
         }
-        
+
         if place_type:
             query_params["type"] = place_type
 
@@ -81,7 +91,9 @@ class GoogleMapsClient:
                 data = await response.json()
 
                 if data.get("status") not in ["OK", "ZERO_RESULTS"]:
-                    raise Exception(f"Google Maps API Error: {data.get('status')} - {data.get('error_message', 'Unknown error')}")
+                    raise Exception(
+                        f"Google Maps API Error: {data.get('status')} - {data.get('error_message', 'Unknown error')}"
+                    )
 
                 return data
 
@@ -102,7 +114,9 @@ class GoogleMapsClient:
                 data = await response.json()
 
                 if data.get("status") not in ["OK", "ZERO_RESULTS"]:
-                    raise Exception(f"Google Maps API Error: {data.get('status')} - {data.get('error_message', 'Unknown error')}")
+                    raise Exception(
+                        f"Google Maps API Error: {data.get('status')} - {data.get('error_message', 'Unknown error')}"
+                    )
 
                 return data
 
@@ -123,7 +137,9 @@ class GoogleMapsClient:
                 data = await response.json()
 
                 if data.get("status") != "OK":
-                    raise Exception(f"Google Maps API Error: {data.get('status')} - {data.get('error_message', 'Unknown error')}")
+                    raise Exception(
+                        f"Google Maps API Error: {data.get('status')} - {data.get('error_message', 'Unknown error')}"
+                    )
 
                 return data
 
@@ -144,7 +160,9 @@ class GoogleMapsClient:
                 data = await response.json()
 
                 if data.get("status") not in ["OK", "ZERO_RESULTS"]:
-                    raise Exception(f"Google Maps API Error: {data.get('status')} - {data.get('error_message', 'Unknown error')}")
+                    raise Exception(
+                        f"Google Maps API Error: {data.get('status')} - {data.get('error_message', 'Unknown error')}"
+                    )
 
                 return data
 
@@ -327,7 +345,7 @@ def main(api_key: Optional[str], port: int, transport: str) -> int:
                     params["region"] = arguments["region"]
                 if "bounds" in arguments:
                     params["bounds"] = arguments["bounds"]
-                
+
                 data = await client.geocode(address, **params)
                 return [
                     types.TextContent(
@@ -342,7 +360,7 @@ def main(api_key: Optional[str], port: int, transport: str) -> int:
                 params = {}
                 if "result_type" in arguments:
                     params["result_type"] = arguments["result_type"]
-                
+
                 data = await client.reverse_geocode(lat, lng, **params)
                 return [
                     types.TextContent(
@@ -359,7 +377,7 @@ def main(api_key: Optional[str], port: int, transport: str) -> int:
                     params["type"] = arguments["type"]
                 if "keyword" in arguments:
                     params["keyword"] = arguments["keyword"]
-                
+
                 data = await client.places_nearby_search(location, radius, **params)
                 return [
                     types.TextContent(
@@ -375,7 +393,7 @@ def main(api_key: Optional[str], port: int, transport: str) -> int:
                     params["location"] = arguments["location"]
                 if "radius" in arguments:
                     params["radius"] = arguments["radius"]
-                
+
                 data = await client.places_text_search(query, **params)
                 return [
                     types.TextContent(
@@ -389,7 +407,7 @@ def main(api_key: Optional[str], port: int, transport: str) -> int:
                 params = {}
                 if "fields" in arguments:
                     params["fields"] = arguments["fields"]
-                
+
                 data = await client.place_details(place_id, **params)
                 return [
                     types.TextContent(
@@ -407,7 +425,7 @@ def main(api_key: Optional[str], port: int, transport: str) -> int:
                     params["radius"] = arguments["radius"]
                 if "types" in arguments:
                     params["types"] = arguments["types"]
-                
+
                 data = await client.place_autocomplete(input_text, **params)
                 return [
                     types.TextContent(

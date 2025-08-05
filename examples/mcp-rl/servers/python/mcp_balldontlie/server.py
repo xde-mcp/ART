@@ -22,12 +22,10 @@ class BalldontlieClient:
     async def fetch_data(self, endpoint: str, **params) -> Dict[str, Any]:
         """Fetch data from Balldontlie API"""
         headers = {"Authorization": f"Bearer {self.api_key}"}
-        
+
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                f"{self.base_url}/{endpoint}", 
-                params=params, 
-                headers=headers
+                f"{self.base_url}/{endpoint}", params=params, headers=headers
             ) as response:
                 if response.status != 200:
                     raise Exception(f"API request failed: {response.status}")
@@ -195,8 +193,12 @@ def main(api_key: Optional[str], port: int, transport: str) -> int:
                     params = {}
                 else:
                     endpoint = "teams"
-                    params = {k: v for k, v in arguments.items() if k in ["division", "conference"]}
-                
+                    params = {
+                        k: v
+                        for k, v in arguments.items()
+                        if k in ["division", "conference"]
+                    }
+
                 data = await client.fetch_data(endpoint, **params)
                 return [
                     types.TextContent(
@@ -211,11 +213,21 @@ def main(api_key: Optional[str], port: int, transport: str) -> int:
                     params = {}
                 else:
                     endpoint = "players"
-                    params = {k: v for k, v in arguments.items() if k in [
-                        "cursor", "per_page", "search", "first_name", "last_name", 
-                        "team_ids", "player_ids"
-                    ]}
-                
+                    params = {
+                        k: v
+                        for k, v in arguments.items()
+                        if k
+                        in [
+                            "cursor",
+                            "per_page",
+                            "search",
+                            "first_name",
+                            "last_name",
+                            "team_ids",
+                            "player_ids",
+                        ]
+                    }
+
                 data = await client.fetch_data(endpoint, **params)
                 return [
                     types.TextContent(
@@ -230,11 +242,22 @@ def main(api_key: Optional[str], port: int, transport: str) -> int:
                     params = {}
                 else:
                     endpoint = "games"
-                    params = {k: v for k, v in arguments.items() if k in [
-                        "cursor", "per_page", "dates", "seasons", "team_ids", 
-                        "postseason", "start_date", "end_date"
-                    ]}
-                
+                    params = {
+                        k: v
+                        for k, v in arguments.items()
+                        if k
+                        in [
+                            "cursor",
+                            "per_page",
+                            "dates",
+                            "seasons",
+                            "team_ids",
+                            "postseason",
+                            "start_date",
+                            "end_date",
+                        ]
+                    }
+
                 data = await client.fetch_data(endpoint, **params)
                 return [
                     types.TextContent(
