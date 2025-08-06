@@ -443,11 +443,7 @@ class LocalBackend(Backend):
         step: int | None = None,
     ) -> None:
         metrics = {f"{split}/{metric}": value for metric, value in metrics.items()}
-        step = (
-            step
-            if step is not None
-            else self.__get_step(model)
-        )
+        step = step if step is not None else self.__get_step(model)
 
         # If we have a W&B run, log the data there
         if run := self._get_wandb_run(model):
