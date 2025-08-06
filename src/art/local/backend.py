@@ -273,7 +273,7 @@ class LocalBackend(Backend):
         os.makedirs(parent_dir, exist_ok=True)
 
         # Get the file name for the current iteration, or default to 0 for non-trainable models
-        iteration = self.__get_step(model) if isinstance(model, TrainableModel) else 0
+        iteration = self.__get_step(model)
         file_name = f"{iteration:04d}.jsonl"
 
         # Write the logs to the file
@@ -446,7 +446,7 @@ class LocalBackend(Backend):
         step = (
             step
             if step is not None
-            else (self.__get_step(model) if isinstance(model, TrainableModel) else 0)
+            else self.__get_step(model)
         )
 
         # If we have a W&B run, log the data there
