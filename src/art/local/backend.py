@@ -1,5 +1,6 @@
 import json
 import math
+from datetime import datetime
 
 from art.utils.deploy_model import (
     LoRADeploymentJob,
@@ -241,7 +242,7 @@ class LocalBackend(Backend):
             )
             steps_to_keep.append(best_step)
         except FileNotFoundError:
-            pass
+            print(f'"{output_dir}/history.jsonl" not found')
         except pl.exceptions.ColumnNotFoundError:
             print(f'No "{benchmark}" metric found in history')
         delete_checkpoints(output_dir, steps_to_keep)
@@ -444,6 +445,17 @@ class LocalBackend(Backend):
     ) -> None:
         metrics = {f"{split}/{metric}": value for metric, value in metrics.items()}
         step = step if step is not None else self.__get_step(model)
+
+        with open(f"{get_model_dir(model=model, art_path=self._path)}/history.jsonl", "a") as f:
+            f.write(
+                json.dumps(
+                    {
+                        k: v for k, v in metrics.items() if v == v
+                    }  # Filter out NaN values
+                    | {"step": step, "recorded_at": datetime.now().isoformat()}
+                )
+                + "\n"
+            )
 
         # If we have a W&B run, log the data there
         if run := self._get_wandb_run(model):
