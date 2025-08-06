@@ -446,7 +446,9 @@ class LocalBackend(Backend):
         metrics = {f"{split}/{metric}": value for metric, value in metrics.items()}
         step = step if step is not None else self.__get_step(model)
 
-        with open(f"{get_model_dir(model=model, art_path=self._path)}/history.jsonl", "a") as f:
+        with open(
+            f"{get_model_dir(model=model, art_path=self._path)}/history.jsonl", "a"
+        ) as f:
             f.write(
                 json.dumps(
                     {
