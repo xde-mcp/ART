@@ -860,7 +860,7 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
         del hidden_states, logits
 
         if return_new_logprobs:
-            return new_logprobs
+            return torch.nn.functional.pad(new_logprobs[:, :-1], (1, 0), value=0.0)
 
         old_logprobs = torch.where(
             torch.isnan(old_logprobs),
