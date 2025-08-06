@@ -704,6 +704,7 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
         inputs: PackedTensors,
         config: types.TrainConfig,
         dev_config: dev.TrainConfig,
+        return_new_logprobs: bool = False,
     ) -> torch.Tensor:
         from ..unsloth.train import shift_tensor
 
@@ -824,6 +825,9 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
         if assistant_mask.sum() == 0:
             # Like in LinearCrossEntropyLoss, mask 1 token to allow loss to sync with all data parallel workers
             assistant_mask[0] = True
+        if return_new_logprobs:
+            # If we're returning new logprobs, we need to mask all tokens
+            assistant_mask = torch.ones_like(assistant_mask, dtype=torch.bool)
 
         if isinstance(hidden_states, DTensor):
             # DTensor doesn't support masks so we have to mask locally
@@ -854,6 +858,9 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
             )
 
         del hidden_states, logits
+
+        if return_new_logprobs:
+            return new_logprobs
 
         old_logprobs = torch.where(
             torch.isnan(old_logprobs),
@@ -1174,7 +1181,7 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
             if self._current_device != self._device:
                 self._move_to(self._device)
             n = batch.disk_packed_tensors["num_sequences"]
-            return [
+            micro_batches = [
                 cast(
                     PackedTensors,
                     {
@@ -1187,7 +1194,25 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
                     math.ceil(n / self.dp_degree) * self.dp_degree,
                     self.dp_degree,
                 )
-            ], batch
+            ]
+            if batch.dev_config.get("precalculate_logprobs", False):
+                for micro_batch in micro_batches:
+                    utils.batch_to_device(micro_batch, self._device)  # type: ignore
+
+                    # We'll normalize by the total number of tokens when accumulating gradients
+                    with self.context_parallel_manager(list(micro_batch.values())):  # type: ignore
+                        new_logprobs = self._loss_step(
+                            micro_batch,
+                            batch.config,
+                            batch.dev_config,
+                            return_new_logprobs=True,
+                        )
+                        # Reshape from [seq_len] back to [1, seq_len] to match micro_batch tensor shapes
+                        micro_batch["logprobs"] = new_logprobs.unsqueeze(0)
+
+                    # Move tensors back to CPU after calculation
+                    utils.batch_to_device(micro_batch, torch.device("cpu"))  # type: ignore
+            return micro_batches, batch
 
     def _move_to(self, device: torch.device) -> None:
         """
