@@ -1201,14 +1201,12 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
 
                     # We'll normalize by the total number of tokens when accumulating gradients
                     with self.context_parallel_manager(list(micro_batch.values())):  # type: ignore
-                        new_logprobs = self._loss_step(
+                        micro_batch["logprobs"] = self._loss_step(
                             micro_batch,
                             batch.config,
                             batch.dev_config,
                             return_new_logprobs=True,
-                        )
-                        # Reshape from [seq_len] back to [1, seq_len] to match micro_batch tensor shapes
-                        micro_batch["logprobs"] = new_logprobs.unsqueeze(0)
+                        ).unsqueeze(0)
 
                     # Move tensors back to CPU after calculation
                     utils.batch_to_device(micro_batch, torch.device("cpu"))  # type: ignore
