@@ -1199,17 +1199,22 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
                 for micro_batch in micro_batches:
                     utils.batch_to_device(micro_batch, self._device)  # type: ignore
 
-                    # We'll normalize by the total number of tokens when accumulating gradients
-                    with self.context_parallel_manager(list(micro_batch.values())):  # type: ignore
-                        micro_batch["logprobs"] = self._loss_step(
-                            micro_batch,
-                            batch.config,
-                            batch.dev_config,
-                            return_new_logprobs=True,
-                        ).unsqueeze(0)
+                    # Disable gradient tracking for logprob calculation to save memory
+                    with torch.no_grad():
+                        # We'll normalize by the total number of tokens when accumulating gradients
+                        with self.context_parallel_manager(list(micro_batch.values())):  # type: ignore
+                            micro_batch["logprobs"] = self._loss_step(
+                                micro_batch,
+                                batch.config,
+                                batch.dev_config,
+                                return_new_logprobs=True,
+                            ).unsqueeze(0)
 
                     # Move tensors back to CPU after calculation
                     utils.batch_to_device(micro_batch, torch.device("cpu"))  # type: ignore
+                    # # Free GPU memory immediately
+                    # if self._device.type == "cuda":
+                    #     torch.cuda.empty_cache()
             return micro_batches, batch
 
     def _move_to(self, device: torch.device) -> None:
