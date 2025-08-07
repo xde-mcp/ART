@@ -48,6 +48,7 @@ async def gather_trajectory_groups(
         ae_processed_groups = await asyncio.gather(
             *(after_each(g) for g in processed_groups)
         )
+        processed_groups = []
         for g in ae_processed_groups:
             if g is None:
                 continue
