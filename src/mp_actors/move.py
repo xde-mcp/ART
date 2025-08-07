@@ -48,6 +48,17 @@ def move_to_child_process(
     return cast(T, Proxy(obj, log_file, process_name))
 
 
+def close_proxy(proxy: object) -> None:
+    """
+    After moving an object to a child process, you can use this function to close
+    the proxy object and terminate the child process.
+
+    Args:
+        proxy: The proxy object to close.
+    """
+    getattr(proxy, "close", lambda: None)()
+
+
 @dataclass
 class Request:
     id: str
@@ -180,7 +191,8 @@ class Proxy:
                     self._process.kill()
                 except AttributeError:
                     # fallback: os.kill
-                    os.kill(self._process.pid, 9)
+                    if self._process.pid:
+                        os.kill(self._process.pid, 9)
                 self._process.join()
 
         # shutdown executor cleanly

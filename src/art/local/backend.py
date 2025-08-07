@@ -1,6 +1,7 @@
 import json
 import math
 from datetime import datetime
+from types import TracebackType
 
 from art.utils.deploy_model import (
     LoRADeploymentJob,
@@ -16,7 +17,7 @@ from art.utils.output_dirs import (
     get_trajectories_split_dir,
 )
 from art.utils.trajectory_logging import serialize_trajectory_groups
-from mp_actors import move_to_child_process
+from mp_actors import close_proxy, move_to_child_process
 import numpy as np
 import os
 import polars as pl
@@ -26,6 +27,7 @@ from transformers.models.auto.tokenization_auto import AutoTokenizer
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from tqdm import auto as tqdm
 from typing import AsyncIterator, cast, Literal
+from typing_extensions import Self
 import wandb
 from wandb.sdk.wandb_run import Run
 import weave
@@ -78,20 +80,23 @@ class LocalBackend(Backend):
         self._wandb_runs: dict[str, Run] = {}
         self._weave_clients: dict[str, WeaveClient] = {}
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, *excinfo):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
         self.close()
 
-    def close(self):
+    def close(self) -> None:
         """
         If running vLLM in a separate process, this will kill that process and close the communication threads.
         """
         for _, service in self._services.items():
-            close_method = getattr(service, "close", None)
-            if callable(close_method):
-                close_method()
+            close_proxy(service)
 
     async def register(
         self,
@@ -217,8 +222,11 @@ class LocalBackend(Backend):
     async def _get_step(self, model: TrainableModel) -> int:
         return self.__get_step(model)
 
-    def __get_step(self, model: TrainableModel) -> int:
-        return get_model_step(model, self._path)
+    def __get_step(self, model: Model) -> int:
+        if isinstance(model, TrainableModel):
+            return get_model_step(model, self._path)
+        # Non-trainable models do not have checkpoints/steps; default to 0
+        return 0
 
     async def _delete_checkpoints(
         self,
