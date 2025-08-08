@@ -228,7 +228,7 @@ class Backend:
     async def _experimental_deploy(
         self,
         deploy_to: LoRADeploymentProvider,
-        model: "Model",
+        model: "TrainableModel",
         step: int | None = None,
         s3_bucket: str | None = None,
         prefix: str | None = None,

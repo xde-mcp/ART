@@ -319,7 +319,7 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
                 "Are you sure you passed in the right recipe checkpoint?"
             ) from e
 
-    def setup(self, cfg: RecipeConfig) -> None:
+    def setup(self, *, cfg: RecipeConfig, **kwargs: Any) -> None:
         """
         Setup the recipe. This includes training state (if resume_from_checkpoint is True),
         model, optimizer, and metric logger.
@@ -843,6 +843,7 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
 
         selected_logits = torch.zeros_like(old_logprobs)
         new_logprobs = torch.zeros_like(old_logprobs)
+        logits: torch.Tensor | None = None
 
         for start in range(0, hidden_states.size(0), chunk_size):
             end = min(start + chunk_size, hidden_states.size(0))
@@ -854,7 +855,9 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
                 logits, dim=-1
             )
 
-        del hidden_states, logits
+        del hidden_states
+        if logits is not None:
+            del logits
 
         if return_new_logprobs:
             return torch.nn.functional.pad(new_logprobs[:-1], (1, 0), value=0.0)
@@ -877,7 +880,7 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
 
         return loss
 
-    def train(self) -> None:
+    def train(self, *args: Any, **kwargs: Any) -> None:
         """
         The core training loop.
         """
@@ -937,6 +940,7 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
 
                 # Optimizer step (if not fused in backward call)
                 if (idx + 1) % self._gradient_accumulation_steps == 0:
+                    grad_norm: float | torch.Tensor | None = None
                     if not self._optimizer_in_bwd:
                         if self.is_distributed:
                             # Get total number of tokens across all ranks to normalize gradients
@@ -1008,8 +1012,16 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
                             log_dict.update(
                                 training.get_memory_stats(device=self._device)
                             )
-                        if self._clip_grad_norm is not None:
-                            log_dict.update({"grad_norm": grad_norm})
+                        if self._clip_grad_norm is not None and grad_norm is not None:
+                            log_dict.update(
+                                {
+                                    "grad_norm": (
+                                        float(grad_norm)
+                                        if not isinstance(grad_norm, torch.Tensor)
+                                        else float(grad_norm.detach().item())
+                                    )
+                                }
+                            )
                         log_dict["num_gradient_steps"] = (
                             len(micro_batches) // self._gradient_accumulation_steps
                         )
@@ -1297,7 +1309,7 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
             f"Completed move to {device} in {move_time:.2f} seconds",
         )
 
-    def cleanup(self) -> None:
+    def cleanup(self, *args: Any, **kwargs: Any) -> None:
         if self._is_rank_zero:
             self._metric_logger.close()
         destroy_process_group()

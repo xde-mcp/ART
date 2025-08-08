@@ -152,7 +152,7 @@ class TrajectoryGroup(pydantic.BaseModel):
             ],
         )
 
-    def __iter__(self) -> Iterator[Trajectory]:
+    def __iter__(self) -> Iterator[Trajectory]:  # type: ignore[override]
         return iter(self.trajectories)
 
     def __len__(self) -> int:

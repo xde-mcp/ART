@@ -121,7 +121,11 @@ def convert_together_job_status(
     status: str, message: str | None = None
 ) -> LoRADeploymentJobStatus:
     MODEL_ALREADY_EXISTS_ERROR_MESSAGE = "409 Client Error: Conflict for url: https://api.together.ai/api/admin/entity/Model"
-    if status == "Error" and MODEL_ALREADY_EXISTS_ERROR_MESSAGE in message:
+    if (
+        status == "Error"
+        and message is not None
+        and MODEL_ALREADY_EXISTS_ERROR_MESSAGE in message
+    ):
         return LoRADeploymentJobStatus.COMPLETE
     if status == "Bad" or status == "Error":
         return LoRADeploymentJobStatus.FAILED
@@ -221,6 +225,7 @@ async def deploy_model(
     https://docs.together.ai/docs/lora-inference#supported-base-models
     """
 
+    art_path = art_path or get_default_art_path()
     os.makedirs(art_path, exist_ok=True)
     if pull_s3:
         # pull the latest step from S3
@@ -265,6 +270,7 @@ async def deploy_model(
             job_id = deployment_result["data"]["job_id"]
         else:
             job_id = existing_job_id
+            assert job_id is not None
             print(
                 f"Previous deployment for {model.name} at step {step} has status '{existing_job.status}', skipping redployment"
             )

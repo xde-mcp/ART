@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 class SkyPilotBackend(Backend):
     _cluster_name: str
     _envs: dict[str, str]
+    _art_server_job_id: str | None
 
     @classmethod
     async def initialize_cluster(
@@ -109,6 +110,8 @@ class SkyPilotBackend(Backend):
                 )
             )
             resources = clusters[0]["handle"].launched_resources
+            if resources is None:
+                raise ValueError("Cluster handle has no launched resources")
 
             # For some reason, skypilot doesn't support the region and zone set
             resources = resources.copy(region=None, zone=None)
